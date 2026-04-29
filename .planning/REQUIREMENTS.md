@@ -277,17 +277,154 @@ Tudo abaixo é desejável mas não-essencial para v1. Reavaliar após primeiros 
 
 ## Traceability
 
-Empty — populated during roadmap creation.
+Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% (129/129).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (TBD) | (TBD) | Pending |
+| INFRA-01 | Phase 1 — Foundation | Pending |
+| INFRA-02 | Phase 1 — Foundation | Pending |
+| INFRA-03 | Phase 1 — Foundation | Pending |
+| INFRA-04 | Phase 1 — Foundation | Pending |
+| INFRA-05 | Phase 1 — Foundation | Pending |
+| INFRA-06 | Phase 1 — Foundation | Pending |
+| INFRA-07 | Phase 1 — Foundation | Pending |
+| INFRA-08 | Phase 1 — Foundation | Pending |
+| INFRA-09 | Phase 1 — Foundation | Pending |
+| INFRA-10 | Phase 1 — Foundation | Pending |
+| INFRA-11 | Phase 1 — Foundation | Pending |
+| INFRA-12 | Phase 1 — Foundation | Pending |
+| AUTH-01 | Phase 1 — Foundation | Pending |
+| AUTH-02 | Phase 1 — Foundation | Pending |
+| AUTH-03 | Phase 1 — Foundation | Pending |
+| AUTH-04 | Phase 1 — Foundation | Pending |
+| AUTH-05 | Phase 1 — Foundation | Pending |
+| AUTH-06 | Phase 1 — Foundation | Pending |
+| AUTH-07 | Phase 1 — Foundation | Pending |
+| AUTH-08 | Phase 1 — Foundation | Pending |
+| AUTH-09 | Phase 1 — Foundation | Pending |
+| AUTH-10 | Phase 1 — Foundation | Pending |
+| AUTH-11 | Phase 1 — Foundation | Pending |
+| LGPD-01 | Phase 1 — Foundation | Pending |
+| LGPD-02 | Phase 1 — Foundation | Pending |
+| LGPD-03 | Phase 1 — Foundation | Pending |
+| LGPD-04 | Phase 1 — Foundation | Pending |
+| LGPD-05 | Phase 1 — Foundation | Pending |
+| LGPD-06 | Phase 1 — Foundation | Pending |
+| ING-01 | Phase 2 — Motor Financeiro | Pending |
+| ING-02 | Phase 2 — Motor Financeiro | Pending |
+| ING-03 | Phase 2 — Motor Financeiro | Pending |
+| ING-04 | Phase 2 — Motor Financeiro | Pending |
+| ING-05 | Phase 2 — Motor Financeiro | Pending |
+| ING-06 | Phase 2 — Motor Financeiro | Pending |
+| ING-07 | Phase 2 — Motor Financeiro | Pending |
+| ING-08 | Phase 2 — Motor Financeiro | Pending |
+| REC-01 | Phase 2 — Motor Financeiro | Pending |
+| REC-02 | Phase 2 — Motor Financeiro | Pending |
+| REC-03 | Phase 2 — Motor Financeiro | Pending |
+| REC-04 | Phase 2 — Motor Financeiro | Pending |
+| REC-05 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-01 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-02 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-03 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-04 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-05 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-06 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-07 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-08 | Phase 2 — Motor Financeiro | Pending |
+| PROD-01 | Phase 2 — Motor Financeiro | Pending |
+| PROD-02 | Phase 2 — Motor Financeiro | Pending |
+| PROD-03 | Phase 3 — Catálogo Público | Pending |
+| PROD-04 | Phase 3 — Catálogo Público | Pending |
+| PROD-05 | Phase 3 — Catálogo Público | Pending |
+| PROD-06 | Phase 3 — Catálogo Público | Pending |
+| PROD-07 | Phase 3 — Catálogo Público | Pending |
+| PROD-08 | Phase 2 — Motor Financeiro | Pending |
+| PROD-09 | Phase 2 — Motor Financeiro | Pending |
+| PROD-10 | Phase 2 — Motor Financeiro | Pending |
+| CAT-01 | Phase 3 — Catálogo Público | Pending |
+| CAT-02 | Phase 3 — Catálogo Público | Pending |
+| CAT-03 | Phase 3 — Catálogo Público | Pending |
+| CAT-04 | Phase 3 — Catálogo Público | Pending |
+| CAT-05 | Phase 3 — Catálogo Público | Pending |
+| CAT-06 | Phase 3 — Catálogo Público | Pending |
+| CAT-07 | Phase 3 — Catálogo Público | Pending |
+| CAT-08 | Phase 3 — Catálogo Público | Pending |
+| RES-01 | Phase 4 — Reserva + Pontos | Pending |
+| RES-02 | Phase 4 — Reserva + Pontos | Pending |
+| RES-03 | Phase 4 — Reserva + Pontos | Pending |
+| RES-04 | Phase 4 — Reserva + Pontos | Pending |
+| RES-05 | Phase 4 — Reserva + Pontos | Pending |
+| RES-06 | Phase 4 — Reserva + Pontos | Pending |
+| RES-07 | Phase 4 — Reserva + Pontos | Pending |
+| RES-08 | Phase 4 — Reserva + Pontos | Pending |
+| RES-09 | Phase 4 — Reserva + Pontos | Pending |
+| RES-10 | Phase 4 — Reserva + Pontos | Pending |
+| RES-11 | Phase 4 — Reserva + Pontos | Pending |
+| RES-12 | Phase 4 — Reserva + Pontos | Pending |
+| RES-13 | Phase 4 — Reserva + Pontos | Pending |
+| RES-14 | Phase 4 — Reserva + Pontos | Pending |
+| RES-15 | Phase 4 — Reserva + Pontos | Pending |
+| PT-01 | Phase 4 — Reserva + Pontos | Pending |
+| PT-02 | Phase 4 — Reserva + Pontos | Pending |
+| PT-03 | Phase 4 — Reserva + Pontos | Pending |
+| PT-04 | Phase 4 — Reserva + Pontos | Pending |
+| PT-05 | Phase 4 — Reserva + Pontos | Pending |
+| PT-06 | Phase 4 — Reserva + Pontos | Pending |
+| PT-07 | Phase 4 — Reserva + Pontos | Pending |
+| PT-08 | Phase 4 — Reserva + Pontos | Pending |
+| PT-09 | Phase 4 — Reserva + Pontos | Pending |
+| RESG-01 | Phase 5 — Engagement | Pending |
+| RESG-02 | Phase 5 — Engagement | Pending |
+| RESG-03 | Phase 5 — Engagement | Pending |
+| RESG-04 | Phase 5 — Engagement | Pending |
+| RESG-05 | Phase 5 — Engagement | Pending |
+| RESG-06 | Phase 5 — Engagement | Pending |
+| RESG-07 | Phase 5 — Engagement | Pending |
+| SORT-01 | Phase 5 — Engagement | Pending |
+| SORT-02 | Phase 5 — Engagement | Pending |
+| SORT-03 | Phase 5 — Engagement | Pending |
+| SORT-04 | Phase 5 — Engagement | Pending |
+| SORT-05 | Phase 5 — Engagement | Pending |
+| SORT-06 | Phase 5 — Engagement | Pending |
+| SORT-07 | Phase 5 — Engagement | Pending |
+| SORT-08 | Phase 5 — Engagement | Pending |
+| SAZON-01 | Phase 6 — Sazonalidade Visual | Pending |
+| SAZON-02 | Phase 6 — Sazonalidade Visual | Pending |
+| SAZON-03 | Phase 6 — Sazonalidade Visual | Pending |
+| SAZON-04 | Phase 6 — Sazonalidade Visual | Pending |
+| ADM-01 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| ADM-02 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| ADM-03 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| ADM-04 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| ADM-05 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| ADM-06 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-01 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-02 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-03 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-04 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-05 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-06 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| FIN-07 | Phase 7 — Admin Operacional + Relatórios | Pending |
+| NOTIF-01 | Phase 4 — Reserva + Pontos | Pending |
+| NOTIF-02 | Phase 4 — Reserva + Pontos | Pending |
+| NOTIF-03 | Phase 4 — Reserva + Pontos | Pending |
+| NOTIF-04 | Phase 4 — Reserva + Pontos | Pending |
+| NOTIF-05 | Phase 4 — Reserva + Pontos | Pending |
 
 **Coverage:**
-- v1 requirements: 130 total (counted across categories)
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 130 ⚠️ (will resolve at roadmap creation)
+- v1 requirements: 129 total (12 INFRA + 11 AUTH + 6 LGPD + 8 ING + 5 REC + 8 LOTE + 10 PROD + 8 CAT + 15 RES + 9 PT + 7 RESG + 8 SORT + 4 SAZON + 6 ADM + 7 FIN + 5 NOTIF)
+- Mapped to phases: 129 ✓
+- Unmapped: 0
+
+**Distribuição por fase:**
+- Phase 1 — Foundation: 29 requirements (INFRA + AUTH + LGPD)
+- Phase 2 — Motor Financeiro: 26 requirements (ING + REC + LOTE + PROD subset)
+- Phase 3 — Catálogo Público: 13 requirements (PROD subset + CAT)
+- Phase 4 — Reserva + Pontos: 29 requirements (RES + PT + NOTIF)
+- Phase 5 — Engagement: 15 requirements (RESG + SORT)
+- Phase 6 — Sazonalidade Visual: 4 requirements (SAZON)
+- Phase 7 — Admin Operacional + Relatórios: 13 requirements (ADM + FIN)
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after initial definition (synthesized from PROJECT.md + research/SUMMARY.md + 6 user decisions on scope gates)*
+*Last updated: 2026-04-29 — traceability populada após criação do ROADMAP.md (7 fases, 129/129 requirements mapeados)*
