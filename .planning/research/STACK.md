@@ -37,23 +37,30 @@
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
 | **PostgreSQL** | **16+** (container `postgres:16-alpine`) | Banco principal | Já decidido; `16-alpine` ~80MB, suficiente pra v1 |
-| **Drizzle ORM** | **0.45.2** | Type-safe SQL builder + relational queries | Ver racional abaixo |
-| **drizzle-kit** | **0.31.10** | CLI de migrations (gera SQL legível, faz `push` em dev e `migrate` em prod) | Pareado com Drizzle |
-| **postgres** (postgres.js) | **3.4.9** | Driver Postgres mais rápido pra Node | Recomendado pelo Drizzle pra single-instance |
+| **Prisma 7** | **7.x (latest)** | ORM completo + Migrate + Studio GUI | Ver racional abaixo. Decisão revisada 2026-04-30. |
+| **@prisma/client** | **7.x** | Cliente type-safe (Prisma 7 removeu Rust query engine — agora TS puro, mais leve) | Pareado com Prisma 7 |
+| **prisma-cli** (`prisma`) | **7.x** | CLI de migrations (`prisma migrate dev`, `prisma migrate deploy`, `prisma db push`) + Studio | Pareado |
 
-**Drizzle vs Prisma vs Kysely — racional:**
-- **Drizzle vence aqui** porque: (a) gera SQL legível em arquivos `.sql` que a mãe pode ver versionados (importante porque é o único registro de mudanças no banco — sem Prisma Migrate Service); (b) zero generate step (tipos atualizam direto, importante quando você está trocando de máquina/SO); (c) bundle ~10x menor que Prisma 6, o que reduz cold start e RAM em VPS de 1-2GB; (d) `relational queries` API (`db.query.products.findMany({ with: { lot: true } })`) tem ergonomia próxima da do Prisma.
-- **Prisma 7 (estável em 2026)** é uma alternativa válida — DX é mais limpa pra quem nunca escreveu SQL. Mas o overhead de runtime + o fato de migrations dependerem do `prisma migrate` (que tem comportamento "shadow database" complicado em VPS sem Postgres extra) é fricção em ambiente self-hosted.
+**Prisma 7 vs Drizzle vs Kysely — racional (revisado 2026-04-30):**
+
+- **Prisma 7 vence aqui (decisão atualizada)** porque: (a) DX superior — schema declarativo (`prisma/schema.prisma`) é mais legível que TS schema do Drizzle pra revisão; (b) **Prisma Studio** é GUI grátis, polido, permite a mãe (não-técnica) inspecionar dados sem SQL; (c) Prisma 7 removeu o Rust query engine — agora 100% TypeScript, bundle reduzido drasticamente vs v6, cold start ok em VPS pequeno; (d) Better Auth tem adapter Prisma oficial estável; (e) `include`/`select` explícito força o dev a pensar em N+1 desde o começo (alinha com Pitfall 4.3); (f) `prisma.$queryRaw` cobre os casos Postgres-only (`numeric(19,4)`, triggers, CHECK XOR, custo congelado event-sourcing).
+- **Drizzle (escolha original)** descartado: feedback do user em 2026-04-30 — preferência por DX Prisma e Prisma Studio. Drizzle é estável e bom em SQL puro, mas trade-off de DX/Studio pesou mais.
 - **Kysely** é puro query builder, sem schema-first. Bom pra projetos enterprise que já têm DBA, ruim pra um sistema onde o owner técnico (você) também faz UI.
 
-> **v1 obrigatório:** Drizzle + drizzle-kit + postgres.js. Confiança: **HIGH**.
+**Atenção Prisma 7 (mesmo padrão Next 16):** Prisma 7 tem mudanças vs v6 (Rust query engine removido, novos comportamentos de adapter). Researcher e planner DEVEM consultar docs oficiais Prisma 7 + `node_modules/@prisma/client/` antes de propor APIs. Não confiar em training data anterior a 2026.
+
+**Migration strategy em VPS pequena (sem shadow DB extra):** `prisma migrate dev` cria shadow DB temporário automaticamente em DEV. Em PROD usar `prisma migrate deploy` (não cria shadow, só aplica migrations existentes — sem fricção em VPS pequena). Schema em `prisma/schema.prisma` versionado no Git; migrations em `prisma/migrations/` versionadas como SQL legível.
+
+**Adapter de driver:** Prisma 7 usa adapters (Driver Adapters API estabilizada na v6). Para postgres.js direto: `@prisma/adapter-pg` (oficial). Em VPS single-instance, o pool default Prisma é suficiente — adapter postgres.js é opcional.
+
+> **v1 obrigatório:** Prisma 7 + @prisma/client + prisma CLI. Confiança: **HIGH** (decisão revisada com user em 2026-04-30; Better Auth adapter Prisma oficial confirmado).
 
 ### Auth
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| **Better Auth** | **1.6.9** | Auth completo (sessions DB, email/senha, plugins) com adapter pra Drizzle | Ver racional abaixo |
-| `@better-auth/drizzle-adapter` | (incluso no core) | Persiste sessions e users no Postgres via Drizzle | — |
+| **Better Auth** | **1.6.9** | Auth completo (sessions DB, email/senha, plugins) com adapter pra Prisma | Ver racional abaixo |
+| `@better-auth/prisma-adapter` (incluso no core) | — | Persiste sessions e users no Postgres via Prisma | — |
 | **argon2** | **0.44.0** | Hash de senha (já usado por Better Auth internamente; documentado caso queira customizar) | Recomendação OWASP atual; mais resistente a GPU que bcrypt |
 
 **Better Auth vs NextAuth (Auth.js v5) vs Lucia vs roll-your-own — racional:**
@@ -333,8 +340,9 @@ Pra um sistema que será usado por 1 admin (a mãe) + ~50 clientes do bairro, **
 
 ```bash
 # Banco/ORM
-npm install drizzle-orm postgres
-npm install -D drizzle-kit @types/pg
+npm install @prisma/client
+npm install -D prisma
+npx prisma init  # cria prisma/schema.prisma + .env
 
 # Auth
 npm install better-auth
@@ -392,7 +400,8 @@ sudo apt install rclone
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| Drizzle | Prisma | Se a equipe nunca escreveu SQL e DX é prioridade absoluta. Não recomendado em VPS apertada |
+| Prisma 7 | Drizzle | Se equipe quiser SQL puro versionável e bundle mínimo absoluto; foi a escolha original da research, revisada em 2026-04-30 |
+| Prisma 7 | Kysely | Se já existir DBA/SQL-first culture; aqui Prisma 7 ganha por DX/Studio |
 | Better Auth | Auth.js v5 | Se for adicionar 5+ provedores OAuth (Google + GitHub + Apple…) — Auth.js tem mais providers prontos |
 | postgres.js | node-postgres (pg) | Se quiser ecossistema mais maduro; ~10% mais lento mas mais bibliotecas (Connect Pool, etc) |
 | Docker Compose | Dokploy | Quando começar a ter mais de 1 app na VPS (ex: Doces Valentina + segundo projeto) e quiser UI |
@@ -420,7 +429,7 @@ sudo apt install rclone
 | **bcryptjs (puro JS)** | Slow loop em JS é vulnerável a timing; também 100x mais lento que bcrypt nativo | argon2 (default Better Auth) ou bcrypt nativo |
 | **`fetch` com `cache: 'no-store'` por todo lado** | Cache do Next 16 é por componente agora — usar `'use cache'` quando faz sentido, request-time APIs (cookies/headers) já forçam dynamic | Compor com `<Suspense>` + `'use cache'` |
 | **next-auth v4** | Muito código antigo; v5 é breaking; e ainda assim Better Auth é melhor pra esse caso | (ver Auth) |
-| **Prisma Migrate em VPS sem shadow DB** | Comportamento confuso ao não conseguir criar shadow DB | Drizzle migrations (SQL puro) |
+| **`prisma migrate dev` em PROD** | Tenta criar shadow DB; em PROD VPS pequena pode falhar | `prisma migrate deploy` em PROD (só aplica, não cria shadow); `prisma migrate dev` apenas em DEV |
 
 ---
 
@@ -448,9 +457,9 @@ sudo apt install rclone
 | `next@16.2.4` | `react@19.2.4`, `react-dom@19.2.4` | React 19.2 é canary; pinned pelo Next 16 |
 | `next@16.2.4` | Node.js **>=20.9.0** (LTS) | Node 18 não suportado mais |
 | `next@16.2.4` | TypeScript **>=5.1** | Required |
-| `drizzle-orm@0.45.x` | `drizzle-kit@0.31.x` | Sempre atualizar juntos |
-| `drizzle-orm@0.45.x` | `postgres@3.4.x` (postgres.js) ou `pg@^8` | Ambos OK |
-| `better-auth@1.6.x` | `next@16.x`, `drizzle-orm@^0.30+` | Adapter explícito pra Drizzle |
+| `prisma@7.x` | `@prisma/client@7.x` | Sempre atualizar juntos (mesma minor) |
+| `prisma@7.x` | Postgres 16+ | Suporta `numeric(19,4)` via `@db.Decimal(19,4)` |
+| `better-auth@1.6.x` | `next@16.x`, `prisma@7.x` | Adapter Prisma oficial; verificar issue de compat antes de instalar |
 | `tailwindcss@4` | shadcn/ui CLI **4.6.x+** | shadcn antes da 4.0 não suporta Tailwind v4 |
 | `react@19.2` | `babel-plugin-react-compiler@1.0.0` | Já no devDeps; precisa habilitar `reactCompiler: true` |
 | `pg-boss@12.x` | Postgres **12+** | Usa `FOR UPDATE SKIP LOCKED` |
@@ -469,7 +478,7 @@ sudo apt install rclone
   - `01-app/02-guides/authentication.md` — recommended libs (Better Auth listado, Lucia NÃO listado), DAL pattern, Server Actions security
   - `01-app/02-guides/forms.md` — Server Actions + Zod pattern oficial
   - `01-app/02-guides/production-checklist.md` — security, taint API, env vars
-- **`npm view <pkg> version` (verificado em 2026-04-29):** Drizzle 0.45.2, Better Auth 1.6.9, Resend 6.12.2, sharp 0.34.5, pg-boss 12.18.1, Zod 4.3.6, react-hook-form 7.74.0, postgres 3.4.9, shadcn 4.6.0, lucide-react 1.14.0, sonner 2.0.7, date-fns 4.1.0, pino 10.3.1, @t3-oss/env-nextjs 0.13.11
+- **`npm view <pkg> version` (verificado em 2026-04-29; ORM revisado 2026-04-30):** Prisma 7.x (latest — verificar `npm view prisma version` antes de instalar), @prisma/client 7.x, Better Auth 1.6.9, Resend 6.12.2, sharp 0.34.5, pg-boss 12.18.1, Zod 4.3.6, react-hook-form 7.74.0, shadcn 4.6.0, lucide-react 1.14.0, sonner 2.0.7, date-fns 4.1.0, pino 10.3.1, @t3-oss/env-nextjs 0.13.11
 
 ### Verified secondary (MEDIUM confidence)
 
@@ -477,7 +486,8 @@ sudo apt install rclone
 - [Better Auth issue #5263 — Next 16 support](https://github.com/better-auth/better-auth/issues/5263)
 - [Lucia deprecation announcement & Better Auth recommendation (Wisp blog, libhunt, daily.dev)](https://www.wisp.blog/blog/lucia-auth-is-dead-whats-next-for-auth)
 - [Coolify CVE disclosure January 2026 (TheHackerNews, securityonline.info)](https://thehackernews.com/2026/01/coolify-discloses-11-critical-flaws.html) — patches em beta.451+
-- [Drizzle ORM Postgres setup](https://orm.drizzle.team/docs/get-started/postgresql-new) — postgres.js vs node-postgres
+- [Prisma 7 docs](https://www.prisma.io/docs) — schema, migrations, Studio, driver adapters
+- [Better Auth Prisma adapter](https://better-auth.com/docs/adapters/prisma) — config, session/user models
 - [Resend + Next.js docs](https://resend.com/docs/send-with-nextjs) — webhook handling, React Email pattern
 - [pg-boss GitHub README](https://github.com/timgit/pg-boss) — singleton jobs, cron syntax
 - [shadcn/ui Tailwind v4 support](https://ui.shadcn.com/docs/tailwind-v4)
@@ -486,7 +496,7 @@ sudo apt install rclone
 
 ### Single-source / lower confidence (LOW)
 
-- Versão exata `drizzle-orm@1.0` em beta — pode estabilizar até o fim do roadmap; verificar `npm view drizzle-orm version` antes de instalar em cada phase
+- Versão exata Prisma 7 latest — verificar `npm view prisma version` antes de instalar em cada phase; Prisma 7 ainda relativamente novo, pode ter patches frequentes
 
 ---
 

@@ -35,9 +35,9 @@ Pontos críticos cruzando os 4 docs. Uma tela.
 |---|---|---|---|
 | Framework | Next.js 16 App Router | 16.2.4 | Travado pelo PROJECT.md. Habilitar `reactCompiler: true`. |
 | Runtime | React 19.2 + TS 5+ strict | — | Pinned pelo Next 16. |
-| ORM | **Drizzle ORM + drizzle-kit + postgres.js** | 0.45.2 / 0.31.10 / 3.4.9 | SQL legível versionável; sem generate step; bundle ~10x menor que Prisma. |
+| ORM | **Prisma 7 ORM + Prisma Migrate + Prisma Studio** | 7.x (latest) | Decisão revisada 2026-04-30 (era Drizzle): DX superior, Studio polido para a mãe inspecionar dados, Prisma 7 removeu Rust query engine (TS puro, mais leve). Better Auth tem adapter Prisma oficial estável. Postgres-only features (`numeric(19,4)`, triggers, CHECK XOR) usam `prisma.$queryRaw` quando necessário. **Atenção:** Prisma 7 tem mudanças vs v6 — consultar docs oficiais e `node_modules/@prisma/client/` antes de codar. |
 | Banco | PostgreSQL 16 (`postgres:16-alpine`) | 16+ | Travado. |
-| Auth | **Better Auth + adapter Drizzle + argon2** | 1.6.9 / 0.44.0 | Lucia deprecated; Auth.js v5 desencoraja sessions DB com credentials; Better Auth tem flow email-first, sessions DB, Next 16-ready. |
+| Auth | **Better Auth + adapter Prisma + argon2** | 1.6.9 / 0.44.0 | Lucia deprecated; Auth.js v5 desencoraja sessions DB com credentials; Better Auth tem flow email-first, sessions DB, Next 16-ready. Adapter Prisma oficial. |
 | Forms server | `<form action={serverAction}>` + `useActionState` + Zod | Zod 4.3.6 | Padrão oficial Next 16. Progressive enhancement. |
 | Forms admin complexos | react-hook-form + @hookform/resolvers + Zod | 7.74.0 / 5.2.2 | Array fields dinâmicos. Mesmo schema cliente+server. |
 | Email | Resend + @react-email/components + render + svix | 6.12.2 / 1.0.12 / 2.0.8 | Travado. svix valida webhooks. |
@@ -140,7 +140,7 @@ FASE 0 — Foundation (infra + schema + auth)
     CRÍTICOS: 2.2 timezone, 2.4 migrations versionadas, 3.3 SSL, 3.4 domínio,
               3.6 SPOF/DDoS (Cloudflare+UFW+rate limit), 4.4 CSRF, 7.1 senha admin (MFA email)
     IMPORTANTES: 1.1 LGPD menores, 1.3 política descritiva, 4.5 logs sem PII
-  Phase research necessária: SIM (Better Auth + Next 16 proxy.ts; Cloudflare config; Drizzle expand-then-contract)
+  Phase research necessária: SIM (Better Auth + Next 16 proxy.ts; Cloudflare config; Prisma 7 expand-then-contract com `prisma migrate`)
 
 FASE 1 — Custo de produção (motor financeiro)
   Entrega: ingredientes, compras (evento imutável), receitas, produtos (mínimo),
@@ -184,7 +184,7 @@ FASE 5 — Sazonalidade visual
 
 FASE 6 — Relatórios
   Entrega: faturamento, top produtos, lucro real, análise por marca, sazonalidade no histórico
-  Pitfalls: IMPORTANTE→CRÍTICO 4.3 N+1 (drizzle.with + materialized view 1×/dia + seed realista + EXPLAIN)
+  Pitfalls: IMPORTANTE→CRÍTICO 4.3 N+1 (Prisma `include`/`select` explícito + materialized view 1×/dia + seed realista + EXPLAIN)
   Phase research: NÃO
 
 FASE 7 — Hardening de produção (gates pré-launch)
@@ -210,7 +210,7 @@ FASE 7 — Hardening de produção (gates pré-launch)
 | Better Auth (não Lucia/NextAuth) | **Ratio de pontos default** (research: 1pt = R$ 1, brigadeiro custa ≥ 3× margem em pts) — aceitar? |
 | Docker Compose direto (não Coolify/Dokploy v1) | **Janela de cancelamento default** (research: 24h) — confirmar? |
 | Caddy no host (não Nginx + certbot) | **Threshold de margem para alerta** (PROJECT diz 30%) — confirmar? |
-| Drizzle + postgres.js (não Prisma/Kysely) | **Política de retenção** ("5 anos para fins fiscais, depois anonimizado")? |
+| Prisma 7 + Prisma Migrate (revisado de Drizzle em 2026-04-30) | **Política de retenção** ("5 anos para fins fiscais, depois anonimizado")? |
 | pg-boss para jobs | **Expiração de pontos** (research: 12m declarada nos termos)? |
 | Cloudflare Proxy laranja em todos os subdomínios | **Onboarding guiado da mãe** entra em v1? (research: SIM) |
 | money em `numeric(19,4)` OU `bigint` centavos | **Quem opera o admin nas 2 primeiras semanas — mãe ou filho?** (afeta UX testing) |
@@ -247,7 +247,7 @@ FASE 7 — Hardening de produção (gates pré-launch)
 ### Riscos contínuos (vigiar)
 
 - **Email deliverability**: DMARC warm-up para `quarantine` em 2 semanas; deliverability score Resend semanal.
-- **N+1 em relatórios**: drizzle `.with` desde já + materialized view + seed realista (12 meses × 50 reservas) antes de produção.
+- **N+1 em relatórios**: Prisma `include`/`select` explícito desde já + materialized view + seed realista (12 meses × 50 reservas) antes de produção.
 - **Disco lotando**: pipeline sharp obrigatório; logrotate; cron cleanup `.next/cache/images`; alerta `df -h > 80%`.
 - **Inflação de pontos**: simulador no admin; cap por reserva; expiração 12m; revisão mensal automática.
 - **Bus factor 1**: OPERATIONS.md PT-BR + Bitwarden compartilhado + dev secundário ciente.

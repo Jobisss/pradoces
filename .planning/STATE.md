@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 1 of 7 (Foundation)
 Plan: 0 of TBD in current phase
-Status: CONTEXT.md captured — ready for plan-phase
-Last activity: 2026-04-30 — Phase 1 CONTEXT.md gathered (8 decisions across 2 areas: home / + bootstrap admin); resume file `.planning/phase-1-foundation/01-CONTEXT.md`
+Status: Stack revisado (Drizzle→Prisma 7) — pronto pra retomar plan-phase
+Last activity: 2026-04-30 — Phase 1 plan-phase pausado pra revisão de stack; user pediu trocar Drizzle→Prisma 7 (mantém Cloudflare proxy); D-09 adicionado em CONTEXT.md; PROJECT.md/STATE.md/ROADMAP.md/REQUIREMENTS.md/AGENTS.md/research/* atualizados; resume file `.planning/phase-1-foundation/01-CONTEXT.md`
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -41,7 +41,7 @@ Progress: [░░░░░░░░░░] 0%
 
 Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY.md):
 
-- Stack travado: Next.js 16 (App Router) + Postgres 16 + Drizzle + Better Auth + Resend + pg-boss + Caddy + Cloudflare Proxy
+- Stack travado: Next.js 16 (App Router) + Postgres 16 + **Prisma 7** (revisado de Drizzle em 2026-04-30) + Better Auth (adapter Prisma) + Resend + pg-boss + Caddy + Cloudflare Proxy
 - Money em `numeric(19,4)` schema-wide; datas em `timestamptz` com TZ=America/Sao_Paulo
 - Custo histórico imutável: lote denormaliza `marca_snapshot` + `custo_congelado` (FK pra `ingrediente_compra_id`)
 - Saldo de pontos derivado por SUM em ledger imutável (sem coluna em `clientes`)
@@ -79,5 +79,5 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 ## Session Continuity
 
 Last session: 2026-04-30
-Stopped at: Phase 1 CONTEXT.md gathered (discuss mode default — 8 decisions, 4 deferred ideas, 3 areas em Claude's discretion). Pronto para `/gsd-plan-phase 1`.
-Resume file: .planning/phase-1-foundation/01-CONTEXT.md
+Stopped at: Phase 1 plan-phase pausado pra revisão de stack — D-09 ORM swap (Drizzle→Prisma 7) aprovado, Cloudflare proxy mantido. Docs atualizados (PROJECT.md, AGENTS.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, CONTEXT.md, research/STACK+SUMMARY+ARCHITECTURE+PITFALLS). Pronto para retomar `/gsd-plan-phase 1` com decisão de research first vs skip.
+Resume file: .planning/phase-1-foundation/01-CONTEXT.md (D-09 é a decisão mais recente)

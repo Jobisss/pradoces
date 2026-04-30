@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Cliente clica "esqueci minha senha", recebe link, redefine — token é single-use, expira em 30-60min, sessões antigas são revogadas; mensagens são genéricas em todos fluxos sensíveis (sem enumeração)
   3. Cliente acessa "Meus dados" e baixa JSON com cadastro+reservas+pontos+transações; cliente clica "Excluir minha conta" e dados pessoais são anonimizados (histórico fiscal preservado); checkbox "+18" é obrigatório no cadastro com versionamento de termos/privacidade
   4. VPS responde APENAS via Cloudflare proxy (IP origin nunca exposto), portas 80/443 aceitam só IPs Cloudflare, SSH só do dev, rate limit ativo em `/api/auth/*`; Server Actions têm `allowedOrigins` + CSP; logs em pino redact PII; build falha se variável de ambiente faltar
-  5. Migration `drizzle-kit` versionada e aplicada cria schema-base com toda coluna financeira em `numeric(19,4)`, datas em `timestamptz` (`TZ=America/Sao_Paulo`); `instrumentation.ts` boota worker pg-boss; audit_log registra logins admin, e Resend client + webhook svix estão prontos para a próxima fase usar
+  5. Migration Prisma Migrate (`prisma migrate dev` em DEV, `prisma migrate deploy` em PROD) versionada e aplicada cria schema-base em `prisma/schema.prisma` com toda coluna financeira em `Decimal @db.Decimal(19, 4)`, datas em `DateTime @db.Timestamptz` (`TZ=America/Sao_Paulo`); `instrumentation.ts` boota worker pg-boss; audit_log registra logins admin, e Resend client + webhook svix estão prontos para a próxima fase usar
 **Plans**: TBD
 **UI hint**: yes
 
@@ -120,7 +120,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Mãe abre análise por marca de ingrediente e descobre "qual marca de leite condensado rendeu mais brigadeiro lucrativo" (query agregando `marca_snapshot` em `lote_uso_ingredientes`); mãe vê sazonalidade no histórico (gráfico mensal mostra picos de Páscoa/Mães/Natal)
   5. Relatórios pesados são servidos por materialized view com refresh 1×/dia; seed realista (12 meses × 50 reservas) está aplicado em ambiente de staging para comprovar ausência de N+1 antes do launch desta fase
 
-**Pitfalls associados** (research SUMMARY 4.3): N+1 em relatórios — drizzle `.with` desde início, materialized view 1×/dia, seed realista de 12 meses para EXPLAIN antes de produção.
+**Pitfalls associados** (research SUMMARY 4.3): N+1 em relatórios — Prisma `include`/`select` explícito desde início, `prisma.$queryRaw` para agregações por marca, materialized view 1×/dia, seed realista de 12 meses para EXPLAIN antes de produção.
 **Plans**: TBD
 **UI hint**: yes
 

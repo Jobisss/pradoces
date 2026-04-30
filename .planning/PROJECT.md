@@ -179,6 +179,7 @@ Sua mãe enxerga o **lucro real** de cada doce vendido (custo de produção rast
 | Sazonalidade com customização visual (banner/paleta) | Identidade visual do negócio nas datas importantes | — Pending |
 | VPS único com Postgres + Next.js | Custo previsível ~R$30/mês; trade-off: manutenção e backup manuais | — Pending |
 | Resend para email (não Postfix) | IPs de VPS quase sempre caem em blocklist; deliverability é crítica | — Pending |
+| ORM: Prisma 7 (não Drizzle) | Decisão revisada em 2026-04-30 antes de planejar Phase 1: Prisma 7 (Rust query engine removido, TS puro) tem DX superior + Prisma Studio polido para a mãe inspecionar dados; Drizzle (escolha original na research) substituído. Better Auth tem adapter Prisma oficial. Postgres-only features (`numeric(19,4)`, triggers, CHECK XOR, custo congelado) usam raw SQL via `prisma.$queryRaw` quando necessário. **Atenção:** Prisma 7 tem mudanças importantes vs v6 — consultar `node_modules/@prisma/client/` e docs oficiais antes de codar (mesmo padrão do Next 16). | — Locked 2026-04-30 |
 
 ## Evolution
 

@@ -33,7 +33,7 @@ Monolito Next.js 16 (App Router) + Postgres em VPS único. Sem microsserviços, 
 │                              │                                        │
 │                              ▼                                        │
 ├──────────────────────────────────────────────────────────────────────┤
-│              Repositories (lib/db/) — Drizzle/Prisma queries         │
+│              Repositories (lib/db/) — Prisma 7 queries               │
 │                              │                                        │
 │                              ▼                                        │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -355,11 +355,13 @@ app/
 │
 └── layout.tsx                         # Root
 
+prisma/
+├── schema.prisma                      # Prisma schema (toda tabela, enums, relations)
+└── migrations/                        # Prisma migrations (SQL versionado)
+
 lib/
 ├── db/
-│   ├── schema.ts                      # Drizzle schema (toda tabela)
-│   ├── client.ts                      # Pool postgres
-│   └── migrations/                    # Drizzle Kit migrations
+│   └── client.ts                      # PrismaClient singleton (instrumentation.ts boot)
 │
 ├── services/                          # Domain logic — SEM dependência de next/*
 │   ├── ingrediente-service.ts
@@ -420,7 +422,7 @@ instrumentation.ts                     # Inicia node-cron uma vez no boot
 | Coisa | Onde | Por quê |
 |------|------|---------|
 | Validação de input | `lib/validation/*.ts` (Zod) | Reusada por action e route handler |
-| SQL | `lib/db/` apenas | Service nunca importa Drizzle direto fora desse módulo |
+| SQL | `lib/db/` apenas | Service nunca importa PrismaClient direto fora desse módulo (repository pattern) |
 | Regra de negócio (ex.: "só credita pontos depois de confirmar") | `lib/services/*.ts` | Testável sem Next |
 | Auth check | Server Action (primeiro statement) | Princípio Next 16: action é exposta por POST direto |
 | Revalidate cache | Server Action (após mutar) | `revalidatePath()` / `revalidateTag()` |
@@ -632,7 +634,7 @@ Crítico: cada bloco depende dos anteriores. Pular ordem = retrabalho.
 
 ```
 FASE 0 — Fundação
-├── 0.1 Schema Postgres + Drizzle setup + migrations infra
+├── 0.1 Schema Postgres + Prisma 7 setup (`prisma/schema.prisma`) + migrations infra
 ├── 0.2 Auth admin (login da mãe — único usuário)
 ├── 0.3 Auth cliente (email-first, cadastro)
 ├── 0.4 Layout (público vs admin, route groups)
@@ -701,16 +703,16 @@ FASE 7 — Operação produtiva
 ```
 Action (lib/actions/)        ─ Auth + parse + revalidate + chama Service
 Service (lib/services/)      ─ Regras de negócio + transações + chama Repo
-Repository (lib/db/)         ─ SQL/Drizzle apenas
+Repository (lib/db/)         ─ Prisma 7 queries / `$queryRaw` apenas
 ```
 
 Quebrar essa hierarquia (action chamando SQL direto, service usando `revalidatePath`) é o caminho mais rápido para "vira bagunça". Manter rígido.
 
 ### B2 — Domain types puros (lib/domain/) sem dependência de infra
 
-`Reserva`, `Lote`, `Cliente` são tipos. Sem React, sem Next, sem Drizzle. Repositories convertem row → domain type. Isso permite:
+`Reserva`, `Lote`, `Cliente` são tipos. Sem React, sem Next, sem Prisma. Repositories convertem row → domain type. Isso permite:
 - Testar service com objetos plain.
-- Trocar Drizzle por outro ORM se preciso.
+- Trocar Prisma por outro ORM se preciso (improvável após decisão 2026-04-30, mas a abstração custa pouco).
 - Reusar tipos no client (são serializáveis).
 
 ### B3 — Cliente vs Admin: route groups distintos, MESMO domínio
@@ -830,7 +832,7 @@ Não otimizar antes da medição. Postgres em VPS médio aguenta milhares de QPS
 |---------|---------------------|-------------|
 | Resend | HTTP API via `lib/email/resend-client.ts` | Webhook em `/api/webhooks/resend/route.ts` para bounces; nunca dentro de TX |
 | Cloudflare R2 | S3-compat via @aws-sdk/client-s3 | v1 só para backup pg_dump; v2 fotos |
-| Postgres | TCP via Drizzle pool | Pool de 10-20 conexões em VPS pequeno; `instrumentation.ts` cria singleton |
+| Postgres | TCP via PrismaClient (pool managed) | Pool default Prisma 7 ~10 conexões; `instrumentation.ts` cria singleton; `$queryRaw` para Postgres-only features |
 
 ### 9.2 Internos
 

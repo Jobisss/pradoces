@@ -35,6 +35,10 @@ Phase 1 NÃO entrega: catálogo, produtos, ingredientes, lotes, reservas, pontos
 
 - **D-08:** Sem **email proativo** em login admin. Cada login admin grava em `audit_log` com `action='admin_login'` + IP + user-agent (per AUTH-11), mas **não dispara email**. Mam vê o histórico em `/admin/auditoria` (UI-SPEC §Surface Inventory). Reduz ruído (mam loga várias vezes ao dia em celular/tablet); se virar problema de segurança em v1.x, adicionar email-on-novo-IP via heurística do hash truncado depois.
 
+### ORM revisado (LOCKED 2026-04-30)
+
+- **D-09:** **Prisma 7** (não Drizzle) como ORM. Decisão revisada com user em 2026-04-30 antes de planejar Phase 1. Rationale: DX superior + Prisma Studio polido pra mãe inspecionar dados; Prisma 7 removeu Rust query engine (TS puro, mais leve); Better Auth tem adapter Prisma oficial estável. Schema declarativo em `prisma/schema.prisma`, migrations versionadas em `prisma/migrations/`. Postgres-only features (`numeric(19,4)` via `@db.Decimal(19,4)`, triggers via raw SQL em migration, CHECK XOR via raw SQL, custo congelado event-sourcing) cobertos via `prisma.$queryRaw` + migrations SQL custom. **Atenção crítica:** Prisma 7 tem mudanças importantes vs v6 (Rust engine removido, novos adapters); researcher e planner DEVEM ler docs Prisma 7 oficiais + `node_modules/@prisma/client/` antes de propor APIs (mesmo padrão do alerta Next 16 em AGENTS.md). Updates correspondentes: `.planning/research/STACK.md` §Banco e ORM, `.planning/research/SUMMARY.md` Stack Final, `.planning/research/ARCHITECTURE.md` repository pattern, `.planning/research/PITFALLS.md` 2.1+2.4+4.3, `.planning/PROJECT.md` Key Decisions, `AGENTS.md` locked stack. Drizzle (escolha original na research) descartado.
+
 ### Claude's Discretion
 
 Áreas não-selecionadas pela usuária para discussão — researcher e planner decidem com base em pitfalls/research:
@@ -74,7 +78,7 @@ Phase 1 NÃO entrega: catálogo, produtos, ingredientes, lotes, reservas, pontos
 
 ### Stack research (LOCKED — não relitigar sem nova /gsd-discuss-phase)
 - `.planning/research/SUMMARY.md` — sintese das 4 dimensões, decisões travadas
-- `.planning/research/STACK.md` — Next.js 16 + React 19 + Drizzle + postgres.js + Better Auth + argon2id + Resend + pg-boss + Caddy + Cloudflare proxy + shadcn/ui + Radix + lucide + sonner + decimal.js + pino + @t3-oss/env-nextjs
+- `.planning/research/STACK.md` — Next.js 16 + React 19 + **Prisma 7** + Better Auth + argon2id + Resend + pg-boss + Caddy + Cloudflare proxy + shadcn/ui + Radix + lucide + sonner + decimal.js + pino + @t3-oss/env-nextjs (ORM revisado 2026-04-30 — era Drizzle)
 - `.planning/research/ARCHITECTURE.md` — App Router structure, instrumentation.ts, middleware patterns, Server Actions allowedOrigins, CSP
 - `.planning/research/FEATURES.md` §7.2 — a11y rules (16px floor, AA/AAA contrast, 44px touch, no hover-only, no color-only status), voz exemplar pt-BR
 - `.planning/research/PITFALLS.md` — pitfalls relevantes Phase 1 (numeric vs float, argon2id params, OWASP reset, Cloudflare proxy + Caddy cert strategy, UFW + CF IP allowlist, rate limit sem Redis, pino redact PII, instrumentation.ts boot pg-boss, env validation no build)
@@ -97,7 +101,7 @@ Phase 1 é a primeira fase do projeto; não há decisões de outras fases pra ca
 - `app/layout.tsx` — scaffold default Next.js 16 com Geist Sans + Geist Mono já wired (UI-SPEC §Design System mantém). Layout root vai precisar reorganização: header global (wordmark Fraunces + CTAs condicionais por sessão) + `{children}` + footer global (D-03). Admin layout em `app/(admin)/layout.tsx` separado, sem footer.
 - `app/globals.css` — Tailwind v4 com PostCSS plugin já wired. UI-SPEC §Color define todas as CSS vars (`--color-background`, `--color-accent`, etc.) — vão entrar aqui via shadcn `init` + override manual.
 - `next.config.ts` — `reactCompiler: true` já configurado (atende INFRA-12 sem mudança).
-- `package.json` — base Next 16.2.4 + React 19.2.4 + TypeScript 5 + Tailwind 4 + `babel-plugin-react-compiler@1.0.0` instalados. Faltam: Drizzle, postgres.js, Better Auth, argon2 (lib argon2id), Resend SDK, pg-boss, decimal.js, pino, @t3-oss/env-nextjs, svix, date-fns, shadcn registry components, sonner, Fraunces font.
+- `package.json` — base Next 16.2.4 + React 19.2.4 + TypeScript 5 + Tailwind 4 + `babel-plugin-react-compiler@1.0.0` instalados. Faltam: **`prisma` (devDep) + `@prisma/client`** (Prisma 7 latest — verificar `npm view prisma version` antes), Better Auth, argon2 (lib argon2id), Resend SDK, pg-boss, decimal.js, pino, @t3-oss/env-nextjs, svix, date-fns, shadcn registry components, sonner, Fraunces font.
 
 ### Established Patterns
 - **Scaffold default não-substituído**: `app/page.tsx` ainda é o template Vercel ("Deploy Now" + "Documentation" + Vercel logo). Phase 1 substitui por landing D-01.
@@ -108,8 +112,9 @@ Phase 1 é a primeira fase do projeto; não há decisões de outras fases pra ca
 - `app/layout.tsx`: header global + footer global (D-03) + provider de sonner toast.
 - `middleware.ts` (criar): proteção de `/admin/*` (role='admin') + redirect de `/minha-conta/*` se role='admin' (D-06) + `allowedOrigins` para Server Actions (INFRA-05).
 - `instrumentation.ts` (criar): boot pg-boss workers (INFRA-11). Phase 1 ainda não tem worker de domínio mas instrumentation precisa estar pronto pra Phase 4 plugar email.
-- `lib/auth.ts` (criar): Better Auth config — adapter Drizzle, sessões DB, argon2id, role flag, +18 + terms_version + privacy_version no schema users.
-- `lib/db/schema/` (criar): tabelas iniciais — `users`, `sessions`, `verification_tokens`, `password_reset_tokens`, `audit_log`. Tudo `numeric(19,4)` para money (Phase 1 ainda não tem money column, mas o tipo já é convenção schema-wide), `timestamptz` para dates.
+- `lib/auth.ts` (criar): Better Auth config — **adapter Prisma**, sessões DB, argon2id, role flag, +18 + terms_version + privacy_version no schema users.
+- `prisma/schema.prisma` (criar via `npx prisma init`): tabelas iniciais — `User`, `Session`, `VerificationToken`, `PasswordResetToken`, `AuditLog`. Money columns futuras com `Decimal @db.Decimal(19, 4)` (Phase 1 ainda não tem money column, mas convenção schema-wide), datas com `DateTime @db.Timestamptz`. Enum `Role { admin customer }`. `prisma/migrations/` versionado no Git.
+- `lib/db/client.ts` (criar): `PrismaClient` singleton (pattern Next 16 — global var em DEV pra evitar hot-reload spawning múltiplos clients).
 - `scripts/seed-admin.ts` (criar): CLI seed/reset (D-05, D-07). Lê `.env`, hasheia argon2id, insere/atualiza, escreve audit_log.
 - `app/api/auth/[...path]/route.ts` (criar): Better Auth handler.
 

@@ -25,7 +25,7 @@
 - [ ] **INFRA-05**: Server Actions com `allowedOrigins` configurado e CSP no `next.config.ts`
 - [ ] **INFRA-06**: Validação de variáveis de ambiente com `@t3-oss/env-nextjs` no build (falha cedo)
 - [ ] **INFRA-07**: Logging com pino + redact de PII (email, senha, telefone, endereço, CPF se houver)
-- [ ] **INFRA-08**: Migrations versionadas via drizzle-kit; padrão expand-then-contract
+- [ ] **INFRA-08**: Migrations versionadas via Prisma Migrate (`prisma migrate dev` em DEV, `prisma migrate deploy` em PROD); padrão expand-then-contract; rollback SQL escrito manualmente quando necessário (Prisma não gera automatic down — escrever em PR de migrations críticas)
 - [ ] **INFRA-09**: Money em `numeric(19,4)` em TODA coluna financeira (zero `real`/`double`/`float`); decimal.js no app
 - [ ] **INFRA-10**: Datas em `timestamptz`; `TZ=America/Sao_Paulo` no app + `timezone='America/Sao_Paulo'` no `postgres.conf`; render via `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' })`
 - [ ] **INFRA-11**: `instrumentation.ts` inicializa workers pg-boss no boot

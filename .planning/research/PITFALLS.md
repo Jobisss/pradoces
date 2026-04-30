@@ -3,7 +3,7 @@
 **Domain:** Reserva online de doces artesanais (pré-produção) com gestão de custo, lotes, validade e fidelização por pontos
 **Researched:** 2026-04-29
 **Confidence:** MEDIUM-HIGH (LGPD/ANVISA confirmadas em fontes oficiais; pitfalls técnicos validados em docs oficiais; pitfalls operacionais derivados do perfil "operadora não-técnica em VPS único")
-**Stack-aware:** Next.js 16 App Router, PostgreSQL 16+ em VPS único Hostinger, Resend, Cloudflare proxy, Drizzle ORM (assumido), Resend.
+**Stack-aware:** Next.js 16 App Router, PostgreSQL 16+ em VPS único Hostinger, Resend, Cloudflare proxy, Prisma 7 ORM (revisado de Drizzle em 2026-04-30), svix.
 
 ---
 
@@ -182,7 +182,7 @@ Reserva sem compromisso financeiro ⇒ cliente trata como "vou ver". Política d
 `real`/`double precision`/JavaScript `number` perde precisão decimal. R$ 0.10 + R$ 0.20 vira 0.30000000000000004. Em sistema com cálculo de custo unitário (preço lote / rendimento), erro acumula. Ao final do mês, relatório diz lucro foi R$ 1.234,56 quando foi R$ 1.234,78. Mãe perde confiança no sistema.
 
 **Por que acontece:**
-ORM ou template default usa `number`/`float`. Drizzle aceita `real`, `double` e tudo parece funcionar nos testes.
+ORM ou template default usa `number`/`float`. Prisma e Drizzle aceitam `Float`/`real`/`double` e tudo parece funcionar nos testes.
 
 **Sinal de alerta:**
 - Schema tem `real`, `double precision`, `float` em qualquer coluna de dinheiro
@@ -192,7 +192,7 @@ ORM ou template default usa `number`/`float`. Drizzle aceita `real`, `double` e 
 **Prevenção:**
 1. **Schema:** TODA coluna monetária é `numeric(19, 4)` (4 casas para conta intermediária; arredondar para 2 só na exibição). Ingredientes podem precisar mais (R$/g pode ser 0.0023).
 2. **Alternativa válida:** armazenar em centavos como `bigint`. Então R$ 5,40 = 540. Aritmética inteira nunca arredonda.
-3. **Drizzle:** `numeric` retorna string — usar [decimal.js](https://mikemcl.github.io/decimal.js/) ou [dinero.js](https://dineroJS.com) no app, NUNCA `Number(value)`
+3. **Prisma 7:** declarar como `Decimal @db.Decimal(19, 4)` no schema; o cliente devolve `Prisma.Decimal` (não `number`). Para operações app-side, usar [decimal.js](https://mikemcl.github.io/decimal.js/) ou converter via `.toString()`. NUNCA `Number(value)` direto — perde precisão em valores grandes.
 4. **Não usar `MONEY`:** tipo `MONEY` do Postgres depende de locale e não é portável
 5. **Testes:** test case explícito "1/3 do lote × 3 = lote inteiro" com numeric (deve dar exato), depois mesmo teste com float (vai dar errado, prova que o tipo importa)
 
@@ -277,7 +277,7 @@ Schema v0 sempre é otimista. Pressão de prazo prioriza shipping sobre normaliz
 
 **Prevenção:**
 1. **Investir em modelagem antes de codar:** unidades de medida como tabela referência (não string), enums Postgres para status (`reservation_status`, `lot_status`), foreign keys explícitas
-2. **Tooling de migration desde dia 1:** Drizzle `drizzle-kit` ou Prisma Migrate com versionamento + `down` migrations testadas
+2. **Tooling de migration desde dia 1:** Prisma Migrate (`prisma migrate dev` em DEV, `prisma migrate deploy` em PROD) com versionamento; `down` migrations escritas manualmente quando necessário (Prisma não gera automatic down — é trade-off conhecido, escrever rollback SQL na PR de migrations críticas)
 3. **Backup automático ANTES de cada migration de produção:** script de deploy faz `pg_dump` antes de rodar `migrate`
 4. **Migrations expand-then-contract:** adicionar nova coluna → backfill → app passa a usar → remover velha (3 deploys, mas zero downtime e zero risco)
 5. **Banco de staging idêntico:** restaurar dump de produção → rodar migration → smoke test antes de aplicar em prod
@@ -563,8 +563,7 @@ ORM permite acessar relação como atributo (`reserva.lote.produto.custo`) — c
 - `EXPLAIN ANALYZE` da request mostra muitas conexões
 
 **Prevenção:**
-1. **Drizzle:** usar `db.query.X.findMany({ with: { y: true, z: true } })` — JOIN único
-2. **Prisma:** `include` ou `select` aninhado
+1. **Prisma 7:** sempre `include: { y: true, z: { include: { w: true } } }` ou `select` explícito — o Prisma faz batch via dataloader interno; evitar acessar relação fora do `include`/`select` (vira query extra). Usar `prisma.$queryRaw` quando precisar de SQL custom (ex: agregações por marca).
 3. **Materialized views para relatórios pesados:** view materializada de "lucro por mês" refrescada 1×/dia (cron)
 4. **Índices:** verificar com `EXPLAIN ANALYZE` que queries usam index, não seq scan
 5. **Pagination:** relatórios > 100 linhas sempre paginados
@@ -1150,7 +1149,7 @@ Tabela consolidada — para cada pitfall, em qual fase deve ser endereçado e co
 | 2.1 Float vs NUMERIC | BLOQUEADOR | Foundation/Schema | Toda coluna $ é numeric ou bigint cents |
 | 2.2 Timezone bugs | CRÍTICO | Foundation + qualquer feature de data | Test suite passa com TZ=UTC e America/Sao_Paulo |
 | 2.3 Race condition estoque | CRÍTICO | Lotes & Reservas | Stress test 10 reservas paralelas, exatamente 1 vence |
-| 2.4 Migrations dolorosas | IMPORTANTE | Foundation | Drizzle/Prisma com versioning + drill de migration em staging |
+| 2.4 Migrations dolorosas | IMPORTANTE | Foundation | Prisma Migrate com versioning + drill de migration em staging |
 | 3.1 Backup que não restaura | BLOQUEADOR | Antes de v1 produção | Drill executado 1× com sucesso documentado |
 | 3.2 Email deliverability | CRÍTICO | Antes de v1 produção | DMARC `p=quarantine`, deliverability score Resend > 95% |
 | 3.3 SSL expirando | CRÍTICO | Foundation/Infra | Force renew bem-sucedido + monitor externo configurado |
@@ -1212,8 +1211,8 @@ Tabela consolidada — para cada pitfall, em qual fase deve ser endereçado e co
 - [Pessimistic vs Optimistic Locking in PostgreSQL](https://samowolabi.substack.com/p/optimistic-vs-pessimistic-locking)
 - [Handling Race Conditions in PostgreSQL MVCC (Bufisa)](https://bufisa.com/2025/07/17/handling-race-conditions-in-postgresql-mvcc/)
 - [Working with Money in Postgres (Crunchy Data)](https://www.crunchydata.com/blog/working-with-money-in-postgres)
-- [API with NestJS — Money with Drizzle ORM and PostgreSQL](https://wanago.io/2024/11/04/api-nestjs-drizzle-orm-postgresql-money/)
-- [TypeScript+Drizzle+PostgreSQL Time Zones Guide (DEV)](https://dev.to/jacksonkasi/the-developers-guide-to-never-messing-up-time-zones-again-a-typescript-drizzle-and-postgresql-4970)
+- [Prisma 7 docs — Decimal type, queryRaw, includes](https://www.prisma.io/docs)
+- [Prisma blog — handling Postgres decimal/money types](https://www.prisma.io/blog) (verificar tag `decimal`)
 
 **Auth e Security:**
 - [OWASP Forgot Password Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)
