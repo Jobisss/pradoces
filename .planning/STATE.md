@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 1 of 7 (Foundation)
 Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-04-29 — Roadmap created (7 phases, 129 requirements mapped, granularity=standard)
+Status: UI-SPEC approved — ready for discuss-phase or plan-phase
+Last activity: 2026-04-30 — Phase 1 UI-SPEC approved (6 dimensions: 5 PASS + 1 non-blocking FLAG on Visuals); resume file `.planning/phase-1-foundation/01-UI-SPEC.md`
 
 Progress: [░░░░░░░░░░] 0%
 
