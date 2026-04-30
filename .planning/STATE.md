@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 Phase: 1 of 7 (Foundation)
 Plan: 0 of TBD in current phase
-Status: UI-SPEC approved — ready for discuss-phase or plan-phase
-Last activity: 2026-04-30 — Phase 1 UI-SPEC approved (6 dimensions: 5 PASS + 1 non-blocking FLAG on Visuals); resume file `.planning/phase-1-foundation/01-UI-SPEC.md`
+Status: CONTEXT.md captured — ready for plan-phase
+Last activity: 2026-04-30 — Phase 1 CONTEXT.md gathered (8 decisions across 2 areas: home / + bootstrap admin); resume file `.planning/phase-1-foundation/01-CONTEXT.md`
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -78,6 +78,6 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 
 ## Session Continuity
 
-Last session: 2026-04-29
-Stopped at: ROADMAP.md + STATE.md criados; REQUIREMENTS.md traceability atualizada; pronto para `/gsd-plan-phase 1`
-Resume file: None
+Last session: 2026-04-30
+Stopped at: Phase 1 CONTEXT.md gathered (discuss mode default — 8 decisions, 4 deferred ideas, 3 areas em Claude's discretion). Pronto para `/gsd-plan-phase 1`.
+Resume file: .planning/phase-1-foundation/01-CONTEXT.md
