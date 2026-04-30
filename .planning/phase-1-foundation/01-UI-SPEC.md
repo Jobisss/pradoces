@@ -3,9 +3,11 @@ phase: 1
 slug: foundation
 status: approved
 shadcn_initialized: false
-preset: new-york + neutral baseColor + brand CSS vars override (see Color section)
+preset: new-york + neutral baseColor + brand pink/bordô CSS vars override (see Color section)
 created: 2026-04-30
 reviewed_at: 2026-04-30
+revised_at: 2026-04-30
+revision_note: Brand palette swapped from doce-de-leite (rose-orange) to pink-bordô per user request — accent #9D2D7A (CTA-safe AA), accent-soft #ED91DB (decorative-only), background warmed to #FFF6FB. Contracts (60/30/10, accent reserved-for, AA contrast) preserved.
 ---
 
 # Phase 1 — UI Design Contract
@@ -103,20 +105,23 @@ Exactly **4 sizes** and **2 weights** (locked by checker dimension 4):
 
 ## Color
 
+**Brand identity:** pink-bordô (vinho rosado) com fundo creme rosado claro — derivado do tom claro de referência `#ED91DB` fornecido pelo user. Tom claro preservado como `--color-accent-soft` para usos decorativos; CTA/links/foco usam variante escurecida (`#9D2D7A`) que passa AA.
+
 **60 / 30 / 10 split applied as default ("nenhuma campanha ativa" — Phase 6 will override via CSS vars):**
 
 | Role | Token | Hex | Usage |
 |------|-------|-----|-------|
-| Dominant 60% (background) | `--color-background` | `#FFFBF7` (creme quente) | Body background, page surface |
+| Dominant 60% (background) | `--color-background` | `#FFF6FB` (creme rosado claro) | Body background, page surface |
 | Secondary 30% (surface) | `--color-surface` | `#FFFFFF` | Cards, form containers, dialog body |
-| Secondary 30% (border) | `--color-border` | `#F1E8DD` | Card borders, input borders, divider lines |
-| Accent 10% (brand) | `--color-accent` | `#C2410C` (rose-orange amarronzado, doce-de-leite) | **See "Accent reserved for" below** |
-| Accent on accent | `--color-accent-foreground` | `#FFFBF7` | Text on top of accent (contrast 6.4:1, AAA) |
+| Secondary 30% (border) | `--color-border` | `#F5DCEC` (rosa pálido) | Card borders, input borders, divider lines |
+| Accent 10% (brand) | `--color-accent` | `#9D2D7A` (pink-bordô — vinho rosado escuro derivado do tom claro do brand) | **See "Accent reserved for" below** |
+| Accent soft (decorative — non-text only) | `--color-accent-soft` | `#ED91DB` (pink claro do brand — referência do user) | Banner sazonal background, tag pill background, decorative dividers. **Nunca usado para texto** (contraste 2.4:1 contra branco — falha AA) |
+| Accent on accent | `--color-accent-foreground` | `#FFFFFF` | Text on top of accent (contrast 6.8:1, AAA Large / AA normal) |
 | Destructive | `--color-destructive` | `#B91C1C` | Destructive actions ONLY (see list below) |
 | Destructive foreground | `--color-destructive-foreground` | `#FFFFFF` | Text on top of destructive |
-| Foreground (text) | `--color-foreground` | `#1F1611` (marrom muito escuro, não preto puro) | All body text (15.8:1 vs background, AAA) |
-| Foreground muted | `--color-foreground-muted` | `#6B5B4F` | Help text, captions (5.1:1 vs background, AA Large + AA normal) |
-| Focus ring | `--color-ring` | `#C2410C` at 50% opacity, 2px outside | Keyboard focus ring on every interactive element |
+| Foreground (text) | `--color-foreground` | `#2A0F23` (marrom-rosado muito escuro, não preto puro) | All body text (16.6:1 vs background, AAA) |
+| Foreground muted | `--color-foreground-muted` | `#7A5868` (rosa-amarronzado médio) | Help text, captions (5.8:1 vs background, AA normal) |
+| Focus ring | `--color-ring` | `#9D2D7A` at 50% opacity, 2px outside | Keyboard focus ring on every interactive element |
 | Success (no UI in Phase 1, declared for forward-compat) | `--color-success` | `#15803D` | Reserved for Phase 4 confirmações |
 
 **Accent reserved for** (explicit list — never "all interactive elements"):
@@ -137,18 +142,19 @@ Exactly **4 sizes** and **2 weights** (locked by checker dimension 4):
 
 **Destructive NOT used for:** field-level validation errors (use `--color-foreground` + small icon + 14px caption), inline cancellation links, anti-enumeration generic messages.
 
-**Contrast verified (WCAG AA, against `#FFFBF7` background unless noted):**
-- `#1F1611` foreground: 15.8:1 (AAA)
-- `#6B5B4F` foreground-muted: 5.1:1 (AA normal, AA Large)
-- `#C2410C` accent: 4.6:1 (AA normal — passes for 16px+ text and UI components per WCAG 1.4.11)
-- `#B91C1C` destructive: 5.4:1 (AA normal)
-- White on `#C2410C`: 6.4:1 (AAA)
+**Contrast verified (WCAG AA, against `#FFF6FB` background unless noted):**
+- `#2A0F23` foreground: 16.6:1 (AAA)
+- `#7A5868` foreground-muted: 5.8:1 (AA normal)
+- `#9D2D7A` accent: 6.4:1 (AAA Large / AA normal — passes for 16px+ text and UI components per WCAG 1.4.11)
+- `#B91C1C` destructive: 5.2:1 (AA normal)
+- White on `#9D2D7A`: 6.8:1 (AAA Large / AA normal)
 - White on `#B91C1C`: 7.5:1 (AAA)
+- `#ED91DB` (accent-soft) is **NOT contrast-verified for text** — 2.4:1 vs white. Decorative-only token; UI must never put text on it without overriding `color` to `#2A0F23` (which yields 7.0:1 AAA against `#ED91DB`).
 
 **Dark mode:** Phase 1 declares dark-mode tokens but does NOT enable a system-driven toggle. Reason: clientela majoritária 50+, opens from WhatsApp link in daylight; dark mode adds bug surface for zero validated benefit in Phase 1. Reactivate decision in Phase 6 if sazonalidade demands. Tokens for forward-compat:
-- `--color-background` dark: `#1F1611`
-- `--color-foreground` dark: `#FFFBF7`
-- `--color-surface` dark: `#2A1F18`
+- `--color-background` dark: `#1F0F1A` (marrom-rosado muito escuro)
+- `--color-foreground` dark: `#FFF6FB`
+- `--color-surface` dark: `#2A1623`
 
 ---
 
