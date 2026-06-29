@@ -44,6 +44,10 @@ model User {
   privacyAcceptedAt   DateTime? @db.Timestamptz(6) @map("privacy_accepted_at")
   deletedAt           DateTime? @db.Timestamptz(6) @map("deleted_at")
   anonymizedAt        DateTime? @db.Timestamptz(6) @map("anonymized_at")
+  // Better Auth admin plugin fields (input:false — set only via admin APIs).
+  banned              Boolean   @default(false)
+  banReason           String?   @map("ban_reason")
+  banExpires          DateTime? @db.Timestamptz(6) @map("ban_expires")
   createdAt           DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
   updatedAt           DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at")
 
@@ -61,6 +65,8 @@ model Session {
   expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
   ipAddress String?  @map("ip_address")
   userAgent String?  @map("user_agent")
+  // Better Auth admin plugin — set when an admin impersonates a user.
+  impersonatedBy String? @map("impersonated_by")
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
   updatedAt DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
 

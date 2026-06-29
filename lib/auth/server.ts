@@ -68,8 +68,20 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24, // refresh after 1 day
     cookieCache: { enabled: false },
   },
+  advanced: {
+    database: {
+      // Let Postgres generate ids via Prisma's `@default(uuid())` so they fit the
+      // `@db.Uuid` columns. Better Auth's default id generator emits non-UUID
+      // strings that would violate the uuid column type.
+      generateId: false,
+    },
+  },
   plugins: [
-    admin(), // adds role='admin' support, setUserPassword, revokeUserSessions APIs
+    // adds role support, setUserPassword, revokeUserSessions APIs.
+    // defaultRole/adminRoles MUST align with the Prisma `Role` enum
+    // (admin | customer). Without this the plugin writes role='user' on signup,
+    // which is invalid for our enum (PrismaClientValidationError).
+    admin({ defaultRole: 'customer', adminRoles: ['admin'] }),
     nextCookies(), // MUST be last per Pitfall #1 enforcement
   ],
 })
