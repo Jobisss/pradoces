@@ -19,12 +19,16 @@
     "@node-rs/argon2": "^2.0.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.0.8",
     "better-auth": "^1.6.22",
     "decimal.js": "^10.6.0",
     "next": "16.2.4",
     "pino": "^10.3.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "resend": "^6.12.2",
+    "svix": "^1.92.2"
   },
   "devDependencies": {
     "@t3-oss/env-nextjs": "^0.13.11",
