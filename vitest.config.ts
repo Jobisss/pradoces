@@ -2,6 +2,16 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
+// Load .env into process.env BEFORE test workers fork. The Prisma driver adapter
+// (lib/db/client.ts) reads DATABASE_URL at module-import time, which happens
+// before any per-test hook runs — so the env must already be present here.
+// Vitest does not auto-load .env into process.env; Node 24's built-in loader does.
+try {
+  process.loadEnvFile()
+} catch {
+  // No .env (e.g. CI) — assume DATABASE_URL is already in the environment.
+}
+
 export default defineConfig({
   plugins: [react()],
   test: {

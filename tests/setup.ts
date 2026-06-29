@@ -1,19 +1,27 @@
 import '@testing-library/jest-dom/vitest'
-import { beforeEach } from 'vitest'
+import { afterEach } from 'vitest'
+import { prisma } from '@/lib/db/client'
 
 /**
- * Global test setup — runs before every test file.
+ * Global test setup — runs for every test file.
  *
- * This file is the canonical hook point for test-suite-wide initialization.
- * It is intentionally minimal in Wave 0 (Plan 01):
+ * Wave 0 (Plan 02) wires the real Prisma DB reset here. After each test we
+ * truncate the Phase 1 tables inside a single transaction so no rows leak
+ * across tests. Child tables (FK referencing users) are deleted before users.
  *
- *   - Plan 02 (Prisma) wires DB reset here:
- *       `await prisma.$executeRaw\`TRUNCATE TABLE "users", "sessions", ... CASCADE\``
- *     (or calls `truncateAll()` from tests/conftest.ts once the Prisma client + schema land).
- *   - Plan 03 (Better Auth) wires Better Auth test-client init here so auth-dependent
- *     tests can mint sessions via the conftest helpers (signInAsCustomer / signInAsAdmin).
+ *   - Plan 03 (Better Auth) will add Better Auth test-client init here so
+ *     auth-dependent suites can mint sessions via the conftest helpers
+ *     (signInAsCustomer / signInAsAdmin).
+ *
+ * NOTE: Phase 2+ adds new tables — append their deleteMany() calls to this list
+ * (children first) so the harness keeps every test isolated.
  */
-beforeEach(async () => {
-  // TODO(Plan 02): reset Prisma test DB between tests (TRUNCATE ... CASCADE).
-  // TODO(Plan 03): initialize Better Auth test client for auth-dependent suites.
+afterEach(async () => {
+  await prisma.$transaction([
+    prisma.session.deleteMany(),
+    prisma.account.deleteMany(),
+    prisma.verification.deleteMany(),
+    prisma.auditLog.deleteMany(),
+    prisma.user.deleteMany(),
+  ])
 })
