@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 1 of 7 (Foundation)
-Plan: 01-09 executado (wave 3) — 01-01/02/03/04/06/09 done (01-05 em execução paralela); 01-07/08/10/11 prontos
-Status: 01-09 executado — scripts/seed-admin.ts (CLI bootstrap D-05 idempotente + break-glass reset D-07) com auditoria admin_seed_via_cli / admin_password_reset_via_cli (sem vazar senha). Reset autoriza endpoints admin-plugin forjando sessão admin assinada (RESEARCH verbatim chamava as APIs sem headers → UNAUTHORIZED no better-auth 1.6). AUTH-10/AUTH-11 fechados. 41/43 testes (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-07/08/10/11).
-Last activity: 2026-06-29 — /gsd-execute-phase 1 plan 01-09 (1 task TDD, 2 commits, 41/43 testes verdes). Fase ainda NÃO completa.
+Plan: 01-07 executado (wave 4) — 01-01/02/03/04/06/07/09 done (01-05 em execução paralela); 01-08/10/11 prontos
+Status: 01-07 executado — shell visual completo: shadcn (preset radix-nova) + 10 componentes oficiais + paleta pink-bordô da UI-SPEC mapeada sobre os tokens shadcn (--primary #9D2D7A, --background #FFF6FB); root layout pt-BR (Fraunces, viewport, Toaster); header RSC com CTAs por sessão (D-01/D-02/D-04) + logout server action; footer global com DPO (D-03/LGPD-06); landing 3-variant + /termos (LGPD-02) + /privacidade (LGPD-03, operadores reais). D-03 garantido por route group: Header/Footer no app/(public)/layout.tsx, group (admin) irmão sem footer. LGPD-02/03/06 fechados. Checkpoint visual aprovado ("visual ok"). 44/46 testes (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-08/10/11).
+Last activity: 2026-06-29 — /gsd-execute-phase 1 plan 01-07 (2 tasks + checkpoint human-verify, 4 commits, 44/46 testes verdes; fix CSP dev unsafe-eval). Fase ainda NÃO completa.
 
-Progress: [███░░░░░░░] ~30% (auth core + email/audit + job harness + rate limit + admin bootstrap prontos; infra deploy/LGPD/UI pendentes)
+Progress: [████░░░░░░] ~38% (auth core + email/audit + job harness + rate limit + admin bootstrap + design system/shell/LGPD-shell prontos; infra deploy + auth UI forms + LGPD export/delete pendentes)
 
 ## Performance Metrics
 
@@ -27,11 +27,11 @@ Progress: [███░░░░░░░] ~30% (auth core + email/audit + job h
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 3 (01-04, 01-06, 01-09) | 22 min | 7.3 min |
+| 01-foundation | 4 (01-04, 01-06, 01-07, 01-09) | 121 min | 30.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
-- Trend: —
+- Last 5 plans: 01-07 (99 min wall / ~45 min ativo, 2 tasks + checkpoint, 22 files), 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
+- Trend: 01-07 inflado por espera de checkpoint visual humano (gate bloqueante)
 
 *Updated after each plan completion*
 
@@ -59,6 +59,10 @@ Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY
 - (01-06) pg-boss@12 usa export nomeado `{ PgBoss }` (sem default) — corrigido o snippet verbatim da RESEARCH que era de major anterior (pego pelo tsc)
 - (01-09) seed-admin CLI forja uma sessão admin assinada (Session row + cookie HMAC base64 padrão, nome do cookie lido de `auth.$context` p/ `__Secure-` em prod) para autorizar `auth.api.setUserPassword`/`revokeUserSessions` — esses endpoints do admin-plugin rodam atrás de `adminMiddleware` e lançam UNAUTHORIZED sem sessão; o snippet verbatim da RESEARCH chamava-os sem headers
 - (01-09) `seedAdmin()`/`resetAdmin()` exportados com override opcional de senha (default lê env) p/ testabilidade; `main()` só roda em execução direta (`import.meta.url === argv[1]`) p/ os testes importarem sem disparar seed
+- (01-07) D-03 (footer ausente em /admin/*) resolvido por árvore de layouts: Header/Footer vivem em `app/(public)/layout.tsx` (route group), NÃO no root; o group `(admin)` é irmão com shell próprio sem footer. Landing e minha-conta movidas p/ `(public)` (URLs inalteradas). Padrão p/ Plans 08/10/11: novas surfaces públicas/cliente vivem sob `(public)` p/ herdar o shell
+- (01-07) Tokens da UI-SPEC mapeados SOBRE o sistema shadcn (UI-SPEC "accent" #9D2D7A = shadcn `--primary`; "surface" = `--card`/`--popover`) — componentes oficiais herdam a marca sem patch; Phase 6 sobrescreve via CSS vars. Dark mode confirmado fora de escopo Phase 1 (light-only, reativa em Phase 6)
+- (01-07) shadcn v3 (CLI nova): preset por nome (Nova = Lucide/Geist, baseColor neutral) + pacote unificado `radix-ui` — `--base-color`/style "new-york" da spec não existem mais; `npx` é interceptado pelo hook rtk (invocar binário por caminho absoluto). Componente `form` adiado p/ Plans 08/10 (no-op silencioso no registry radix-nova; precisa react-hook-form)
+- (01-07) CSP `unsafe-eval` só em dev (`NODE_ENV!=production`) em `proxy.ts` — React dev mode exige eval(); produção continua estrita (nonce + strict-dynamic), T-01-07-01 intacto
 
 ### Pending Todos
 
@@ -89,5 +93,5 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 ## Session Continuity
 
 Last session: 2026-06-29
-Stopped at: Completed 01-09-PLAN.md (admin bootstrap D-05 + break-glass reset D-07, AUTH-10/AUTH-11). 41/43 testes verdes (2 todo), tsc limpo. Próximo plano: 01-07/08/10/11.
+Stopped at: Completed 01-07-PLAN.md (shell visual — shadcn + paleta pink-bordô + header/footer/toaster + landing + /termos + /privacidade; LGPD-02/03/06). Checkpoint visual aprovado. 44/46 testes verdes (2 todo), tsc limpo. Próximo plano: 01-08/10/11.
 Resume file: None

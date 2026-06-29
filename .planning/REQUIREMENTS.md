@@ -48,11 +48,11 @@
 ### LGPD (LGPD)
 
 - [ ] **LGPD-01**: Checkbox "Tenho 18+ ou estou com autorização do responsável" obrigatório no cadastro
-- [ ] **LGPD-02**: Aceite versionado: campos `terms_version`, `terms_accepted_at`, `privacy_version`, `privacy_accepted_at` no usuário
-- [ ] **LGPD-03**: Política de privacidade descreve operadores reais (Resend EUA, Cloudflare, hospedagem) e retenção (5 anos para fins fiscais, depois anonimização)
+- [x] **LGPD-02**: Aceite versionado: campos `terms_version`, `terms_accepted_at`, `privacy_version`, `privacy_accepted_at` no usuário
+- [x] **LGPD-03**: Política de privacidade descreve operadores reais (Resend EUA, Cloudflare, hospedagem) e retenção (5 anos para fins fiscais, depois anonimização)
 - [ ] **LGPD-04**: Página "Meus dados" com botão de exportação — gera JSON com cadastro + reservas + pontos + transações
 - [ ] **LGPD-05**: Página "Excluir minha conta" — anonimiza (preserva histórico de reservas para fins fiscais, mas troca dados pessoais por placeholders e revoga sessões)
-- [ ] **LGPD-06**: Email de DPO visível em rodapé/política para solicitação manual
+- [x] **LGPD-06**: Email de DPO visível em rodapé/política para solicitação manual
 
 ### Ingredientes e compras (ING)
 
@@ -305,11 +305,11 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | AUTH-10 | Phase 1 — Foundation | Done (01-09) |
 | AUTH-11 | Phase 1 — Foundation | Done (01-04, 01-09) |
 | LGPD-01 | Phase 1 — Foundation | Pending |
-| LGPD-02 | Phase 1 — Foundation | Pending |
-| LGPD-03 | Phase 1 — Foundation | Pending |
+| LGPD-02 | Phase 1 — Foundation | Done (01-07) |
+| LGPD-03 | Phase 1 — Foundation | Done (01-07) |
 | LGPD-04 | Phase 1 — Foundation | Pending |
 | LGPD-05 | Phase 1 — Foundation | Pending |
-| LGPD-06 | Phase 1 — Foundation | Pending |
+| LGPD-06 | Phase 1 — Foundation | Done (01-07) |
 | ING-01 | Phase 2 — Motor Financeiro | Pending |
 | ING-02 | Phase 2 — Motor Financeiro | Pending |
 | ING-03 | Phase 2 — Motor Financeiro | Pending |
