@@ -19,9 +19,16 @@ import { rateLimitAuth } from '@/lib/ratelimit/memory'
  */
 export default async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  // React dev mode (Fast Refresh, callstack reconstruction) requires eval().
+  // Allow 'unsafe-eval' ONLY in development; production stays strict
+  // (nonce + strict-dynamic, no eval) so the CSP hardening is intact in prod.
+  const isDev = process.env.NODE_ENV !== 'production'
+  const scriptSrc = isDev
+    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    scriptSrc,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: https:`,
     `font-src 'self' https://fonts.gstatic.com`,
