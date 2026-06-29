@@ -1,0 +1,126 @@
+// Doces Valentina — Prisma 7 schema (Phase 1 foundation models).
+//
+// Conventions locked in 01-CONTEXT.md (D-09) / 01-PATTERNS.md:
+//   - UUID primary keys: `String @id @default(uuid()) @db.Uuid`
+//   - snake_case table/column names via `@@map` / `@map`
+//   - All timestamps: `DateTime @db.Timestamptz(6)` (TZ=America/Sao_Paulo at runtime)
+//   - Money columns (Phase 2+): `Decimal @db.Decimal(19, 4)` — NEVER float (T-Float-01).
+//     Phase 1 has zero money columns; the convention is documented here so Phase 2
+//     (Ingrediente / Receita / Lote) inherits it without re-deciding.
+//   - Raw Postgres features (triggers, CHECK XOR, event-sourced frozen cost) use
+//     `prisma.$queryRaw` template literals (auto-parameterized — T-SQLi-01).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  // Prisma 7 removed `url` from the datasource block. The connection string now
+  // lives in `prisma.config.ts` (datasource.url) for Migrate/CLI, and the
+  // PrismaClient receives a driver adapter (@prisma/adapter-pg) at runtime
+  // (see lib/db/client.ts). See https://pris.ly/d/config-datasource
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  customer
+}
+
+model User {
+  id                  String    @id @default(uuid()) @db.Uuid
+  email               String    @unique
+  emailVerified       Boolean   @default(false)
+  emailVerifiedAt     DateTime? @db.Timestamptz(6) @map("email_verified_at")
+  name                String
+  telefone            String?
+  role                Role      @default(customer)
+  isAdult             Boolean   @default(false) @map("is_adult")
+  termsVersion        String?   @map("terms_version")
+  termsAcceptedAt     DateTime? @db.Timestamptz(6) @map("terms_accepted_at")
+  privacyVersion      String?   @map("privacy_version")
+  privacyAcceptedAt   DateTime? @db.Timestamptz(6) @map("privacy_accepted_at")
+  deletedAt           DateTime? @db.Timestamptz(6) @map("deleted_at")
+  anonymizedAt        DateTime? @db.Timestamptz(6) @map("anonymized_at")
+  createdAt           DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  sessions  Session[]
+  accounts  Account[]
+  verifications Verification[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid @map("user_id")
+  accountId         String    @map("account_id")
+  providerId        String    @map("provider_id")
+  password          String?
+  accessToken       String?   @map("access_token")
+  refreshToken      String?   @map("refresh_token")
+  idToken           String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(6) @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(6) @map("refresh_token_expires_at")
+  scope             String?
+  emailInvalid      Boolean   @default(false) @map("email_invalid")
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid @map("user_id")
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(6) @map("expires_at")
+  createdAt  DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model AuditLog {
+  id         BigInt    @id @default(autoincrement())
+  actorType  String    @map("actor_type")
+  actorId    String?   @db.Uuid @map("actor_id")
+  action     String
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id")
+  metadata   Json?
+  ipHash     String?   @map("ip_hash")
+  uaHash     String?   @map("ua_hash")
+  ts         DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([ts(sort: Desc)])
+  @@index([action])
+  @@map("audit_log")
+}
