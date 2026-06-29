@@ -1,4 +1,6 @@
-import PgBoss from 'pg-boss'
+// pg-boss@12 exports the class as a named export (no default) — RESEARCH's
+// `import PgBoss from 'pg-boss'` was for an older major.
+import { PgBoss } from 'pg-boss'
 import { env } from '@/lib/env'
 
 /**

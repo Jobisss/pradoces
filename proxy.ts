@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
+import { rateLimitAuth } from '@/lib/ratelimit/memory'
 
 /**
  * Next 16 Proxy (replaces `middleware.ts`).
@@ -36,6 +37,27 @@ export default async function proxy(request: NextRequest) {
 
   const sessionCookie = getSessionCookie(request)
   const { pathname } = request.nextUrl
+
+  // Boundary rate limit (INFRA-04, T-01-06-01): the Better Auth catch-all
+  // (app/api/auth/[...all]/route.ts) is directly reachable, so a brute-force on
+  // /api/auth/sign-in/email would bypass the Server Actions. Throttle the
+  // sensitive write paths here at the edge (10/60s per IP). Defense in depth:
+  // Plan 08 Server Actions consume the same in-process limiter.
+  if (request.method === 'POST' && pathname.startsWith('/api/auth')) {
+    const sensitive =
+      pathname.includes('/sign-in/email') || pathname.includes('/forget-password')
+    if (sensitive) {
+      const ip = (request.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown'
+      try {
+        await rateLimitAuth.consume(ip)
+      } catch {
+        return new NextResponse(
+          JSON.stringify({ message: 'Muitas tentativas seguidas. Tenta de novo daqui a pouco.' }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        )
+      }
+    }
+  }
 
   // Cookie-presence layer ONLY — DB session validation happens in layouts (Pitfall #2).
   if (pathname.startsWith('/admin') && pathname !== '/admin/entrar') {
