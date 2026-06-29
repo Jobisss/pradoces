@@ -1,8 +1,14 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
-};
+  output: 'standalone',
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['docesvalentina.com.br', 'www.docesvalentina.com.br', 'localhost:3000'],
+      bodySizeLimit: '1mb',
+    },
+  },
+}
 
-export default nextConfig;
+export default nextConfig
