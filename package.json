@@ -16,8 +16,10 @@
     "seed:admin": "tsx scripts/seed-admin.ts"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "better-auth": "^1.6.22",
     "decimal.js": "^10.6.0",
     "next": "16.2.4",
     "pino": "^10.3.1",
