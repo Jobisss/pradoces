@@ -24,6 +24,7 @@
     "better-auth": "^1.6.22",
     "decimal.js": "^10.6.0",
     "next": "16.2.4",
+    "pg-boss": "^12.18.1",
     "pino": "^10.3.1",
     "rate-limiter-flexible": "^11.0.1",
     "react": "19.2.4",
