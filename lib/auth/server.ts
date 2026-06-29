@@ -5,7 +5,9 @@ import { nextCookies } from 'better-auth/next-js'
 import { prisma } from '@/lib/db/client'
 import { env } from '@/lib/env'
 import { hashPassword, verifyPassword } from './argon2'
-import { logger } from '@/lib/log'
+import { sendVerificationEmail } from '@/lib/email/send-verification'
+import { sendPasswordResetEmail } from '@/lib/email/send-password-reset'
+import { logAudit } from '@/lib/audit/log'
 
 /**
  * Better Auth init — the security backbone for Plans 04-08.
@@ -19,8 +21,10 @@ import { logger } from '@/lib/log'
  *     (Pitfall #1): telefone, role, isAdult, terms/privacy version+acceptedAt.
  *   - `nextCookies()` MUST be the LAST plugin (Pitfall #1) so it can flush
  *     Set-Cookie headers after every other plugin has run.
- *   - `sendResetPassword`/`sendVerificationEmail` are NOOP logs until Plan 04
- *     wires real Resend delivery.
+ *   - `sendResetPassword`/`sendVerificationEmail` deliver real email via Resend
+ *     (Plan 04). The sends are fire-and-forget (`void`) so they never block the
+ *     Server Action (T-01-04-04); Phase 4 moves them onto pg-boss.
+ *   - `onPasswordReset` writes a `customer_password_reset` audit event (AUTH-11).
  */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
@@ -37,19 +41,30 @@ export const auth = betterAuth({
       verify: ({ hash: storedHash, password }) => verifyPassword(storedHash, password),
     },
     sendResetPassword: async ({ user, url }) => {
-      // Plan 04 wires real Resend send. For now log only.
-      logger.info({ userId: user.id, url }, 'sendResetPassword (noop until Plan 04)')
+      // Fire-and-forget (T-01-04-04): never block the Server Action on the
+      // Resend round-trip. Phase 4 moves this onto pg-boss.
+      void sendPasswordResetEmail({ to: user.email, url })
     },
     onPasswordReset: async ({ user }) => {
-      logger.info({ userId: user.id }, 'password reset complete')
+      // Repudiation mitigation (T-01-04-03 / AUTH-11). Admin self-reset happens
+      // via CLI (D-07); a web reset here is always the customer themselves.
+      // The base callback user type omits additionalFields; role is present at
+      // runtime (declared in `user.additionalFields` + the Prisma model).
+      const role = (user as { role?: string }).role
+      await logAudit({
+        actorType: role === 'admin' ? 'admin' : 'customer',
+        actorId: user.id,
+        action: 'customer_password_reset',
+      })
     },
   },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: false,
+    expiresIn: 60 * 60 * 24, // 24h — AUTH-04: copy promete 24 horas; default Better Auth é 1h
     sendVerificationEmail: async ({ user, url }) => {
-      // Plan 04 wires real Resend send. For now log only.
-      logger.info({ userId: user.id, url }, 'sendVerificationEmail (noop until Plan 04)')
+      // Fire-and-forget (T-01-04-04). Phase 4 moves this onto pg-boss.
+      void sendVerificationEmail({ to: user.email, url })
     },
   },
   user: {

@@ -3,7 +3,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 // Mock the real Resend send so signup never hits the network — we only assert
 // that the Better Auth verification callback fires with the right address.
 const { sendVerificationEmail } = vi.hoisted(() => ({
-  sendVerificationEmail: vi.fn(async () => ({ data: { id: 'mock' }, error: null })),
+  sendVerificationEmail: vi.fn(async (_args: { to: string; url: string }) => ({
+    data: { id: 'mock' },
+    error: null,
+  })),
 }))
 vi.mock('@/lib/email/send-verification', () => ({ sendVerificationEmail }))
 
@@ -23,7 +26,7 @@ describe('email verification wiring (AUTH-04)', () => {
     })
 
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1)
-    const arg = sendVerificationEmail.mock.calls[0][0] as { to: string; url: string }
+    const arg = sendVerificationEmail.mock.calls[0][0]
     expect(arg.to).toBe(email)
     expect(typeof arg.url).toBe('string')
     expect(arg.url.length).toBeGreaterThan(0)
