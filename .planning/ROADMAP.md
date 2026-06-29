@@ -131,7 +131,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 4/11 | In progress | - |
+| 1. Foundation | 5/11 | In progress | - |
 | 2. Motor Financeiro | 0/TBD | Not started | - |
 | 3. Catálogo Público | 0/TBD | Not started | - |
 | 4. Reserva + Pontos | 0/TBD | Not started | - |

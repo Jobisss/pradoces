@@ -21,14 +21,14 @@
 - [ ] **INFRA-01**: Deploy via Docker Compose (Next.js standalone + Postgres 16 + Caddy) numa VPS única
 - [ ] **INFRA-02**: Cloudflare Proxy laranja ativo em todos subdomínios; IP da VPS NUNCA exposto
 - [ ] **INFRA-03**: UFW bloqueia todas portas exceto 80/443 (apenas IPs Cloudflare) e SSH (apenas IP do dev)
-- [ ] **INFRA-04**: Rate limit em `/api/auth/*` e endpoints de reserva (in-memory ou DB-based, sem Redis)
+- [x] **INFRA-04**: Rate limit em `/api/auth/*` e endpoints de reserva (in-memory ou DB-based, sem Redis)
 - [ ] **INFRA-05**: Server Actions com `allowedOrigins` configurado e CSP no `next.config.ts`
 - [ ] **INFRA-06**: Validação de variáveis de ambiente com `@t3-oss/env-nextjs` no build (falha cedo)
 - [ ] **INFRA-07**: Logging com pino + redact de PII (email, senha, telefone, endereço, CPF se houver)
 - [ ] **INFRA-08**: Migrations versionadas via Prisma Migrate (`prisma migrate dev` em DEV, `prisma migrate deploy` em PROD); padrão expand-then-contract; rollback SQL escrito manualmente quando necessário (Prisma não gera automatic down — escrever em PR de migrations críticas)
 - [ ] **INFRA-09**: Money em `numeric(19,4)` em TODA coluna financeira (zero `real`/`double`/`float`); decimal.js no app
 - [ ] **INFRA-10**: Datas em `timestamptz`; `TZ=America/Sao_Paulo` no app + `timezone='America/Sao_Paulo'` no `postgres.conf`; render via `Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' })`
-- [ ] **INFRA-11**: `instrumentation.ts` inicializa workers pg-boss no boot
+- [x] **INFRA-11**: `instrumentation.ts` inicializa workers pg-boss no boot
 - [ ] **INFRA-12**: Habilita `reactCompiler: true` no `next.config.ts`
 
 ### Autenticação e identidade (AUTH)
@@ -284,14 +284,14 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | INFRA-01 | Phase 1 — Foundation | Pending |
 | INFRA-02 | Phase 1 — Foundation | Pending |
 | INFRA-03 | Phase 1 — Foundation | Pending |
-| INFRA-04 | Phase 1 — Foundation | Pending |
+| INFRA-04 | Phase 1 — Foundation | Done (01-06) |
 | INFRA-05 | Phase 1 — Foundation | Pending |
 | INFRA-06 | Phase 1 — Foundation | Pending |
 | INFRA-07 | Phase 1 — Foundation | Pending |
 | INFRA-08 | Phase 1 — Foundation | Pending |
 | INFRA-09 | Phase 1 — Foundation | Pending |
 | INFRA-10 | Phase 1 — Foundation | Pending |
-| INFRA-11 | Phase 1 — Foundation | Pending |
+| INFRA-11 | Phase 1 — Foundation | Done (01-06) |
 | INFRA-12 | Phase 1 — Foundation | Pending |
 | AUTH-01 | Phase 1 — Foundation | Pending |
 | AUTH-02 | Phase 1 — Foundation | Pending |
