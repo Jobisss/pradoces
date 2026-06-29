@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 1 of 7 (Foundation)
-Plan: 3 of 3 planejados executados (FASE INCOMPLETA — sub-planejada)
-Status: gaps_found — 3 planos (01-01/02/03) executados e verdes (16/16 testes), mas só cobrem 13 dos 30 requisitos da fase. 17 requisitos órfãos (infra VPS/Cloudflare/UFW, fluxos UI de auth, email Resend/svix, LGPD baseline, audit log de produção). Fase NÃO marcada completa.
-Last activity: 2026-06-29 — /gsd-execute-phase 1: Wave 0 (01-01 pre-flight, 01-02 Prisma 7) + Wave 1 (01-03 auth core) executados sequencialmente; gsd-verifier rodou → gaps_found (ver 01-VERIFICATION.md). plan-phase original foi pausado na revisão de stack e nunca gerou os planos restantes. Próximo: planejar requisitos restantes da Phase 1.
+Plan: 3 de 11 executados (01-01/02/03 done; 01-04..01-11 planejados e verificados, prontos pra executar)
+Status: gap plans prontos — /gsd-plan-phase 1 --gaps gerou 8 planos (01-04..01-11) cobrindo os 17 requisitos órfãos + 2 parciais; gsd-plan-checker PASSED (1 ciclo de revisão: corrigidos loop /admin/entrar, link verificação 24h, rate limit /api/auth/*). Próximo: /gsd-execute-phase 1 --gaps-only.
+Last activity: 2026-06-29 — /gsd-execute-phase 1 (3 planos, 16/16 testes) → gaps_found → /gsd-plan-phase 1 --gaps (8 planos verificados, waves 2-6). Fase ainda NÃO completa.
 
 Progress: [█░░░░░░░░░] ~13% (auth core + base técnica prontos; infra/LGPD/email/UI pendentes)
 
