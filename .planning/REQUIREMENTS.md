@@ -42,8 +42,8 @@
 - [ ] **AUTH-07**: Mensagens genéricas em fluxos sensíveis ("Se o email existir, você receberá um link") para não revelar enumeração
 - [ ] **AUTH-08**: Cliente loga e mantém sessão (Better Auth com sessions DB)
 - [ ] **AUTH-09**: Cliente acessa painel próprio (saldo, histórico de reservas, histórico de pontos)
-- [ ] **AUTH-10**: Admin tem login único da mãe; rotas `/admin/*` protegidas por middleware
-- [ ] **AUTH-11**: Audit log mínimo registra: quem confirmou qual reserva, quem mudou qual preço, quem criou qual lote, quem fez login admin
+- [x] **AUTH-10**: Admin tem login único da mãe; rotas `/admin/*` protegidas por middleware
+- [x] **AUTH-11**: Audit log mínimo registra: quem confirmou qual reserva, quem mudou qual preço, quem criou qual lote, quem fez login admin
 
 ### LGPD (LGPD)
 
@@ -302,8 +302,8 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | AUTH-07 | Phase 1 — Foundation | Pending |
 | AUTH-08 | Phase 1 — Foundation | Pending |
 | AUTH-09 | Phase 1 — Foundation | Pending |
-| AUTH-10 | Phase 1 — Foundation | Pending |
-| AUTH-11 | Phase 1 — Foundation | Pending |
+| AUTH-10 | Phase 1 — Foundation | Done (01-09) |
+| AUTH-11 | Phase 1 — Foundation | Done (01-04, 01-09) |
 | LGPD-01 | Phase 1 — Foundation | Pending |
 | LGPD-02 | Phase 1 — Foundation | Pending |
 | LGPD-03 | Phase 1 — Foundation | Pending |

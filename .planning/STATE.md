@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 1 of 7 (Foundation)
-Plan: 01-06 executado (wave 3) — 01-01/02/03/04/06 done (01-05 em execução paralela); 01-07..01-11 prontos
-Status: 01-06 executado — pg-boss boot harness via instrumentation.ts (INFRA-11, schema 'pgboss'), rate limit em memória (rateLimitAuth 10/60s + rateLimitForgotEmail 3/15min) e throttle no boundary /api/auth/* do proxy.ts (11º POST sensível → 429, INFRA-04/SC4). 36/38 testes (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-07..01-11).
-Last activity: 2026-06-29 — /gsd-execute-phase 1 plan 01-06 (3 tasks TDD, 6 commits, 36/38 testes verdes). Fase ainda NÃO completa.
+Plan: 01-09 executado (wave 3) — 01-01/02/03/04/06/09 done (01-05 em execução paralela); 01-07/08/10/11 prontos
+Status: 01-09 executado — scripts/seed-admin.ts (CLI bootstrap D-05 idempotente + break-glass reset D-07) com auditoria admin_seed_via_cli / admin_password_reset_via_cli (sem vazar senha). Reset autoriza endpoints admin-plugin forjando sessão admin assinada (RESEARCH verbatim chamava as APIs sem headers → UNAUTHORIZED no better-auth 1.6). AUTH-10/AUTH-11 fechados. 41/43 testes (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-07/08/10/11).
+Last activity: 2026-06-29 — /gsd-execute-phase 1 plan 01-09 (1 task TDD, 2 commits, 41/43 testes verdes). Fase ainda NÃO completa.
 
-Progress: [███░░░░░░░] ~27% (auth core + email/audit + job harness + rate limit prontos; infra deploy/LGPD/UI pendentes)
+Progress: [███░░░░░░░] ~30% (auth core + email/audit + job harness + rate limit + admin bootstrap prontos; infra deploy/LGPD/UI pendentes)
 
 ## Performance Metrics
 
@@ -27,10 +27,10 @@ Progress: [███░░░░░░░] ~27% (auth core + email/audit + job h
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 2 (01-04, 01-06) | 19 min | 9.5 min |
+| 01-foundation | 3 (01-04, 01-06, 01-09) | 22 min | 7.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
+- Last 5 plans: 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
 - Trend: —
 
 *Updated after each plan completion*
@@ -57,6 +57,8 @@ Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY
 - (01-06) Rate limit aplicado no BOUNDARY (proxy.ts), não só nas Server Actions — o catch-all do Better Auth é diretamente alcançável; sem isso seria bypass de brute-force (INFRA-04/SC4). Mesmo `RateLimiterMemory` in-process é compartilhado com as Server Actions do Plan 08 (defesa em profundidade)
 - (01-06) `RateLimiterMemory` (rate-limiter-flexible) em vez de `@upstash/ratelimit` (Upstash não tem modo memory, exige Redis); reset por processo aceito p/ v1 single-VPS
 - (01-06) pg-boss@12 usa export nomeado `{ PgBoss }` (sem default) — corrigido o snippet verbatim da RESEARCH que era de major anterior (pego pelo tsc)
+- (01-09) seed-admin CLI forja uma sessão admin assinada (Session row + cookie HMAC base64 padrão, nome do cookie lido de `auth.$context` p/ `__Secure-` em prod) para autorizar `auth.api.setUserPassword`/`revokeUserSessions` — esses endpoints do admin-plugin rodam atrás de `adminMiddleware` e lançam UNAUTHORIZED sem sessão; o snippet verbatim da RESEARCH chamava-os sem headers
+- (01-09) `seedAdmin()`/`resetAdmin()` exportados com override opcional de senha (default lê env) p/ testabilidade; `main()` só roda em execução direta (`import.meta.url === argv[1]`) p/ os testes importarem sem disparar seed
 
 ### Pending Todos
 
@@ -87,5 +89,5 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 ## Session Continuity
 
 Last session: 2026-06-29
-Stopped at: Completed 01-06-PLAN.md (pg-boss boot harness INFRA-11 + rate limit boundary INFRA-04). 36/38 testes verdes (2 todo), tsc limpo. Próximo plano: 01-07.
+Stopped at: Completed 01-09-PLAN.md (admin bootstrap D-05 + break-glass reset D-07, AUTH-10/AUTH-11). 41/43 testes verdes (2 todo), tsc limpo. Próximo plano: 01-07/08/10/11.
 Resume file: None
