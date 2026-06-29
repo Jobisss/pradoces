@@ -36,8 +36,8 @@
 - [ ] **AUTH-01**: Cliente cria conta com email + senha + nome + telefone (todos obrigatórios)
 - [ ] **AUTH-02**: Cadastro inteligente — cliente informa email primeiro; sistema verifica existência; se existe pede senha; se não existe abre cadastro completo
 - [ ] **AUTH-03**: Quando cliente tenta cadastrar email já existente, sistema mostra "talvez você tenha digitado o email errado, tente fazer login" antes de bloquear duplicata
-- [ ] **AUTH-04**: Verificação de email obrigatória no cadastro (link de confirmação válido por 24h)
-- [ ] **AUTH-05**: Recuperação de senha OWASP-compliant — token único de 32 bytes, hash no DB, expiração 30-60min, single-use, revoga sessões ativas após reset
+- [x] **AUTH-04**: Verificação de email obrigatória no cadastro (link de confirmação válido por 24h) — 01-04 (envio real Resend + emailVerification.expiresIn 24h)
+- [x] **AUTH-05**: Recuperação de senha OWASP-compliant — token único de 32 bytes, hash no DB, expiração 30-60min, single-use, revoga sessões ativas após reset — 01-03 (token 1h + revokeSessionsOnPasswordReset) + 01-04 (email real)
 - [ ] **AUTH-06**: Senhas hasheadas com argon2id (parâmetros recomendados pelo OWASP)
 - [ ] **AUTH-07**: Mensagens genéricas em fluxos sensíveis ("Se o email existir, você receberá um link") para não revelar enumeração
 - [ ] **AUTH-08**: Cliente loga e mantém sessão (Better Auth com sessions DB)
@@ -296,8 +296,8 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | AUTH-01 | Phase 1 — Foundation | Pending |
 | AUTH-02 | Phase 1 — Foundation | Pending |
 | AUTH-03 | Phase 1 — Foundation | Pending |
-| AUTH-04 | Phase 1 — Foundation | Pending |
-| AUTH-05 | Phase 1 — Foundation | Pending |
+| AUTH-04 | Phase 1 — Foundation | Done (01-04) |
+| AUTH-05 | Phase 1 — Foundation | Done (01-04) |
 | AUTH-06 | Phase 1 — Foundation | Pending |
 | AUTH-07 | Phase 1 — Foundation | Pending |
 | AUTH-08 | Phase 1 — Foundation | Pending |

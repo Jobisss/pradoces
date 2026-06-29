@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 1 of 7 (Foundation)
-Plan: 3 de 11 executados (01-01/02/03 done; 01-04..01-11 planejados e verificados, prontos pra executar)
-Status: gap plans prontos — /gsd-plan-phase 1 --gaps gerou 8 planos (01-04..01-11) cobrindo os 17 requisitos órfãos + 2 parciais; gsd-plan-checker PASSED (1 ciclo de revisão: corrigidos loop /admin/entrar, link verificação 24h, rate limit /api/auth/*). Próximo: /gsd-execute-phase 1 --gaps-only.
-Last activity: 2026-06-29 — /gsd-execute-phase 1 (3 planos, 16/16 testes) → gaps_found → /gsd-plan-phase 1 --gaps (8 planos verificados, waves 2-6). Fase ainda NÃO completa.
+Plan: 4 de 11 executados (01-01/02/03/04 done; 01-05..01-11 planejados e verificados, prontos pra executar)
+Status: 01-04 executado (wave 2) — email real via Resend + React Email, logAudit (hash IP/UA), webhook svix verify, verificação 24h. 24/26 testes (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-05..01-11).
+Last activity: 2026-06-29 — /gsd-execute-phase 1 plan 01-04 (3 tasks, 2 TDD, 24/26 testes verdes). Fase ainda NÃO completa.
 
-Progress: [█░░░░░░░░░] ~13% (auth core + base técnica prontos; infra/LGPD/email/UI pendentes)
+Progress: [██░░░░░░░░] ~18% (auth core + email delivery + audit foundation prontos; infra/LGPD/UI pendentes)
 
 ## Performance Metrics
 
@@ -27,10 +27,10 @@ Progress: [█░░░░░░░░░] ~13% (auth core + base técnica pront
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-foundation | 1 (01-04) | 10 min | 10 min |
 
 **Recent Trend:**
-- Last 5 plans: —
+- Last 5 plans: 01-04 (10 min, 3 tasks, 10 files)
 - Trend: —
 
 *Updated after each plan completion*
@@ -49,6 +49,9 @@ Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY
 - Email NUNCA dentro de transação SQL (pg-boss enfileira após COMMIT)
 - v1 só retirada (`delivery_mode='PICKUP_ONLY'` enum desde já, UI esconde a opção)
 - Hardening operacional pesado (Fase 7 da research) DEFERIDO para v1.x; LGPD baseline e bloqueadores técnicos permanecem em v1
+- (01-04) `logAudit` absorve o hashing de IP/UA — call sites passam raw, helper sha256; plaintext nunca chega no audit_log (Pitfall #9)
+- (01-04) Callbacks de email são fire-and-forget (`void sendXxx`) pra não bloquear a Server Action (T-01-04-04); Phase 4 move pra pg-boss
+- (01-04) `emailVerification.expiresIn = 24h` alinha o backend ao copy do email (default Better Auth era 1h) — AUTH-04
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 
 ## Session Continuity
 
-Last session: 2026-04-30
-Stopped at: Phase 1 plan-phase pausado pra revisão de stack — D-09 ORM swap (Drizzle→Prisma 7) aprovado, Cloudflare proxy mantido. Docs atualizados (PROJECT.md, AGENTS.md, REQUIREMENTS.md, ROADMAP.md, STATE.md, CONTEXT.md, research/STACK+SUMMARY+ARCHITECTURE+PITFALLS). Pronto para retomar `/gsd-plan-phase 1` com decisão de research first vs skip.
-Resume file: .planning/phase-1-foundation/01-CONTEXT.md (D-09 é a decisão mais recente)
+Last session: 2026-06-29
+Stopped at: Completed 01-04-PLAN.md (email delivery + audit foundation). 24/26 testes verdes (2 todo), tsc limpo. Próximo plano: 01-05.
+Resume file: None
