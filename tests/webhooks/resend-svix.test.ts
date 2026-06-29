@@ -1,7 +1,16 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// The local/CI RESEND_WEBHOOK_SECRET is a placeholder that svix's strict base64
+// decoder rejects, so we mock env with the canonical svix sample secret. Both
+// the route (imports this mocked env) and the test signer share it, making the
+// signed round-trip hermetic and independent of the real Resend secret.
+const { TEST_WEBHOOK_SECRET } = vi.hoisted(() => ({
+  TEST_WEBHOOK_SECRET: 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw',
+}))
+vi.mock('@/lib/env', () => ({ env: { RESEND_WEBHOOK_SECRET: TEST_WEBHOOK_SECRET } }))
+
 import { Webhook } from 'svix'
 import { POST } from '@/app/api/webhooks/resend/route'
-import { env } from '@/lib/env'
 
 /**
  * Resend webhook svix-signature enforcement (T-01-04-01, block-on:high).
@@ -42,7 +51,7 @@ describe('POST /api/webhooks/resend (svix verify)', () => {
     })
     const msgId = 'msg_2abc'
     const timestamp = new Date()
-    const wh = new Webhook(env.RESEND_WEBHOOK_SECRET)
+    const wh = new Webhook(TEST_WEBHOOK_SECRET)
     const signature = wh.sign(msgId, timestamp, payload)
 
     const res = await POST(
