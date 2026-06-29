@@ -1,0 +1,47 @@
+# Doces Valentina — production stack (INFRA-01).
+#
+# app: Next.js standalone, bound to LOOPBACK ONLY (127.0.0.1:3000). The host-level
+#      Caddy reverse-proxies to it; the container port is never exposed to the world.
+# db:  Postgres 16, NO host port mapping — only reachable on the compose network.
+#      TZ/PGTZ + mounted postgresql.conf pin America/Sao_Paulo (INFRA-10).
+#
+# Caddy + UFW run on the HOST (see Caddyfile, scripts/setup-ufw.sh, docs/DEPLOY.md),
+# not in this compose file.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_URL: https://docesvalentina.com.br
+    restart: unless-stopped
+    # Loopback-only: exposed to the internet exclusively via the host Caddy.
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # No `ports:` — Postgres stays on the internal compose network only.
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: doces
+      TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d doces"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pgdata:

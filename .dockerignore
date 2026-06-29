@@ -1,0 +1,23 @@
+# Keep the build context (and the standalone image) small and secret-free.
+node_modules
+.next
+.git
+.gitignore
+.planning
+.claude
+.gemini
+.rtk
+tests
+**/*.test.ts
+**/*.test.tsx
+coverage
+.env
+.env.*
+!.env.production.example
+Dockerfile
+.dockerignore
+docker-compose.yml
+docs
+README.md
+npm-debug.log*
+.DS_Store
