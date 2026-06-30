@@ -53,7 +53,9 @@ export default async function proxy(request: NextRequest) {
   // Plan 08 Server Actions consume the same in-process limiter.
   if (request.method === 'POST' && pathname.startsWith('/api/auth')) {
     const sensitive =
-      pathname.includes('/sign-in/email') || pathname.includes('/forget-password')
+      pathname.includes('/sign-in/email') ||
+      pathname.includes('/sign-up/email') || // HI-02: account-creation flood
+      pathname.includes('/forget-password')
     if (sensitive) {
       // HI-01: key the bucket off the trusted client IP (CF-Connecting-IP /
       // rightmost XFF hop), not the attacker-spoofable leftmost XFF value.
