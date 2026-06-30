@@ -41,7 +41,7 @@
 - [ ] **AUTH-06**: Senhas hasheadas com argon2id (parâmetros recomendados pelo OWASP)
 - [x] **AUTH-07**: Mensagens genéricas em fluxos sensíveis ("Se o email existir, você receberá um link") para não revelar enumeração — 01-08 (signinUser/requestPasswordReset copy idêntica)
 - [x] **AUTH-08**: Cliente loga e mantém sessão (Better Auth com sessions DB) — 01-08 (signinUser; UI de login fica no Plan 10)
-- [ ] **AUTH-09**: Cliente acessa painel próprio (saldo, histórico de reservas, histórico de pontos)
+- [x] **AUTH-09**: Cliente acessa painel próprio (saldo, histórico de reservas, histórico de pontos)
 - [x] **AUTH-10**: Admin tem login único da mãe; rotas `/admin/*` protegidas por middleware
 - [x] **AUTH-11**: Audit log mínimo registra: quem confirmou qual reserva, quem mudou qual preço, quem criou qual lote, quem fez login admin
 
@@ -50,8 +50,8 @@
 - [x] **LGPD-01**: Checkbox "Tenho 18+ ou estou com autorização do responsável" obrigatório no cadastro — 01-08 (Zod ===true hard block + checkbox UI)
 - [x] **LGPD-02**: Aceite versionado: campos `terms_version`, `terms_accepted_at`, `privacy_version`, `privacy_accepted_at` no usuário
 - [x] **LGPD-03**: Política de privacidade descreve operadores reais (Resend EUA, Cloudflare, hospedagem) e retenção (5 anos para fins fiscais, depois anonimização)
-- [ ] **LGPD-04**: Página "Meus dados" com botão de exportação — gera JSON com cadastro + reservas + pontos + transações
-- [ ] **LGPD-05**: Página "Excluir minha conta" — anonimiza (preserva histórico de reservas para fins fiscais, mas troca dados pessoais por placeholders e revoga sessões)
+- [x] **LGPD-04**: Página "Meus dados" com botão de exportação — gera JSON com cadastro + reservas + pontos + transações
+- [x] **LGPD-05**: Página "Excluir minha conta" — anonimiza (preserva histórico de reservas para fins fiscais, mas troca dados pessoais por placeholders e revoga sessões)
 - [x] **LGPD-06**: Email de DPO visível em rodapé/política para solicitação manual
 
 ### Ingredientes e compras (ING)
@@ -301,14 +301,14 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | AUTH-06 | Phase 1 — Foundation | Pending |
 | AUTH-07 | Phase 1 — Foundation | Done (01-08) |
 | AUTH-08 | Phase 1 — Foundation | Done (01-08) |
-| AUTH-09 | Phase 1 — Foundation | Pending |
+| AUTH-09 | Phase 1 — Foundation | Done (01-11) |
 | AUTH-10 | Phase 1 — Foundation | Done (01-09) |
 | AUTH-11 | Phase 1 — Foundation | Done (01-04, 01-09) |
 | LGPD-01 | Phase 1 — Foundation | Done (01-08) |
 | LGPD-02 | Phase 1 — Foundation | Done (01-07) |
 | LGPD-03 | Phase 1 — Foundation | Done (01-07) |
-| LGPD-04 | Phase 1 — Foundation | Pending |
-| LGPD-05 | Phase 1 — Foundation | Pending |
+| LGPD-04 | Phase 1 — Foundation | Done (01-11) |
+| LGPD-05 | Phase 1 — Foundation | Done (01-11) |
 | LGPD-06 | Phase 1 — Foundation | Done (01-07) |
 | ING-01 | Phase 2 — Motor Financeiro | Pending |
 | ING-02 | Phase 2 — Motor Financeiro | Pending |
