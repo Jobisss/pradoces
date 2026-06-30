@@ -13,8 +13,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "seed:admin": "tsx scripts/seed-admin.ts",
-    "dev:login": "tsx scripts/dev-login.ts"
+    "seed:admin": "tsx --env-file=.env scripts/seed-admin.ts",
+    "dev:login": "tsx --env-file=.env scripts/dev-login.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
