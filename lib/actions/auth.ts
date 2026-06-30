@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth/server'
 import { prisma } from '@/lib/db/client'
 import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth, rateLimitForgotEmail } from '@/lib/ratelimit/memory'
+import { clientIp } from '@/lib/net/client-ip'
 import { SignupSchema, SigninSchema, ForgotSchema, ResetSchema } from '@/lib/validation/auth'
 
 /**
@@ -42,7 +43,9 @@ export type AuthActionState = {
 
 async function clientContext() {
   const h = await nextHeaders()
-  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  // HI-01: trust CF-Connecting-IP / rightmost XFF hop, never the spoofable
+  // leftmost XFF value (shared helper with the proxy boundary throttle).
+  const ip = clientIp(h)
   const ua = h.get('user-agent') ?? undefined
   return { h, ip, ua }
 }

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
+import { clientIp } from '@/lib/net/client-ip'
 
 /**
  * Next 16 Proxy (replaces `middleware.ts`).
@@ -54,7 +55,9 @@ export default async function proxy(request: NextRequest) {
     const sensitive =
       pathname.includes('/sign-in/email') || pathname.includes('/forget-password')
     if (sensitive) {
-      const ip = (request.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown'
+      // HI-01: key the bucket off the trusted client IP (CF-Connecting-IP /
+      // rightmost XFF hop), not the attacker-spoofable leftmost XFF value.
+      const ip = clientIp(request.headers)
       try {
         await rateLimitAuth.consume(ip)
       } catch {
