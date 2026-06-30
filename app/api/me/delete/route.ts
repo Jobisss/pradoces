@@ -1,8 +1,8 @@
-import crypto from 'node:crypto'
 import { headers as nextHeaders } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth/server'
 import { anonymizeUser } from '@/lib/lgpd/anonymize'
+import { hashPii } from '@/lib/audit/log'
 import { DeleteAccountSchema } from '@/lib/validation/lgpd'
 
 /**
@@ -15,7 +15,8 @@ import { DeleteAccountSchema } from '@/lib/validation/lgpd'
  *      target comes from the session — never from the request body — so a user
  *      can only delete their own account (T-01-11-01). Mismatch -> 400.
  *
- * IP/UA are sha256-hashed before reaching anonymizeUser (never plaintext).
+ * IP/UA are HMAC-hashed (ME-01, keyed pepper) before reaching anonymizeUser —
+ * never plaintext.
  */
 export async function POST(request: Request) {
   const h = await nextHeaders()
@@ -28,14 +29,8 @@ export async function POST(request: Request) {
     return new Response('email não confere', { status: 400 })
   }
 
-  const ipHash = crypto
-    .createHash('sha256')
-    .update(h.get('x-forwarded-for') ?? '')
-    .digest('hex')
-  const uaHash = crypto
-    .createHash('sha256')
-    .update(h.get('user-agent') ?? '')
-    .digest('hex')
+  const ipHash = hashPii(h.get('x-forwarded-for') ?? '')
+  const uaHash = hashPii(h.get('user-agent') ?? '')
 
   await anonymizeUser(session.user.id, ipHash, uaHash)
   redirect('/?msg=conta-excluida')

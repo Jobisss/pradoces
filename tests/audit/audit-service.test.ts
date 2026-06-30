@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { randomUUID, createHash } from 'node:crypto'
-import { logAudit } from '@/lib/audit/log'
+import { logAudit, hashPii } from '@/lib/audit/log'
 import { prisma } from '@/lib/db/client'
 import { truncateAll } from '../conftest'
 
@@ -26,13 +26,16 @@ describe('logAudit (AUTH-11 foundation, T-01-04-02)', () => {
     expect(row.actorType).toBe('customer')
     expect(row.actorId).toBe(actorId)
 
-    // IP/UA stored ONLY as sha256 hex — never the plaintext value (Pitfall #9).
+    // IP/UA stored ONLY as a keyed HMAC hex — never plaintext (Pitfall #9), and
+    // NOT a bare sha256 (ME-01: that would be brute-forceable for low-entropy IP/UA).
     expect(row.ipHash).not.toBe('1.2.3.4')
     expect(row.uaHash).not.toBe('x')
     expect(row.ipHash).toMatch(/^[0-9a-f]{64}$/)
     expect(row.uaHash).toMatch(/^[0-9a-f]{64}$/)
-    expect(row.ipHash).toBe(createHash('sha256').update('1.2.3.4').digest('hex'))
-    expect(row.uaHash).toBe(createHash('sha256').update('x').digest('hex'))
+    expect(row.ipHash).toBe(hashPii('1.2.3.4'))
+    expect(row.uaHash).toBe(hashPii('x'))
+    // The keyed HMAC must differ from an unsalted sha256 of the same input.
+    expect(row.ipHash).not.toBe(createHash('sha256').update('1.2.3.4').digest('hex'))
   })
 
   it('accepts actorId:null with actorType cli (system events)', async () => {
