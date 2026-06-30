@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 ## Current Position
 
 Phase: 1 of 7 (Foundation)
-Plan: 01-07 executado (wave 4) — 01-01/02/03/04/06/07/09 done (01-05 em execução paralela); 01-08/10/11 prontos
-Status: 01-07 executado — shell visual completo: shadcn (preset radix-nova) + 10 componentes oficiais + paleta pink-bordô da UI-SPEC mapeada sobre os tokens shadcn (--primary #9D2D7A, --background #FFF6FB); root layout pt-BR (Fraunces, viewport, Toaster); header RSC com CTAs por sessão (D-01/D-02/D-04) + logout server action; footer global com DPO (D-03/LGPD-06); landing 3-variant + /termos (LGPD-02) + /privacidade (LGPD-03, operadores reais). D-03 garantido por route group: Header/Footer no app/(public)/layout.tsx, group (admin) irmão sem footer. LGPD-02/03/06 fechados. Checkpoint visual aprovado ("visual ok"). 44/46 testes (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-08/10/11).
-Last activity: 2026-06-29 — /gsd-execute-phase 1 plan 01-07 (2 tasks + checkpoint human-verify, 4 commits, 44/46 testes verdes; fix CSP dev unsafe-eval). Fase ainda NÃO completa.
+Plan: 01-08 executado (wave 5) — 01-01/02/03/04/06/07/08/09 done (01-05 em execução paralela); 01-10/11 prontos
+Status: 01-08 executado — espinha dorsal funcional do auth: 6 Server Actions reais (lib/actions/auth.ts, skeleton 7 passos) — signupCustomer/checkEmailExists/signinUser/signinAdmin/requestPasswordReset/resetPassword, com Zod (lib/validation/auth.ts, copy UI-SPEC + +18/termos como ===true hard block), rate limit defesa-em-profundidade (mesmas instâncias do proxy/Plan 06), anti-enumeração (AUTH-07), captura LGPD (+18/consent versionado), e audit (customer_signup, admin_login, customer_email_verified). UI: app/(public)/cadastro email-first 2 passos + branch AUTH-03 ("talvez digitou errado") + verifique-seu-email + auth/confirmar-email/[token] (RSC verifyEmail). Pages sob (public) herdam o shell (D-03). Checkpoint human-verify aprovado ("cadastro ok") — confirmação validada via token mintado localmente (Resend ainda não configurado, user_setup do Plan 04). 17 testes novos; suíte 61/63 (2 todo), tsc limpo. Próximo: /gsd-execute-phase 1 (01-10/11).
+Last activity: 2026-06-30 — /gsd-execute-phase 1 plan 01-08 (2 tasks TDD/auto + checkpoint human-verify, 4 commits, 61/63 testes verdes; fix forgetPassword→requestPasswordReset). Fase ainda NÃO completa.
 
-Progress: [████░░░░░░] ~38% (auth core + email/audit + job harness + rate limit + admin bootstrap + design system/shell/LGPD-shell prontos; infra deploy + auth UI forms + LGPD export/delete pendentes)
+Progress: [█████░░░░░] ~46% (auth core + email/audit + job harness + rate limit + admin bootstrap + design system/shell/LGPD-shell + auth Server Actions/cadastro UI prontos; infra deploy + login/reset UI + LGPD export/delete pendentes)
 
 ## Performance Metrics
 
@@ -27,11 +27,11 @@ Progress: [████░░░░░░] ~38% (auth core + email/audit + job h
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 4 (01-04, 01-06, 01-07, 01-09) | 121 min | 30.3 min |
+| 01-foundation | 5 (01-04, 01-06, 01-07, 01-08, 01-09) | 154 min | 30.8 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-07 (99 min wall / ~45 min ativo, 2 tasks + checkpoint, 22 files), 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
-- Trend: 01-07 inflado por espera de checkpoint visual humano (gate bloqueante)
+- Last 5 plans: 01-08 (~33 min ativo, wall-clock inflado por checkpoint human-verify; 2 tasks + checkpoint, 11 files), 01-07 (99 min wall / ~45 min ativo, 2 tasks + checkpoint, 22 files), 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
+- Trend: planos com checkpoint humano (01-07, 01-08) inflam o wall-clock; tempo ativo permanece ~30-45 min
 
 *Updated after each plan completion*
 
@@ -63,6 +63,10 @@ Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY
 - (01-07) Tokens da UI-SPEC mapeados SOBRE o sistema shadcn (UI-SPEC "accent" #9D2D7A = shadcn `--primary`; "surface" = `--card`/`--popover`) — componentes oficiais herdam a marca sem patch; Phase 6 sobrescreve via CSS vars. Dark mode confirmado fora de escopo Phase 1 (light-only, reativa em Phase 6)
 - (01-07) shadcn v3 (CLI nova): preset por nome (Nova = Lucide/Geist, baseColor neutral) + pacote unificado `radix-ui` — `--base-color`/style "new-york" da spec não existem mais; `npx` é interceptado pelo hook rtk (invocar binário por caminho absoluto). Componente `form` adiado p/ Plans 08/10 (no-op silencioso no registry radix-nova; precisa react-hook-form)
 - (01-07) CSP `unsafe-eval` só em dev (`NODE_ENV!=production`) em `proxy.ts` — React dev mode exige eval(); produção continua estrita (nonce + strict-dynamic), T-01-07-01 intacto
+- (01-08) Endpoint forgot-password do Better Auth v1.6 é `auth.api.requestPasswordReset({ body: { email, redirectTo } })` — NÃO `forgetPassword` (a nota de interface do plano estava desatualizada; pego pelo tsc). `verifyEmail` retorna só `{ status }`, então o actorId do audit `customer_email_verified` é derivado do claim `email` do token JWT (best-effort, cai pra null sem quebrar)
+- (01-08) Consentimento LGPD (+18/termos) validado com `z.boolean().refine(v===true)` (não `z.literal`) — checkbox desmarcado é HARD BLOCK antes de qualquer INSERT (LGPD-01/02); a action mapeia `'on'`/ausente → boolean real
+- (01-08) Server Actions testáveis no runtime node: testes mockam `next/headers` (headers + cookies) e `next/navigation` (redirect); IP do contexto é mutável por teste p/ a asserção de rate limit. Padrão p/ Plans 10/Phase 4
+- (01-08) Auth pages sob `app/(public)/` (herdam shell D-03, URLs inalteradas); rate limit nas actions é defesa-em-profundidade (limite primário no proxy/Plan 06, mesmas instâncias in-process)
 
 ### Pending Todos
 
@@ -92,6 +96,7 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 
 ## Session Continuity
 
-Last session: 2026-06-29
-Stopped at: Completed 01-07-PLAN.md (shell visual — shadcn + paleta pink-bordô + header/footer/toaster + landing + /termos + /privacidade; LGPD-02/03/06). Checkpoint visual aprovado. 44/46 testes verdes (2 todo), tsc limpo. Próximo plano: 01-08/10/11.
+Last session: 2026-06-30
+Stopped at: Completed 01-08-PLAN.md (auth Server Actions + cadastro inteligente — 6 actions reais, Zod, anti-enum, rate-limit defesa-em-profundidade, LGPD consent, audit; cadastro email-first 2 passos + AUTH-03 + confirmar-email landing). Checkpoint human-verify aprovado ("cadastro ok"; confirmação via token mintado localmente — Resend pendente, user_setup Plan 04). 61/63 testes verdes (2 todo), tsc limpo. Próximo plano: 01-10/11.
 Resume file: None
+Setup pendente (não bloqueia código): verificar domínio docesvalentina.com.br no Resend (user_setup do Plan 04) para entrega real de email de confirmação/reset.

@@ -33,21 +33,21 @@
 
 ### Autenticação e identidade (AUTH)
 
-- [ ] **AUTH-01**: Cliente cria conta com email + senha + nome + telefone (todos obrigatórios)
-- [ ] **AUTH-02**: Cadastro inteligente — cliente informa email primeiro; sistema verifica existência; se existe pede senha; se não existe abre cadastro completo
-- [ ] **AUTH-03**: Quando cliente tenta cadastrar email já existente, sistema mostra "talvez você tenha digitado o email errado, tente fazer login" antes de bloquear duplicata
+- [x] **AUTH-01**: Cliente cria conta com email + senha + nome + telefone (todos obrigatórios) — 01-08 (signupCustomer + cadastro UI)
+- [x] **AUTH-02**: Cadastro inteligente — cliente informa email primeiro; sistema verifica existência; se existe pede senha; se não existe abre cadastro completo — 01-08 (checkEmailExists + 2 passos)
+- [x] **AUTH-03**: Quando cliente tenta cadastrar email já existente, sistema mostra "talvez você tenha digitado o email errado, tente fazer login" antes de bloquear duplicata — 01-08 (branch AUTH-03)
 - [x] **AUTH-04**: Verificação de email obrigatória no cadastro (link de confirmação válido por 24h) — 01-04 (envio real Resend + emailVerification.expiresIn 24h)
 - [x] **AUTH-05**: Recuperação de senha OWASP-compliant — token único de 32 bytes, hash no DB, expiração 30-60min, single-use, revoga sessões ativas após reset — 01-03 (token 1h + revokeSessionsOnPasswordReset) + 01-04 (email real)
 - [ ] **AUTH-06**: Senhas hasheadas com argon2id (parâmetros recomendados pelo OWASP)
-- [ ] **AUTH-07**: Mensagens genéricas em fluxos sensíveis ("Se o email existir, você receberá um link") para não revelar enumeração
-- [ ] **AUTH-08**: Cliente loga e mantém sessão (Better Auth com sessions DB)
+- [x] **AUTH-07**: Mensagens genéricas em fluxos sensíveis ("Se o email existir, você receberá um link") para não revelar enumeração — 01-08 (signinUser/requestPasswordReset copy idêntica)
+- [x] **AUTH-08**: Cliente loga e mantém sessão (Better Auth com sessions DB) — 01-08 (signinUser; UI de login fica no Plan 10)
 - [ ] **AUTH-09**: Cliente acessa painel próprio (saldo, histórico de reservas, histórico de pontos)
 - [x] **AUTH-10**: Admin tem login único da mãe; rotas `/admin/*` protegidas por middleware
 - [x] **AUTH-11**: Audit log mínimo registra: quem confirmou qual reserva, quem mudou qual preço, quem criou qual lote, quem fez login admin
 
 ### LGPD (LGPD)
 
-- [ ] **LGPD-01**: Checkbox "Tenho 18+ ou estou com autorização do responsável" obrigatório no cadastro
+- [x] **LGPD-01**: Checkbox "Tenho 18+ ou estou com autorização do responsável" obrigatório no cadastro — 01-08 (Zod ===true hard block + checkbox UI)
 - [x] **LGPD-02**: Aceite versionado: campos `terms_version`, `terms_accepted_at`, `privacy_version`, `privacy_accepted_at` no usuário
 - [x] **LGPD-03**: Política de privacidade descreve operadores reais (Resend EUA, Cloudflare, hospedagem) e retenção (5 anos para fins fiscais, depois anonimização)
 - [ ] **LGPD-04**: Página "Meus dados" com botão de exportação — gera JSON com cadastro + reservas + pontos + transações
@@ -293,18 +293,18 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | INFRA-10 | Phase 1 — Foundation | Pending |
 | INFRA-11 | Phase 1 — Foundation | Done (01-06) |
 | INFRA-12 | Phase 1 — Foundation | Pending |
-| AUTH-01 | Phase 1 — Foundation | Pending |
-| AUTH-02 | Phase 1 — Foundation | Pending |
-| AUTH-03 | Phase 1 — Foundation | Pending |
-| AUTH-04 | Phase 1 — Foundation | Done (01-04) |
+| AUTH-01 | Phase 1 — Foundation | Done (01-08) |
+| AUTH-02 | Phase 1 — Foundation | Done (01-08) |
+| AUTH-03 | Phase 1 — Foundation | Done (01-08) |
+| AUTH-04 | Phase 1 — Foundation | Done (01-04, 01-08) |
 | AUTH-05 | Phase 1 — Foundation | Done (01-04) |
 | AUTH-06 | Phase 1 — Foundation | Pending |
-| AUTH-07 | Phase 1 — Foundation | Pending |
-| AUTH-08 | Phase 1 — Foundation | Pending |
+| AUTH-07 | Phase 1 — Foundation | Done (01-08) |
+| AUTH-08 | Phase 1 — Foundation | Done (01-08) |
 | AUTH-09 | Phase 1 — Foundation | Pending |
 | AUTH-10 | Phase 1 — Foundation | Done (01-09) |
 | AUTH-11 | Phase 1 — Foundation | Done (01-04, 01-09) |
-| LGPD-01 | Phase 1 — Foundation | Pending |
+| LGPD-01 | Phase 1 — Foundation | Done (01-08) |
 | LGPD-02 | Phase 1 — Foundation | Done (01-07) |
 | LGPD-03 | Phase 1 — Foundation | Done (01-07) |
 | LGPD-04 | Phase 1 — Foundation | Pending |
