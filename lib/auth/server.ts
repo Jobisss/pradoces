@@ -8,6 +8,7 @@ import { hashPassword, verifyPassword } from './argon2'
 import { sendVerificationEmail } from '@/lib/email/send-verification'
 import { sendPasswordResetEmail } from '@/lib/email/send-password-reset'
 import { logAudit } from '@/lib/audit/log'
+import { rateLimitForgotEmail } from '@/lib/ratelimit/memory'
 
 /**
  * Better Auth init — the security backbone for Plans 04-08.
@@ -41,6 +42,17 @@ export const auth = betterAuth({
       verify: ({ hash: storedHash, password }) => verifyPassword(storedHash, password),
     },
     sendResetPassword: async ({ user, url }) => {
+      // ME-03: per-email anti-flood cap (3/15min) enforced HERE so it applies to
+      // BOTH the requestPasswordReset Server Action AND a direct POST to
+      // /api/auth/forget-password (targeted email-bombing of a known victim
+      // address). This single chokepoint runs for every entry point, so the cap
+      // can't be bypassed at the boundary. If exhausted, skip the send — the
+      // reset token already issued server-side is harmless without the email.
+      const limited = await rateLimitForgotEmail
+        .consume(user.email)
+        .then(() => false)
+        .catch(() => true)
+      if (limited) return
       // Fire-and-forget (T-01-04-04): never block the Server Action on the
       // Resend round-trip. Phase 4 moves this onto pg-boss.
       void sendPasswordResetEmail({ to: user.email, url })

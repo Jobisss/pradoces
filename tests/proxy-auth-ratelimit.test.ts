@@ -37,6 +37,26 @@ describe('proxy rate limit on /api/auth/* boundary (INFRA-04)', () => {
     expect(blocked.status).toBe(429)
   })
 
+  it('throttles reset-password POST (ME-03: reset-token brute-force)', async () => {
+    const ip = `10.7.7.${Math.floor(Math.random() * 250) + 1}`
+    for (let i = 0; i < 10; i++) {
+      const res = await proxy(post('/api/auth/reset-password', ip))
+      expect(res.status).not.toBe(429)
+    }
+    const blocked = await proxy(post('/api/auth/reset-password', ip))
+    expect(blocked.status).toBe(429)
+  })
+
+  it('throttles verify-email even on GET (ME-03: token brute-force)', async () => {
+    const ip = `10.8.8.${Math.floor(Math.random() * 250) + 1}`
+    for (let i = 0; i < 10; i++) {
+      const res = await proxy(post('/api/auth/verify-email?token=x', ip, 'GET'))
+      expect(res.status).not.toBe(429)
+    }
+    const blocked = await proxy(post('/api/auth/verify-email?token=x', ip, 'GET'))
+    expect(blocked.status).toBe(429)
+  })
+
   it('does NOT throttle GET on /api/auth/* (only sensitive writes)', async () => {
     const ip = `10.2.2.${Math.floor(Math.random() * 250) + 1}`
     for (let i = 0; i < 15; i++) {

@@ -51,12 +51,18 @@ export default async function proxy(request: NextRequest) {
   // /api/auth/sign-in/email would bypass the Server Actions. Throttle the
   // sensitive write paths here at the edge (10/60s per IP). Defense in depth:
   // Plan 08 Server Actions consume the same in-process limiter.
-  if (request.method === 'POST' && pathname.startsWith('/api/auth')) {
-    const sensitive =
-      pathname.includes('/sign-in/email') ||
-      pathname.includes('/sign-up/email') || // HI-02: account-creation flood
-      pathname.includes('/forget-password')
-    if (sensitive) {
+  if (pathname.startsWith('/api/auth')) {
+    // Sensitive WRITES (POST): login, account-creation, reset request, reset submit.
+    const sensitiveWrite =
+      request.method === 'POST' &&
+      (pathname.includes('/sign-in/email') ||
+        pathname.includes('/sign-up/email') || // HI-02: account-creation flood
+        pathname.includes('/forget-password') ||
+        pathname.includes('/reset-password')) // ME-03: reset-token brute-force
+    // ME-03: /verify-email is the GET token link — throttle it too so the
+    // single-use verification token cannot be brute-forced by guessing.
+    const tokenProbe = pathname.includes('/verify-email')
+    if (sensitiveWrite || tokenProbe) {
       // HI-01: key the bucket off the trusted client IP (CF-Connecting-IP /
       // rightmost XFF hop), not the attacker-spoofable leftmost XFF value.
       const ip = clientIp(request.headers)

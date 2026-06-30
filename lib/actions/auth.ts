@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth/server'
 import { prisma } from '@/lib/db/client'
 import { logAudit } from '@/lib/audit/log'
-import { rateLimitAuth, rateLimitForgotEmail } from '@/lib/ratelimit/memory'
+import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { SignupSchema, SigninSchema, ForgotSchema, ResetSchema } from '@/lib/validation/auth'
 
@@ -205,16 +205,19 @@ export async function signinAdmin(
 
 /**
  * AUTH-05 / AUTH-07 — password-reset request. ALWAYS returns the same generic
- * confirmation regardless of whether the email exists. Rate limited per-email
- * (3/15min) as anti-flood defense in depth.
+ * confirmation regardless of whether the email exists.
+ *
+ * ME-03: the per-email anti-flood cap (3/15min) now lives in the Better Auth
+ * `sendResetPassword` chokepoint (lib/auth/server.ts) so it applies to BOTH this
+ * action AND a direct POST /api/auth/forget-password. Consuming it here too would
+ * double-count and shrink the real budget, so it is intentionally NOT consumed in
+ * this action — the generic response below is returned regardless (anti-enum).
  */
 export async function requestPasswordReset(
   _prev: unknown,
   formData: FormData,
 ): Promise<AuthActionState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const rl = await rateLimitForgotEmail.consume(email || 'unknown').catch(() => null)
-  if (rl === null) return { error: RATE_LIMIT_COPY }
 
   const parsed = ForgotSchema.safeParse({ email })
   if (parsed.success) {
