@@ -111,6 +111,21 @@ describe('POST /api/me/delete (auth gate + typed-email gate)', () => {
     expect(after!.deletedAt).toBeNull()
   })
 
+  it('matches case-insensitively so an auto-capitalized email still deletes (ME-02)', async () => {
+    const email = `case-${Date.now()}@example.com`
+    const u = await createTestUser({ email })
+    await seedCredentialsAndSession(u.id)
+    const { cookie } = await signInAsCustomer(u.id)
+    ctx.cookie = cookie
+
+    // Mobile keyboard auto-capitalizes the typed confirmation.
+    await postWith(email.toUpperCase())
+
+    expect(redirectMock).toHaveBeenCalledWith('/?msg=conta-excluida')
+    const after = await prisma.user.findUnique({ where: { id: u.id } })
+    expect(after!.anonymizedAt).not.toBeNull()
+  })
+
   it('anonymizes and redirects when the typed email matches', async () => {
     const email = `delete-ok-${Date.now()}@example.com`
     const u = await createTestUser({ email })
