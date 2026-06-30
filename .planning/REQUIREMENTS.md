@@ -297,13 +297,13 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | AUTH-02 | Phase 1 — Foundation | Done (01-08) |
 | AUTH-03 | Phase 1 — Foundation | Done (01-08) |
 | AUTH-04 | Phase 1 — Foundation | Done (01-04, 01-08) |
-| AUTH-05 | Phase 1 — Foundation | Done (01-04) |
+| AUTH-05 | Phase 1 — Foundation | Done (01-04, 01-10) |
 | AUTH-06 | Phase 1 — Foundation | Pending |
-| AUTH-07 | Phase 1 — Foundation | Done (01-08) |
-| AUTH-08 | Phase 1 — Foundation | Done (01-08) |
+| AUTH-07 | Phase 1 — Foundation | Done (01-08, 01-10) |
+| AUTH-08 | Phase 1 — Foundation | Done (01-08, 01-10) |
 | AUTH-09 | Phase 1 — Foundation | Done (01-11) |
-| AUTH-10 | Phase 1 — Foundation | Done (01-09) |
-| AUTH-11 | Phase 1 — Foundation | Done (01-04, 01-09) |
+| AUTH-10 | Phase 1 — Foundation | Done (01-09, 01-10) |
+| AUTH-11 | Phase 1 — Foundation | Done (01-04, 01-09, 01-10) |
 | LGPD-01 | Phase 1 — Foundation | Done (01-08) |
 | LGPD-02 | Phase 1 — Foundation | Done (01-07) |
 | LGPD-03 | Phase 1 — Foundation | Done (01-07) |
