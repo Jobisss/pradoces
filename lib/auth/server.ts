@@ -3,7 +3,6 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { admin } from 'better-auth/plugins'
 import { nextCookies } from 'better-auth/next-js'
 import { prisma } from '@/lib/db/client'
-import { env } from '@/lib/env'
 import { hashPassword, verifyPassword } from './argon2'
 import { sendVerificationEmail } from '@/lib/email/send-verification'
 import { sendPasswordResetEmail } from '@/lib/email/send-password-reset'
@@ -26,11 +25,19 @@ import { rateLimitForgotEmail } from '@/lib/ratelimit/memory'
  *     (Plan 04). The sends are fire-and-forget (`void`) so they never block the
  *     Server Action (T-01-04-04); Phase 4 moves them onto pg-boss.
  *   - `onPasswordReset` writes a `customer_password_reset` audit event (AUTH-11).
+ *
+ * Env note: `secret`/`baseURL` are read from `process.env` directly, NOT via the
+ * t3-env `env` proxy. This module is the auth backbone, imported by Server
+ * Actions that `'use client'` pages reference; under jsdom (component tests) a
+ * t3-env server-var ACCESS at module-load throws ("...server-side environment
+ * variable on the client"). The raw `process.env` read is the same sanctioned
+ * carve-out used by `lib/db/client.ts` / `lib/log.ts`; `lib/env` still validates
+ * `BETTER_AUTH_SECRET`/`BETTER_AUTH_URL` at build/boot via `next.config.ts`.
  */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
-  secret: env.BETTER_AUTH_SECRET,
-  baseURL: env.BETTER_AUTH_URL,
+  secret: process.env.BETTER_AUTH_SECRET,
+  baseURL: process.env.BETTER_AUTH_URL,
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true, // AUTH-04
