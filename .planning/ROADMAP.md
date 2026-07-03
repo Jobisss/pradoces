@@ -47,7 +47,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. Teste de regressão automatizado passa: registrar lote → mudar preço corrente do ingrediente → relatório do lote antigo permanece com custo congelado original (custo histórico imutável é enforce no schema, não convenção)
 
 **Pitfalls associados** (research SUMMARY 2.1, 5.5, 1.4, 4.3): float vs numeric (já mitigado na Fase 1), custo congelado bug (FK pra compra, trigger, teste de regressão), ANVISA alegações de saúde (linter visual), começar com queries `.with` desde já para não criar N+1.
-**Plans**: TBD
+**Plans**: 11 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Schema + migration (9 models, trigger ING-07, CHECKs LOTE-04) + harness de testes (wave 1)
+- [ ] 02-02-PLAN.md — Infra de UI: RHF + shadcn (workaround form stub) + nav admin + ajuda ANVISA (wave 1)
+- [ ] 02-03-PLAN.md — Núcleo monetário: requireAdmin, zDecimalBRL, lib/custo, fixtures + testes (wave 2)
+- [ ] 02-04-PLAN.md — Backend ingredientes + compras (D-01..04, ING-01..07) + testes (wave 3)
+- [ ] 02-05-PLAN.md — Receitas vertical: actions + form RHF com custo ao vivo (REC-01..05) (wave 3)
+- [ ] 02-06-PLAN.md — Backend produtos + config: PROD-09 server-side, audit de preço, D-10/D-11 + testes (wave 3)
+- [ ] 02-07-PLAN.md — Lotes backend: LOTE-08 test-first + produzirLote transacional + filtros TZ (wave 3)
+- [ ] 02-08-PLAN.md — UI ingredientes/compras: lista, histórico D-03, fluxo "ida ao mercado" (wave 4)
+- [ ] 02-09-PLAN.md — UI produtos/ajustes: margem batch + form com margem reativa + PROD-08/09 (wave 4)
+- [ ] 02-10-PLAN.md — UI lotes: filtros LOTE-07 + fluxo "Produzi hoje" D-05..08 (wave 4)
+- [ ] 02-11-PLAN.md — Home admin + audit copy + checkpoint human-verify do ciclo completo (wave 5)
 **UI hint**: yes
 
 ### Phase 3: Catálogo Público
