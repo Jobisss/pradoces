@@ -1,7 +1,8 @@
 ---
 phase: 2
 slug: motor-financeiro
-status: draft
+status: approved
+reviewed_at: 2026-07-03
 shadcn_initialized: true
 preset: radix-nova (shadcn CLI v3+; Lucide + Geist, baseColor neutral) + Luizinha Confeitaria brand CSS vars (app/globals.css, 2026-07-03)
 created: 2026-07-03
@@ -385,12 +386,12 @@ Racional: a mãe opera com uma mão, no mercado ou com luva de cozinha. Os dois 
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS (FLAG não-bloqueante: "Corrigir"/"Excluir" nas linhas de compra são verbos sem substantivo — mitigado pelo contexto da linha e pelo CTA do dialog "Excluir compra"; executor pode usar "Corrigir compra"/"Excluir compra" se couber sem quebrar linha)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
 **Approval:** pending
 
