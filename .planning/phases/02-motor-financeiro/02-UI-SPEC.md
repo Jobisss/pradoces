@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: true
 preset: radix-nova (shadcn CLI v3+; Lucide + Geist, baseColor neutral) + Luizinha Confeitaria brand CSS vars (app/globals.css, 2026-07-03)
 created: 2026-07-03
+revised: 2026-07-03
 ---
 
 # Phase 2 — UI Design Contract (Motor Financeiro)
@@ -74,7 +75,7 @@ Herdado integralmente do Phase 1 UI-SPEC (8-point, múltiplos de 4):
 **Touch target floor:** 44×44px em todo elemento clicável (herdado — locked no nível do design system). Botões primários 48px de altura; inputs 48px no mobile.
 
 **Exceptions (Phase 2):**
-- Botões icon-only dentro de linhas densas de tabela/lista admin (ex.: lápis "editar compra", X "remover linha de ingrediente" no useFieldArray): visual 40×40px permitido, **hitbox mantida ≥44px** via padding — é a exceção prevista no Phase 1 spec, agora ativa.
+- Botão icon-only X "remover linha de ingrediente" no useFieldArray (forms de receita e produzir lote): visual 40×40px permitido, **hitbox mantida ≥44px** via padding, **`aria-label="Remover ingrediente"` obrigatório** — é a exceção prevista no Phase 1 spec, agora ativa. As ações de compra são botões de **texto** ("Corrigir" / "Excluir", ver copy contract) — não usam ícone nem esta exceção.
 - Chips de multiplicador (1× / 1,5× / 2×): 44px de altura mínima, sem exceção.
 
 ---
@@ -115,20 +116,20 @@ Tokens atuais de `app/globals.css` (Luizinha Confeitaria — fonte de verdade, a
 | Caramelo (decorativo) | — (BRAND.md) | `#C49A7A` | NUNCA texto (2.6:1). Sem uso em Phase 2; livre pra charts Phase 7 |
 
 **Accent (`--primary` rosa) reserved for** (lista explícita — nunca "todos os elementos interativos"):
-1. CTA primário de cada surface ("Salvar ingrediente", "Adicionar item", "Salvar receita", "Salvar produto", "Registrar produção", "Salvar" em ajustes)
+1. CTA primário de cada surface ("Salvar ingrediente", "Adicionar item", "Salvar receita", "Salvar produto", "Registrar produção", "Salvar ajustes")
 2. Os 2 cards de atalho da home admin ("Fui ao mercado" / "Produzi hoje") — fundo rosa, texto chocolate
 3. Item ativo da navegação (sheet) — `--sidebar-primary`
 4. Chip de multiplicador selecionado e filtro de lote ativo (Vigentes/Vencidos/Esgotados)
 5. Indicador de check em checkbox/radio selecionado
 
-**Accent NOT used for:** botões secundários ("Trocar compra", "Cancelar" — usam `--secondary` branco + borda), links inline (foreground + underline), badges de status de lote, células de margem, ícones informativos, hover de linha (usa `--accent` rosa-claro).
+**Accent NOT used for:** botões secundários ("Trocar compra", "Terminei as compras", "Deixa quieto" — usam `--secondary` branco + borda), links inline (foreground + underline), badges de status de lote, células de margem, ícones informativos, hover de linha (usa `--accent` rosa-claro).
 
 **Destructive reserved for** (lista explícita):
 1. **Linha vermelha de margem (PROD-08):** o bloco de margem quando margem < mínimo — borda esquerda 4px `--destructive` + ícone `TriangleAlert` (lucide) + texto 16px em `--destructive`. Nunca cor sozinha (regra color-independence)
 2. **Bloqueio preço < custo (PROD-09):** alert destructive acima do CTA + CTA desabilitado no client (cortesia; o bloqueio real é server-side)
 3. Item de "ações pendentes" da home admin quando um produto caiu abaixo da margem mínima (mesmo padrão borda+ícone+texto)
 4. Badge "Vencido" no filtro/lista de lotes (outline destructive + ícone)
-5. Botão "Excluir compra" (só visível pré-lote) e o dialog de confirmação correspondente
+5. Ação "Excluir" na linha de compra (só visível pré-lote) e o dialog de confirmação correspondente (CTA "Excluir compra")
 6. Erro de form catastrófico (falha total de submit)
 
 **Destructive NOT used for:** erros de validação de campo (foreground + ícone + caption 14px, herdado), badge "Esgotado" (usa `--muted-foreground` + ícone `PackageX`), avisos informativos (ex.: "essa compra já foi usada num lote" quando exibido como estado, não como erro — usa ícone `Lock` + muted).
@@ -166,7 +167,7 @@ Voz herdada (locked): **calorosa, direta, "vizinha"** — "a gente", "tá", "voc
 | Detalhe: preço corrente | "Última compra: {marca}, {R$ X,XX} ({R$ 0,0000}/{un-base}) em {dd/mm}" |
 | Histórico empty state | "Nenhuma compra registrada ainda" + body "Toca em 'Fui ao mercado' na tela inicial pra registrar a primeira." |
 | Compra imutável (estado, ícone Lock) | "Usada num lote — não dá mais pra mudar" |
-| Compra editável — ações | "Corrigir" / "Excluir" |
+| Compra editável — ações (botões de texto, não ícones) | "Corrigir" / "Excluir" |
 | `/admin/compras/nova` h1 | "Fui ao mercado" |
 | Header do fluxo: label mercado | "Onde você comprou" (autocomplete que aprende — D-04) |
 | Header do fluxo: label data | "Quando" (default hoje) |
@@ -190,6 +191,7 @@ Voz herdada (locked): **calorosa, direta, "vizinha"** — "a gente", "tá", "voc
 | Form: label nome | "Nome da receita" |
 | Form: h2 ingredientes | "Ingredientes (pra um lote)" |
 | Linha: labels | "Ingrediente" + "Quantidade ({un-base})" |
+| Linha: remover (icon-only X) | `aria-label="Remover ingrediente"` (sem texto visível — exceção de spacing documentada acima) |
 | Adicionar linha | "Mais um ingrediente" |
 | Form: label rendimento | "Rende quantas unidades" |
 | Form: label gás | "Gasto de gás/energia por lote (R$) — se quiser" |
@@ -228,7 +230,8 @@ Voz herdada (locked): **calorosa, direta, "vizinha"** — "a gente", "tá", "voc
 | Passo 1: label receita | "Qual receita você fez" |
 | Label multiplicador (D-07) | "Quantas receitas" (chips 1× · 1,5× · 2× + campo livre) |
 | h2 ingredientes usados (D-05) | "Ingredientes que você usou" |
-| Linha pré-selecionada | "{Ingrediente} · {qtde}{un} — {marca}, compra de {dd/mm} ({R$ 0,0000}/{un})" + ação "Trocar" |
+| Linha pré-selecionada | "{Ingrediente} · {qtde}{un} — {marca}, compra de {dd/mm} ({R$ 0,0000}/{un})" + ação **"Trocar compra"** |
+| Linha: remover (icon-only X) | `aria-label="Remover ingrediente"` (mesma exceção do form de receita) |
 | Trocar compra (combobox) | placeholder "Qual compra você usou?" — lista as compras desse ingrediente, mais recente primeiro |
 | Label rendimento real (D-06) | "Quantas unidades saíram de verdade" + caption "a receita diz {N}, mas vale o que saiu" |
 | Label validade (D-08) | "Vence em" (data pré-preenchida: produção + {X} dias) + caption "confere com a etiqueta que você cola no doce" |
@@ -242,7 +245,7 @@ Voz herdada (locked): **calorosa, direta, "vizinha"** — "a gente", "tá", "voc
 |---------|------|
 | `/admin/ajustes` h1 | "Ajustes" |
 | Label margem global (D-10) | "Margem mínima padrão (%)" + caption "Abaixo disso, o produto ganha um aviso vermelho. Hoje: {30}%." |
-| CTA | **"Salvar"** + toast "Salvo!" |
+| CTA | **"Salvar ajustes"** + toast "Salvo!" |
 | `/admin/ajuda` h1 | "Cuidados com o que escrever" |
 | Intro ANVISA (PROD-10) | "Na descrição dos doces, evita prometer saúde — a ANVISA não permite alegação de benefício em alimento. Escreve o que ele É, não o que ele CURA." |
 | Lista de palavras a evitar | "emagrece", "detox", "fortalece a imunidade", "cura", "trata", "previne doença", "medicinal", "terapêutico", "zero risco", "faz bem pra saúde" |
@@ -265,7 +268,7 @@ Voz herdada (locked): **calorosa, direta, "vizinha"** — "a gente", "tá", "voc
 |--------|---------|---------------------|
 | Excluir compra (só pré-lote, D-03) | `/admin/ingredientes/[id]` | `dialog` (agora permitido — baixo risco, reversível re-registrando): título "Excluir essa compra?", body "Ela ainda não foi usada em nenhum lote, então pode sair sem dó.", CTA destructive **"Excluir compra"** + secundário "Deixa quieto" |
 | Editar compra (pré-lote) | idem | Sem confirmação — edição não é destrutiva; após lote referenciar, botões somem e a linha exibe o estado "Usada num lote — não dá mais pra mudar" (Pitfall 7: check `EXISTS` preventivo; trigger é última defesa) |
-| Remover linha de ingrediente no form de receita/lote | forms 8 e 12 | Sem dialog — remoção in-form desfazível antes do submit; botão X icon-only 44px hitbox |
+| Remover linha de ingrediente no form de receita/lote | forms 8 e 12 | Sem dialog — remoção in-form desfazível antes do submit; botão X icon-only, 44px hitbox, `aria-label="Remover ingrediente"` |
 
 Nenhuma exclusão de ingrediente, receita, produto ou lote entra na v1 desta fase (não há REQ; lote e compra referenciada são imutáveis por design).
 
@@ -280,9 +283,10 @@ Herdado integralmente do Phase 1 UI-SPEC (44px touch, focus ring 2px `--ring`, s
 | Inputs de dinheiro/quantidade | `inputMode="decimal"`, aceita vírgula E ponto ("5,80"/"5.80"); NUNCA `type="number"` (spinner + parsing de vírgula quebrado no mobile). Validação via `zDecimalBRL` server-side |
 | Preview de custo/margem ao vivo | decimal.js no client (custo corrente chega serializado como string do server — Pitfall 3); recálculo em `onChange` com debounce ≤300ms; o server SEMPRE recomputa e é quem bloqueia (PROD-09) |
 | Status nunca só por cor | Margem baixa = borda + ícone `TriangleAlert` + texto; vencido = badge + ícone; esgotado = badge + ícone. Locked (color-independence) |
+| Botões icon-only | Sempre com `aria-label` declarado na copy: X remover linha = "Remover ingrediente"; hamburger `Menu` = "Abrir menu". Nenhum outro botão icon-only existe em Phase 2 — ações de compra são texto ("Corrigir"/"Excluir") |
 | Fluxo "ida ao mercado" (D-01) | Header (mercado+data) fica fixo no topo enquanto rola; cada "Adicionar item" persiste NA HORA (uma Server Action por item) e limpa só os campos do item (mercado/data/ingrediente ficam); lista de itens salvos cresce abaixo; foco volta pro campo "O que você comprou" após adicionar |
 | Autocomplete (mercado, marca, categoria — D-04) | shadcn `combobox` (popover+command) com entrada livre: sugere valores existentes (DISTINCT), aceita valor novo; match case-insensitive reutiliza grafia canônica ao salvar |
-| Trocar compra (D-05) | Cada linha mostra a última compra pré-selecionada em texto pleno (marca + data + custo); "Trocar" abre combobox listando compras do ingrediente (mais recente primeiro, com marca/data/custo visíveis) — nunca dropdown de IDs |
+| Trocar compra (D-05) | Cada linha mostra a última compra pré-selecionada em texto pleno (marca + data + custo); "Trocar compra" abre combobox listando compras do ingrediente (mais recente primeiro, com marca/data/custo visíveis) — nunca dropdown de IDs |
 | Multiplicador (D-07) | Chips 1× / 1,5× / 2× (toggle, 44px) + campo numérico livre sincronizado; mudar o multiplicador reescala as quantidades exibidas na hora |
 | Validade (D-08) | Input de data nativo (`type="date"`) pré-preenchido; a data resolvida SEMPRE renderizada por extenso ao lado ("vence 22/04") — precisa bater com a etiqueta impressa (Pitfall 1.5) |
 | Sticky CTA | Forms longos (produzir lote, nova receita, novo produto): CTA primário sticky no rodapé do viewport no mobile, in-flow ≥md (padrão Phase 1) |
@@ -297,7 +301,7 @@ Herdado integralmente do Phase 1 UI-SPEC (44px touch, focus ring 2px `--ring`, s
 
 | Aspect | Mobile (<md) | Desktop (≥md, 768px) |
 |--------|--------------|---------------------|
-| Navegação | Header 56px: hamburger (`Menu` lucide, 44px) abre `sheet` lateral com: Início, Ingredientes, Receitas, Produtos, Lotes, Auditoria, Ajustes, Ajuda. Item ativo em `--sidebar-primary` | Sidebar fixa 240px (`--sidebar` branco, borda rosa-claro), mesmos itens; conteúdo max-width 1200px |
+| Navegação | Header 56px: hamburger (`Menu` lucide, 44px, `aria-label="Abrir menu"`) abre `sheet` lateral com: Início, Ingredientes, Receitas, Produtos, Lotes, Auditoria, Ajustes, Ajuda. Item ativo em `--sidebar-primary` | Sidebar fixa 240px (`--sidebar` branco, borda rosa-claro), mesmos itens; conteúdo max-width 1200px |
 | Atalhos 1-toque | Home admin: 2 cards grandes lado a lado (grid 2 col, min 44px... na prática ~96px de altura) "Fui ao mercado" / "Produzi hoje" — SEMPRE acima da lista "Precisa de atenção" | Idem, largura contida |
 | Header | Wordmark "Luizinha" (Fraunces) à esquerda, "Sair" à direita (padrão Phase 1) | Idem, 64px |
 | Page padding | `px-md` (16px) — admin é denso, difere do `px-xl` das páginas públicas | `px-2xl` dentro do content |
@@ -348,6 +352,7 @@ Racional: a mãe opera com uma mão, no mercado ou com luva de cozinha. Os dois 
 5. **Wordmark: "Luizinha Confeitaria"** (não "Doces Valentina" — rebrand 2026-07-03), Fraunces via `--font-display` até a Phase 6 trocar pela script do kit.
 6. Números sempre pt-BR: vírgula decimal no display E no input; datas dd/mm.
 7. Emojis: permitidos com MUITA parcimônia só em empty states positivos do admin (ex.: "Tudo em dia por aqui 🎉"); nunca em erro, nunca em CTA, nunca em dado financeiro.
+8. CTA sempre verbo+substantivo ("Salvar ajustes", "Registrar produção", "Trocar compra") — nunca verbo solto ("Salvar", "Trocar", "Enviar", "OK").
 
 ---
 
@@ -374,6 +379,7 @@ Racional: a mãe opera com uma mão, no mercado ou com luva de cozinha. Os dois 
 | components.json + components/ui/ (codebase scout) | yes | shadcn inicializado (radix-nova), 10 componentes existentes, registries vazio |
 | ROADMAP.md Phase 2 + REQUIREMENTS mapping | 25 REQ-IDs | Surface inventory, success criteria → estados exigidos |
 | User input (this session) | 0 | Discretion areas resolvidas com defaults registrados (nav sheet+atalhos, alerta de margem na home); usuária estava AFK no discuss — nada re-perguntado |
+| Checker revision (2026-07-03) | 4 fixes | CTA "Salvar" → "Salvar ajustes" (blocking); aria-labels de icon-only declarados + compra = ações de texto (removida a menção a lápis); exemplo de secundário "Cancelar" → labels declarados ("Deixa quieto", "Terminei as compras"); "Trocar" → "Trocar compra" |
 
 ---
 
@@ -390,6 +396,6 @@ Racional: a mãe opera com uma mão, no mercado ou com luva de cozinha. Os dois 
 
 ---
 
-*UI-SPEC drafted: 2026-07-03 by gsd-ui-researcher*
+*UI-SPEC drafted: 2026-07-03 by gsd-ui-researcher · revised 2026-07-03 (checker feedback round 1)*
 *Phase: 2 — Motor Financeiro*
 *Consumed by: gsd-ui-checker (validation), gsd-planner (task generation), gsd-executor (implementation), gsd-ui-auditor (retro audit)*
