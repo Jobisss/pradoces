@@ -3,11 +3,15 @@
 @import "shadcn/tailwind.css";
 
 /*
- * Phase 1 — paleta pink-bordô da UI-SPEC §Color (default "nenhuma campanha ativa").
- * Os tokens de marca (accent #9D2D7A, background #FFF6FB) são mapeados sobre o
- * sistema de tokens do shadcn (--primary, --background, ...) para que os
- * componentes oficiais herdem a marca sem patch. Phase 6 (Sazonalidade) sobrescreve
+ * Paleta do brand kit Luizinha Confeitaria (2026-07 — ver .planning/BRAND.md):
+ * rosa #F7B6C6 · rosa-claro #FFD6E2 · creme #FFF3E6 · caramelo #C49A7A ·
+ * chocolate #6B3E26 · azul #8ED3F7 (decorativo). Mapeada sobre o sistema de
+ * tokens do shadcn (--primary, --background, ...) para que os componentes
+ * oficiais herdem a marca sem patch. Phase 6 (Sazonalidade) sobrescreve
  * via CSS vars.
+ *
+ * Pares AA verificados: chocolate/creme 8.2:1, chocolate/rosa 5.3:1,
+ * chocolate/rosa-claro 6.8:1, muted-fg/branco 6.9:1.
  *
  * Dark mode NÃO é habilitado em Phase 1 (UI-SPEC §Color "Dark mode"): clientela 50+,
  * abre via link do WhatsApp em luz do dia. O `@custom-variant dark` é mantido só para
@@ -67,45 +71,45 @@
 :root {
   --radius: 0.625rem;
 
-  /* UI-SPEC §Color — 60% dominante (fundo creme rosado) */
-  --background: #FFF6FB;
-  --foreground: #2A0F23;
+  /* 60% dominante — creme do brand kit */
+  --background: #FFF3E6;
+  --foreground: #6B3E26;
 
   /* 30% — superfícies brancas */
   --card: #FFFFFF;
-  --card-foreground: #2A0F23;
+  --card-foreground: #6B3E26;
   --popover: #FFFFFF;
-  --popover-foreground: #2A0F23;
+  --popover-foreground: #6B3E26;
 
-  /* 10% — accent de marca (pink-bordô, CTA/links/foco — AA) → shadcn --primary */
-  --primary: #9D2D7A;
-  --primary-foreground: #FFFFFF;
+  /* 10% — accent de marca (rosa Luizinha, CTA/links — texto chocolate 5.3:1 AA) */
+  --primary: #F7B6C6;
+  --primary-foreground: #6B3E26;
 
-  /* Botões secundários = superfície + borda (UI-SPEC "Accent NOT used for") */
+  /* Botões secundários = superfície + borda */
   --secondary: #FFFFFF;
-  --secondary-foreground: #2A0F23;
+  --secondary-foreground: #6B3E26;
 
   /* Texto de apoio / captions */
-  --muted: #FBE9F4;
-  --muted-foreground: #7A5868;
+  --muted: #FFD6E2;
+  --muted-foreground: #7A5138;
 
-  /* Hover/ghost subtil (NÃO é o accent de marca) */
-  --accent: #FBE9F4;
-  --accent-foreground: #2A0F23;
+  /* Hover/ghost subtil (rosa-claro do kit) */
+  --accent: #FFD6E2;
+  --accent-foreground: #6B3E26;
 
-  /* Accent soft decorativo — NUNCA texto (2.4:1 vs branco) */
-  --accent-soft: #ED91DB;
+  /* Accent soft decorativo — NUNCA texto (rosa do kit) */
+  --accent-soft: #F7B6C6;
 
   /* Ações destrutivas only */
   --destructive: #B91C1C;
   --destructive-foreground: #FFFFFF;
 
-  /* Bordas / inputs (rosa pálido) */
-  --border: #F5DCEC;
-  --input: #F5DCEC;
+  /* Bordas / inputs (rosa-claro do kit) */
+  --border: #FFD6E2;
+  --input: #FFD6E2;
 
-  /* Foco de teclado em todo elemento interativo */
-  --ring: #9D2D7A;
+  /* Foco de teclado em todo elemento interativo (chocolate — visível no creme) */
+  --ring: #6B3E26;
 
   /* Reservado para Phase 4 (confirmações) */
   --success: #15803D;
@@ -119,13 +123,13 @@
 
   /* Sidebar do admin shell — herda a marca */
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #2A0F23;
-  --sidebar-primary: #9D2D7A;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #FBE9F4;
-  --sidebar-accent-foreground: #2A0F23;
-  --sidebar-border: #F5DCEC;
-  --sidebar-ring: #9D2D7A;
+  --sidebar-foreground: #6B3E26;
+  --sidebar-primary: #F7B6C6;
+  --sidebar-primary-foreground: #6B3E26;
+  --sidebar-accent: #FFD6E2;
+  --sidebar-accent-foreground: #6B3E26;
+  --sidebar-border: #FFD6E2;
+  --sidebar-ring: #6B3E26;
 }
 
 @layer base {

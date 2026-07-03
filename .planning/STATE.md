@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: "Completed 01-08-PLAN.md (auth Server Actions + cadastro inteligente — 6 actions reais, Zod, anti-enum, rate-limit defesa-em-profundidade, LGPD consent, audit; cadastro email-first 2 passos + AUTH-03 + confirmar-email landing). Checkpoint human-verify aprovado ("cadastro ok"; confirmação via token mintado localmente — Resend pendente, user_setup Plan 04). 61/63 testes verdes (2 todo), tsc limpo. Próximo plano: 01-10/11."
+last_updated: "2026-07-03T12:10:01.709Z"
+last_activity: 2026-07-03 -- Phase 1 execution started
+progress:
+  total_phases: 7
+  completed_phases: 0
+  total_plans: 11
+  completed_plans: 10
+  percent: 91
+---
+
 # Project State
 
 ## Project Reference
@@ -9,16 +25,17 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 ## Current Position
 
-Phase: 1 of 7 (Foundation)
-Plan: 01-10 executado (wave 6) — 01-01/02/03/04/06/07/08/09/10/11 done (só 01-05 deploy pendente, em execução paralela)
-Status: 01-10 executado — superfície de auth da Phase 1 fechada (AUTH-05/07/08/10/11 reforçados com UI). Login cliente /entrar (signinUser, anti-enum, banner reset=ok) + recuperação OWASP /esqueci-minha-senha → /enviado (sempre, anti-enum) → /redefinir-senha/[token] (resetPassword single-use + revoke; client com React.use(params)). Login admin em GRUPO IRMÃO NÃO-guardado app/(admin-auth)/ — /admin/entrar renderiza 200 SEM loop (B1); /admin e /admin/auditoria seguem guardados (307→/admin/entrar sem sessão). Viewer /admin/auditoria (RSC auditLog.findMany desc, ACTION_COPY pt-BR, metadata text-only XSS-safe) + home admin placeholder. Páginas cliente sob (public) herdam o shell. 3 testes TDD (reset single-use+revoke, viewer empty+lista, no-loop redirect-não-chamado); suíte 73/75 (2 todo), tsc limpo. Smoke test ao vivo confirmou todas as rotas (200 públicas + /admin/entrar; 307 admin protegido). Checkpoint human-verify auto-verificado a pedido do usuário ("vai executando aí"). Pendências de ambiente: npm run seed:admin (admin local) + Resend (user_setup Plan 04). Próximo: só falta 01-05 (deploy infra) p/ fechar a Phase 1.
-Last activity: 2026-06-30 — /gsd-execute-phase 1 plans 01-11 + 01-10 (login/reset/auditoria — entrega /entrar). 01-10: 2 tasks TDD/auto + checkpoint auto-verificado, 3 commits, 73/75 testes verdes. Phase 1 quase completa (falta 01-05 deploy).
+Phase: 1 (Foundation) — EXECUTING
+Plan: 1 of 11
+Status: Executing Phase 1
+Last activity: 2026-07-03 -- Phase 1 execution started
 
 Progress: [████████░░] ~75% (auth core + email/audit + job harness + rate limit + admin bootstrap + design system/shell + cadastro/login/reset/auditoria UI + LGPD export/delete prontos; só infra de deploy/01-05 pendente p/ fechar a fase)
 
 ## Performance Metrics
 
 **Velocity:**
+
 - Total plans completed: 0
 - Average duration: —
 - Total execution time: 0 hours
@@ -30,6 +47,7 @@ Progress: [████████░░] ~75% (auth core + email/audit + job h
 | 01-foundation | 5 (01-04, 01-06, 01-07, 01-08, 01-09) | 154 min | 30.8 min |
 
 **Recent Trend:**
+
 - Last 5 plans: 01-08 (~33 min ativo, wall-clock inflado por checkpoint human-verify; 2 tasks + checkpoint, 11 files), 01-07 (99 min wall / ~45 min ativo, 2 tasks + checkpoint, 22 files), 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
 - Trend: planos com checkpoint humano (01-07, 01-08) inflam o wall-clock; tempo ativo permanece ~30-45 min
 
@@ -41,6 +59,8 @@ Progress: [████████░░] ~75% (auth core + email/audit + job h
 
 Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY.md):
 
+- (2026-07-03) **REBRAND: "Doces Valentina" → "Luizinha Confeitaria"**, domínio `luizinhaconfeitaria.com.br` (comprado na Hostinger/HSTDOMAINS, registro em processamento no Registro.br). Swap completo em código/config/testes (27 arquivos). `.planning/` histórico NÃO reescrito. DB local `doces_valentina` mantido. Brand kit em `.planning/BRAND.md`; paleta aplicada nos tokens shadcn (`app/globals.css`: rosa #F7B6C6 primary c/ texto chocolate #6B3E26, creme #FFF3E6 background — pares AA verificados). Fonte display (Fraunces → script do kit) deferida p/ Phase 6
+- (2026-07-03) Layout `.planning/` migrado para `.planning/phases/01-foundation/` (GSD 1.38.5 só encontra fases sob `phases/` com prefixo numérico)
 - Stack travado: Next.js 16 (App Router) + Postgres 16 + **Prisma 7** (revisado de Drizzle em 2026-04-30) + Better Auth (adapter Prisma) + Resend + pg-boss + Caddy + Cloudflare Proxy
 - Money em `numeric(19,4)` schema-wide; datas em `timestamptz` com TZ=America/Sao_Paulo
 - Custo histórico imutável: lote denormaliza `marca_snapshot` + `custo_congelado` (FK pra `ingrediente_compra_id`)
