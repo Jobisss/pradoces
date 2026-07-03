@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Confira seu email — Doces Valentina',
+  title: 'Confira seu email — Luizinha Confeitaria',
 }
 
 /**

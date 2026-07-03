@@ -1,5 +1,5 @@
 #!/bin/bash
-# Doces Valentina — prove the origin IP is hidden (INFRA-02 / T-01-05-01).
+# Luizinha Confeitaria — prove the origin IP is hidden (INFRA-02 / T-01-05-01).
 #
 # Run from the DEV laptop (or anywhere OTHER than $DEV_IP). It hits the RAW VPS IP
 # directly, bypassing Cloudflare. With UFW correctly allowlisting only Cloudflare
@@ -13,10 +13,10 @@ set -uo pipefail
 
 VPS_IP="${VPS_IP:?VPS_IP env var required (raw VPS public IP)}"
 
-echo "Probing raw origin https://${VPS_IP}/ (Host: docesvalentina.com.br) — expecting it to be REFUSED..."
+echo "Probing raw origin https://${VPS_IP}/ (Host: luizinhaconfeitaria.com.br) — expecting it to be REFUSED..."
 
 # -k: skip cert check (cert is for the domain, not the IP); --max-time 5: short fuse.
-if curl -k --max-time 5 -sS "https://${VPS_IP}/" -H 'Host: docesvalentina.com.br' >/dev/null 2>&1; then
+if curl -k --max-time 5 -sS "https://${VPS_IP}/" -H 'Host: luizinhaconfeitaria.com.br' >/dev/null 2>&1; then
 	echo "FAIL: origin answered directly on ${VPS_IP} — Cloudflare is being bypassed. Re-check UFW (scripts/setup-ufw.sh) and Cloudflare Proxied A records."
 	exit 1
 else

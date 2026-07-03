@@ -1,4 +1,4 @@
-# Doces Valentina — production stack (INFRA-01).
+# Luizinha Confeitaria — production stack (INFRA-01).
 #
 # app: Next.js standalone, bound to LOOPBACK ONLY (127.0.0.1:3000). The host-level
 #      Caddy reverse-proxies to it; the container port is never exposed to the world.
@@ -13,7 +13,7 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_URL: https://docesvalentina.com.br
+        NEXT_PUBLIC_URL: https://luizinhaconfeitaria.com.br
     restart: unless-stopped
     # Loopback-only: exposed to the internet exclusively via the host Caddy.
     ports:

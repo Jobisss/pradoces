@@ -21,7 +21,7 @@ export async function GET() {
   return new Response(JSON.stringify(data, null, 2), {
     headers: {
       'Content-Type': 'application/json',
-      'Content-Disposition': `attachment; filename="doces-valentina-meus-dados-${date}.json"`,
+      'Content-Disposition': `attachment; filename="luizinha-confeitaria-meus-dados-${date}.json"`,
       'Cache-Control': 'no-store',
     },
   })

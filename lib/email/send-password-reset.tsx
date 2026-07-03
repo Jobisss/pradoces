@@ -31,9 +31,9 @@ function ResetPasswordEmail({ url }: { url: string }) {
 export async function sendPasswordResetEmail({ to, url }: { to: string; url: string }) {
   const html = await render(<ResetPasswordEmail url={url} />)
   return resend.emails.send({
-    from: 'Doces Valentina <nao-responda@docesvalentina.com.br>',
+    from: 'Luizinha Confeitaria <nao-responda@luizinhaconfeitaria.com.br>',
     to,
-    subject: 'Recuperar sua senha — Doces Valentina',
+    subject: 'Recuperar sua senha — Luizinha Confeitaria',
     html,
   })
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Doces Valentina — host firewall (INFRA-03 / threats T-01-05-01, T-01-05-02).
+# Luizinha Confeitaria — host firewall (INFRA-03 / threats T-01-05-01, T-01-05-02).
 #
 # Runs on the VPS host (NOT in Docker). Locks inbound traffic to:
 #   - SSH (22)      only from $DEV_IP

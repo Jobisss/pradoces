@@ -10,9 +10,9 @@ import { Footer } from '@/components/footer'
  * root, então o route group (admin) nunca o herda. Ver SUMMARY.)
  */
 describe('Footer global (LGPD-06, D-03)', () => {
-  it('mostra o email do DPO dpo@docesvalentina.com.br', () => {
+  it('mostra o email do DPO dpo@luizinhaconfeitaria.com.br', () => {
     render(<Footer />)
-    expect(screen.getByText('dpo@docesvalentina.com.br')).toBeInTheDocument()
+    expect(screen.getByText('dpo@luizinhaconfeitaria.com.br')).toBeInTheDocument()
   })
 
   it('linka Termos (/termos) e Privacidade (/privacidade)', () => {

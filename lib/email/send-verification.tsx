@@ -30,9 +30,9 @@ function VerifyEmail({ url }: { url: string }) {
 export async function sendVerificationEmail({ to, url }: { to: string; url: string }) {
   const html = await render(<VerifyEmail url={url} />)
   return resend.emails.send({
-    from: 'Doces Valentina <nao-responda@docesvalentina.com.br>',
+    from: 'Luizinha Confeitaria <nao-responda@luizinhaconfeitaria.com.br>',
     to,
-    subject: 'Confirma seu email — Doces Valentina',
+    subject: 'Confirma seu email — Luizinha Confeitaria',
     html,
   })
 }

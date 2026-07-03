@@ -1,4 +1,4 @@
-# Doces Valentina — host-level reverse proxy (INFRA-01 / INFRA-02).
+# Luizinha Confeitaria — host-level reverse proxy (INFRA-01 / INFRA-02).
 # Lives at /etc/caddy/Caddyfile on the VPS (runs on the HOST, not in Docker).
 #
 # Cloudflare terminates the public TLS; Caddy obtains its own Let's Encrypt cert
@@ -6,10 +6,10 @@
 
 {
 	# Automatic Let's Encrypt issuance/renewal.
-	email dpo@docesvalentina.com.br
+	email dpo@luizinhaconfeitaria.com.br
 }
 
-docesvalentina.com.br, www.docesvalentina.com.br {
+luizinhaconfeitaria.com.br, www.luizinhaconfeitaria.com.br {
 	encode gzip zstd
 
 	# Cloudflare is the ONLY trusted proxy, so X-Forwarded-For can be believed

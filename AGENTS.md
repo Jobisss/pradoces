@@ -4,7 +4,7 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Doces Valentina
+# Luizinha Confeitaria
 
 Site de **reserva** (não checkout) dos doces caseiros que a mãe do dono produz, com fidelização por pontos, sorteios, catálogo de resgate e admin completo de pricing/financeiro com tracking por marca/compra de ingredientes.
 

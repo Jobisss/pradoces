@@ -30,7 +30,7 @@ export async function Header() {
         href="/"
         className="font-display text-[28px] leading-none font-medium text-foreground md:text-[32px]"
       >
-        Doces Valentina
+        Luizinha Confeitaria
       </Link>
 
       <nav className="flex items-center gap-2">

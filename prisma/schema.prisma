@@ -1,4 +1,4 @@
-// Doces Valentina — Prisma 7 schema (Phase 1 foundation models).
+// Luizinha Confeitaria — Prisma 7 schema (Phase 1 foundation models).
 //
 // Conventions locked in 01-CONTEXT.md (D-09) / 01-PATTERNS.md:
 //   - UUID primary keys: `String @id @default(uuid()) @db.Uuid`

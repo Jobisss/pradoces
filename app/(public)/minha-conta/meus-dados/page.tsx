@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Seus dados — Doces Valentina',
+  title: 'Seus dados — Luizinha Confeitaria',
 }
 
 /**
@@ -51,10 +51,10 @@ export default function MeusDadosPage() {
         <p className="border-t border-border pt-6 text-sm text-muted-foreground">
           Dúvidas sobre seus dados? Escreva pra:{' '}
           <a
-            href="mailto:dpo@docesvalentina.com.br"
+            href="mailto:dpo@luizinhaconfeitaria.com.br"
             className="text-foreground underline underline-offset-4"
           >
-            dpo@docesvalentina.com.br
+            dpo@luizinhaconfeitaria.com.br
           </a>
         </p>
       </div>

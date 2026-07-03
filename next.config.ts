@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   experimental: {
     serverActions: {
-      allowedOrigins: ['docesvalentina.com.br', 'www.docesvalentina.com.br', 'localhost:3000'],
+      allowedOrigins: ['luizinhaconfeitaria.com.br', 'www.luizinhaconfeitaria.com.br', 'localhost:3000'],
       bodySizeLimit: '1mb',
     },
   },

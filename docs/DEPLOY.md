@@ -1,4 +1,4 @@
-# Deploy Runbook — Doces Valentina (Phase 1: INFRA-01/02/03)
+# Deploy Runbook — Luizinha Confeitaria (Phase 1: INFRA-01/02/03)
 
 Defensável-by-default deploy: Cloudflare proxy (origin hidden) -> host Caddy (TLS +
 trusted CF) -> Docker `app` on loopback -> Postgres on the internal network. UFW lets
@@ -17,13 +17,13 @@ Internet ── Cloudflare (orange cloud, Full Strict)
 ## 0. Prerequisites
 
 - VPS (Ubuntu 22.04+), Docker + Docker Compose plugin installed.
-- Domain `docesvalentina.com.br` on Cloudflare.
+- Domain `luizinhaconfeitaria.com.br` on Cloudflare.
 - Raw VPS public IP (`<VPS_IP>`) and your own public IP (`<DEV_IP>`).
 
 ## 1. Cloudflare (dashboard — INFRA-02)
 
 1. **DNS** -> add two **A** records, both **Proxied (orange cloud)**:
-   - `docesvalentina.com.br` -> `<VPS_IP>`
+   - `luizinhaconfeitaria.com.br` -> `<VPS_IP>`
    - `www` -> `<VPS_IP>`
 2. **SSL/TLS -> Overview** -> mode **Full (Strict)** (Caddy serves a valid origin cert).
 
@@ -73,7 +73,7 @@ VPS_IP=<VPS_IP> bash scripts/test-origin-hidden.sh     # expect PASS (non-zero c
 
 Then in a browser:
 
-- [ ] `https://docesvalentina.com.br` loads through Cloudflare.
+- [ ] `https://luizinhaconfeitaria.com.br` loads through Cloudflare.
 - [ ] Response carries `Strict-Transport-Security` (HSTS from Caddy).
 - [ ] CSP / X-Frame-Options present (from the app `proxy.ts`, not duplicated by Caddy).
 - [ ] `ufw status numbered` shows only 22 (DEV_IP) + 80/443 (CF) — INFRA-03 OK.

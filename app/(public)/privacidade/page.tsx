@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Política de privacidade — Doces Valentina',
+  title: 'Política de privacidade — Luizinha Confeitaria',
 }
 
 /** Versão do aceite (LGPD-02) — espelha User.privacyVersion. */
@@ -20,7 +20,7 @@ export default function PrivacidadePage() {
     <article className="mx-auto max-w-2xl space-y-6 px-6 py-12 text-foreground">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold md:text-3xl">
-          Política de Privacidade — Doces Valentina
+          Política de Privacidade — Luizinha Confeitaria
         </h1>
         <p className="text-base text-muted-foreground">
           A gente coleta o mínimo pra fazer a reserva e te avisar quando tá pronto. Aqui tá quem
@@ -95,7 +95,7 @@ export default function PrivacidadePage() {
               /minha-conta/excluir
             </a>
           </li>
-          <li>Corrigir → escreva pra dpo@docesvalentina.com.br</li>
+          <li>Corrigir → escreva pra dpo@luizinhaconfeitaria.com.br</li>
           <li>
             Reclamar à ANPD →{' '}
             <a
@@ -112,10 +112,10 @@ export default function PrivacidadePage() {
         <h2 className="text-xl font-semibold">DPO (Encarregada de Tratamento)</h2>
         <p className="text-base">
           <a
-            href="mailto:dpo@docesvalentina.com.br"
+            href="mailto:dpo@luizinhaconfeitaria.com.br"
             className="text-primary underline underline-offset-2"
           >
-            dpo@docesvalentina.com.br
+            dpo@luizinhaconfeitaria.com.br
           </a>{' '}
           — responde em até 15 dias.
         </p>

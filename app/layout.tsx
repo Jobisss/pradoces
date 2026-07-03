@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 })
 
-// Fraunces (variable) — usado SÓ no wordmark "Doces Valentina" (UI-SPEC §Typography),
+// Fraunces (variable) — usado SÓ no wordmark "Luizinha Confeitaria" (UI-SPEC §Typography),
 // exposto como `--font-fraunces` → `--font-display` em globals.css (utilitário font-display).
 const fraunces = Fraunces({
   variable: '--font-fraunces',
@@ -22,8 +22,8 @@ const fraunces = Fraunces({
 })
 
 export const metadata: Metadata = {
-  title: 'Doces Valentina',
-  description: 'Reserve os doces caseiros da Valentina — feitos em casa, com carinho de vizinha.',
+  title: 'Luizinha Confeitaria',
+  description: 'Reserve os doces caseiros da Luizinha — feitos em casa, com carinho de vizinha.',
 }
 
 // viewport-fit=cover trata as safe areas do iOS. Sem maximumScale/userScalable:

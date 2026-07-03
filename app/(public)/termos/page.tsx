@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Termos de uso — Doces Valentina',
+  title: 'Termos de uso — Luizinha Confeitaria',
 }
 
 /** Versão do aceite (LGPD-02) — espelha User.termsVersion. */
@@ -26,9 +26,9 @@ export default function TermosPage() {
       </header>
 
       <section className="space-y-2">
-        <h2 className="text-xl font-semibold">O que é a Doces Valentina</h2>
+        <h2 className="text-xl font-semibold">O que é a Luizinha Confeitaria</h2>
         <p className="text-base">
-          A Doces Valentina é um site de reserva dos doces caseiros que a Valentina produz. Você
+          A Luizinha Confeitaria é um site de reserva dos doces caseiros que a Luizinha produz. Você
           reserva com antecedência e combina a retirada — não é uma loja com pagamento online.
         </p>
       </section>
@@ -37,14 +37,14 @@ export default function TermosPage() {
         <h2 className="text-xl font-semibold">Sua conta</h2>
         <p className="text-base">
           Você precisa ter 18 anos ou mais (ou autorização de quem cuida de você) e dar dados
-          verdadeiros pra que a Valentina consiga te avisar quando o pedido estiver pronto.
+          verdadeiros pra que a Luizinha consiga te avisar quando o pedido estiver pronto.
         </p>
       </section>
 
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">Reservas e pontos</h2>
         <p className="text-base">
-          Reservar é um combinado de boa-fé: a Valentina separa os doces e te chama no WhatsApp.
+          Reservar é um combinado de boa-fé: a Luizinha separa os doces e te chama no WhatsApp.
           Os pontos de fidelidade são um agrado e podem mudar de regra — a gente sempre avisa antes.
         </p>
       </section>
@@ -56,7 +56,7 @@ export default function TermosPage() {
           <a href="/privacidade" className="text-primary underline underline-offset-2">
             política de privacidade
           </a>
-          . Dúvidas? Escreve pra dpo@docesvalentina.com.br.
+          . Dúvidas? Escreve pra dpo@luizinhaconfeitaria.com.br.
         </p>
       </section>
 

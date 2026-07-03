@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Link enviado — Doces Valentina',
+  title: 'Link enviado — Luizinha Confeitaria',
 }
 
 /**

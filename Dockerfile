@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Doces Valentina — Next.js 16 standalone multi-stage build (INFRA-01).
+# Luizinha Confeitaria — Next.js 16 standalone multi-stage build (INFRA-01).
 #
 # node:20-alpine is musl + OpenSSL 3 → matches prisma binaryTargets
 # "linux-musl-openssl-3.0.x" (schema.prisma) and the @node-rs/argon2 prebuilt
@@ -26,15 +26,15 @@ COPY . .
 # the bundle, so dummy values are safe here — real values come from env_file at
 # runtime (docker-compose). NEXT_PUBLIC_URL *is* inlined, so it defaults to the
 # real production URL and can be overridden with --build-arg.
-ARG NEXT_PUBLIC_URL=https://docesvalentina.com.br
+ARG NEXT_PUBLIC_URL=https://luizinhaconfeitaria.com.br
 ENV NODE_ENV=production
 ENV TZ=America/Sao_Paulo
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 ENV BETTER_AUTH_SECRET=build_time_placeholder_secret_min_32_chars
-ENV BETTER_AUTH_URL=https://docesvalentina.com.br
+ENV BETTER_AUTH_URL=https://luizinhaconfeitaria.com.br
 ENV RESEND_API_KEY=re_build_time_placeholder
 ENV RESEND_WEBHOOK_SECRET=whsec_build_time_placeholder
-ENV ADMIN_EMAIL=build@docesvalentina.com.br
+ENV ADMIN_EMAIL=build@luizinhaconfeitaria.com.br
 ENV NEXT_PUBLIC_URL=${NEXT_PUBLIC_URL}
 
 # Generate the Prisma client (musl engine) before building.

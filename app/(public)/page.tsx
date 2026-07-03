@@ -23,15 +23,15 @@ export default async function Home() {
 
   return (
     <section className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-6 py-16 text-center md:py-24">
-      <p className="font-display text-4xl font-medium text-primary md:text-5xl">Doces Valentina</p>
+      <p className="font-display text-4xl font-medium text-primary md:text-5xl">Luizinha Confeitaria</p>
 
       <h1 className="text-2xl font-semibold text-foreground md:text-3xl">
-        Em breve: reserva os doces caseiros da Valentina
+        Em breve: reserva os doces caseiros da Luizinha
       </h1>
 
       <div className="space-y-4 text-base text-muted-foreground">
         <p>
-          A Valentina cozinha em casa, do jeito de sempre. Aqui você vai poder reservar os doces
+          A Luizinha cozinha em casa, do jeito de sempre. Aqui você vai poder reservar os doces
           dela com antecedência — sem perder o carinho do atendimento no WhatsApp.
         </p>
         <p>
