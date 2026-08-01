@@ -16,6 +16,12 @@ const ACTION_COPY: Record<string, string> = {
   customer_email_verified: 'confirmou email',
   customer_password_reset: 'redefiniu a senha',
   customer_account_deleted: 'excluiu a conta',
+  compra_registrada: 'registrou uma compra',
+  compra_corrigida: 'corrigiu uma compra',
+  compra_excluida: 'excluiu uma compra',
+  receita_alterada: 'mexeu numa receita',
+  preco_alterado: 'mudou o preço de um produto',
+  lote_criado: 'registrou um lote produzido',
 }
 
 function actorLabel(actorType: string): string {
