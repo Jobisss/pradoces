@@ -177,6 +177,7 @@ export async function margensCorrentesBatch(): Promise<
   Array<{
     produtoId: string
     nome: string
+    tipo: 'UNITARIO' | 'KIT'
     precoVenda: Decimal
     custo: Decimal | null
     margem: Decimal | null
@@ -234,6 +235,6 @@ export async function margensCorrentesBatch(): Promise<
     const custo = algumEncontrado ? custoBruto : null
     const margem = custo === null ? null : margemPercent(precoVenda, custo)
 
-    return { produtoId: produto.id, nome: produto.nome, precoVenda, custo, margem, minima }
+    return { produtoId: produto.id, nome: produto.nome, tipo: produto.tipo, precoVenda, custo, margem, minima }
   })
 }
