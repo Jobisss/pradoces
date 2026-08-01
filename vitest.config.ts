@@ -28,6 +28,11 @@ export default defineConfig({
     // Postgres test DB url from env; resolved via dotenv when present
   },
   resolve: {
-    alias: { '@': path.resolve(__dirname, '.') },
+    alias: {
+      '@': path.resolve(__dirname, '.'),
+      // Next aliases `server-only` to a no-op for server bundles; vitest has
+      // no bundler-side client/server split, so every test is "server".
+      'server-only': path.resolve(__dirname, 'tests/mocks/server-only-stub.ts'),
+    },
   },
 })
