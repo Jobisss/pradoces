@@ -32,6 +32,7 @@ ENV TZ=America/Sao_Paulo
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 ENV BETTER_AUTH_SECRET=build_time_placeholder_secret_min_32_chars
 ENV BETTER_AUTH_URL=https://luizinhaconfeitaria.com.br
+ENV AUDIT_HASH_PEPPER=build_time_placeholder_pepper_min_32_chars
 ENV RESEND_API_KEY=re_build_time_placeholder
 ENV RESEND_WEBHOOK_SECRET=whsec_build_time_placeholder
 ENV ADMIN_EMAIL=build@luizinhaconfeitaria.com.br
