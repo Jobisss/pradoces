@@ -94,7 +94,7 @@ export async function registrarCompra(
     compra = await prisma.ingredienteCompra.create({
       data: {
         ingredienteId: parsed.data.ingredienteId,
-        dataCompra: new Date(`${parsed.data.dataCompra}T00:00:00-03:00`),
+        dataCompra: new Date(`${parsed.data.dataCompra}T00:00:00Z`),
         mercado,
         marca,
         qtdeEmbalagens: parsed.data.qtdeEmbalagens.toFixed(3),
@@ -182,7 +182,7 @@ export async function corrigirCompra(
       where: { id },
       data: {
         ingredienteId: parsed.data.ingredienteId,
-        dataCompra: new Date(`${parsed.data.dataCompra}T00:00:00-03:00`),
+        dataCompra: new Date(`${parsed.data.dataCompra}T00:00:00Z`),
         mercado,
         marca,
         qtdeEmbalagens: parsed.data.qtdeEmbalagens.toFixed(3),
