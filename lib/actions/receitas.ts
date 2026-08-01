@@ -1,5 +1,6 @@
 'use server'
 
+import type { z } from 'zod'
 import { headers as nextHeaders } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db/client'
@@ -26,6 +27,29 @@ export type ReceitaActionState = {
   id?: string
 }
 
+/**
+ * Zod's `.flatten()` colapsa erros de array (itens.N.campo) tudo debaixo da
+ * mesma chave "itens", sem dizer QUAL linha — quem só olha o toast genérico
+ * "Confere os campos abaixo." não tem como saber se esqueceu de escolher o
+ * ingrediente da linha 2 ou digitou a quantidade errado na linha 1. Isso
+ * monta uma mensagem que aponta a linha exata a partir de `error.issues`
+ * (que preserva o path completo, ao contrário do flatten).
+ */
+function mensagemErroItens(issues: z.core.$ZodIssue[]): string | null {
+  for (const issue of issues) {
+    if (issue.path[0] !== 'itens') continue
+    const indice = issue.path[1]
+    if (typeof indice !== 'number') continue
+    const linha = indice + 1
+    const campo = issue.path[2]
+    if (campo === 'ingredienteId') return `Confere a linha ${linha} dos ingredientes: escolhe um ingrediente da lista.`
+    if (campo === 'qtde') {
+      return `Confere a linha ${linha} dos ingredientes: a quantidade não parece certa. Usa vírgula pros decimais, tipo 395 ou 0,5.`
+    }
+  }
+  return null
+}
+
 async function clientContext() {
   const h = await nextHeaders()
   const ip = clientIp(h)
@@ -46,7 +70,10 @@ export async function criarReceita(input: unknown): Promise<ReceitaActionState> 
 
   const parsed = ReceitaSchema.safeParse(input)
   if (!parsed.success) {
-    return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
+    return {
+      error: mensagemErroItens(parsed.error.issues) ?? 'Confere os campos abaixo.',
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    }
   }
 
   let receita: { id: string }
@@ -88,7 +115,10 @@ export async function editarReceita(id: string, input: unknown): Promise<Receita
 
   const parsed = ReceitaSchema.safeParse(input)
   if (!parsed.success) {
-    return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
+    return {
+      error: mensagemErroItens(parsed.error.issues) ?? 'Confere os campos abaixo.',
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    }
   }
 
   try {
