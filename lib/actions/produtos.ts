@@ -45,11 +45,13 @@ function precoAbaixoDoCustoCopy(custo: Decimal): string {
 
 /**
  * Custo do que está sendo SALVO (não o que já existe no DB) — UNITARIO vem
- * da receita indicada, KIT soma os componentes (D-11). Retorna custo=null
- * quando não há base pra comparar (nenhuma compra registrada em nada).
+ * da receita indicada + recheio quando houver (D-12, soma direta, sem
+ * escalar — rendimento do recheio já é "por unidade"), KIT soma os
+ * componentes (D-11). Retorna custo=null quando não há base pra comparar
+ * (nenhuma compra registrada em nada).
  */
 async function custoParaSalvar(
-  data: Pick<ProdutoInput, 'tipo' | 'receitaId' | 'kitItens'>,
+  data: Pick<ProdutoInput, 'tipo' | 'receitaId' | 'recheioReceitaId' | 'kitItens'>,
 ): Promise<{ custo: Decimal | null; erroKit?: string }> {
   if (data.tipo === 'UNITARIO') {
     if (!data.receitaId) return { custo: null }
@@ -60,7 +62,11 @@ async function custoParaSalvar(
     })
     const semNenhumaCompra =
       !!receita && receita.itens.length > 0 && faltamCompras.length === receita.itens.length
-    return { custo: semNenhumaCompra ? null : porUnidade }
+    if (semNenhumaCompra) return { custo: null }
+
+    if (!data.recheioReceitaId) return { custo: porUnidade }
+    const recheio = await custoCorrenteReceita(data.recheioReceitaId)
+    return { custo: porUnidade.plus(recheio.porUnidade) }
   }
 
   const componentes = await prisma.produto.findMany({
@@ -119,6 +125,7 @@ export async function criarProduto(input: unknown): Promise<ProdutoActionState> 
           ? parsed.data.margemMinimaOverride.toFixed(2)
           : null,
         receitaId: parsed.data.tipo === 'UNITARIO' ? parsed.data.receitaId : null,
+        recheioReceitaId: parsed.data.tipo === 'UNITARIO' ? (parsed.data.recheioReceitaId ?? null) : null,
         kitItens:
           parsed.data.tipo === 'KIT' && parsed.data.kitItens
             ? { create: parsed.data.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: i.qtde })) }
@@ -175,6 +182,7 @@ export async function editarProduto(id: string, input: unknown): Promise<Produto
             ? parsed.data.margemMinimaOverride.toFixed(2)
             : null,
           receitaId: parsed.data.tipo === 'UNITARIO' ? parsed.data.receitaId : null,
+          recheioReceitaId: parsed.data.tipo === 'UNITARIO' ? (parsed.data.recheioReceitaId ?? null) : null,
         },
       }),
       ...(parsed.data.tipo === 'KIT' && parsed.data.kitItens

@@ -16,8 +16,15 @@ import { ProduzirLoteSchema } from '@/lib/validation/lotes'
  * Produção de lote (LOTE-01..04), admin-only — o coração da fase. O custo é
  * SEMPRE recomputado server-side dentro da transação, a partir das compras
  * FK'adas: o client manda só {ingredienteCompraId, qtde}, nunca custo. A
- * qtde do client é só conferida por igualdade contra receita×multiplicador
- * (dados desatualizados na tela do usuário) — nunca usada pra calcular.
+ * qtde do client é só conferida por igualdade contra o requerido (nunca
+ * usada pra calcular).
+ *
+ * D-12 (recheio): quando o produto tem `recheioReceitaId`, os ingredientes
+ * da receita de recheio entram na MESMA transação/snapshot que a base, mas
+ * escalam por um eixo DIFERENTE — base escala pelo multiplicador (D-07,
+ * quantas receitas foram feitas), recheio escala pelas unidades reais que
+ * saíram (D-06, rendimentoReal), porque o rendimento do recheio já é
+ * "por unidade final" (não por fornada).
  */
 
 const RATE_LIMIT_COPY = 'Muitas tentativas seguidas. Espera um minutinho e tenta de novo.'
@@ -67,31 +74,55 @@ export async function produzirLote(input: unknown): Promise<LoteActionState> {
   let result: TxResult
   try {
     result = await prisma.$transaction(async (tx) => {
+      const produto = await tx.produto.findUniqueOrThrow({ where: { id: data.produtoId } })
       const receita = await tx.receita.findUniqueOrThrow({
         where: { id: data.receitaId },
         include: { itens: true },
       })
+      const recheioReceita = produto.recheioReceitaId
+        ? await tx.receita.findUniqueOrThrow({
+            where: { id: produto.recheioReceitaId },
+            include: { itens: true },
+          })
+        : null
 
       const compras = await tx.ingredienteCompra.findMany({
         where: { id: { in: data.linhas.map((l) => l.ingredienteCompraId) } },
       })
-      if (compras.length !== data.linhas.length) throw new Error('DADOS_DESATUALIZADOS')
-
       const compraPorIngrediente = new Map(compras.map((c) => [c.ingredienteId, c]))
-      const ingredientesReceita = new Set(receita.itens.map((i) => i.ingredienteId))
-      const ingredientesCompras = new Set(compras.map((c) => c.ingredienteId))
-      const cobreTodos =
-        ingredientesReceita.size === ingredientesCompras.size &&
-        [...ingredientesReceita].every((id) => ingredientesCompras.has(id))
-      if (!cobreTodos) throw new Error('DADOS_DESATUALIZADOS')
 
-      const linhasSnapshot = receita.itens.map((item) => {
-        const compra = compraPorIngrediente.get(item.ingredienteId)!
-        const linhaClient = data.linhas.find((l) => l.ingredienteCompraId === compra.id)
-        const qtdeUsadaServer = new Decimal(item.qtde).times(data.multiplicador)
-        if (!linhaClient || linhaClient.qtde.toFixed(3) !== qtdeUsadaServer.toFixed(3)) {
-          throw new Error('DADOS_DESATUALIZADOS')
-        }
+      type Requerido = { ingredienteId: string; qtdeBase: Decimal; escalaPor: 'multiplicador' | 'rendimentoReal' }
+      const requeridos: Requerido[] = [
+        ...receita.itens.map((item) => ({
+          ingredienteId: item.ingredienteId,
+          qtdeBase: new Decimal(item.qtde),
+          escalaPor: 'multiplicador' as const,
+        })),
+        ...(recheioReceita?.itens.map((item) => ({
+          ingredienteId: item.ingredienteId,
+          qtdeBase: new Decimal(item.qtde),
+          escalaPor: 'rendimentoReal' as const,
+        })) ?? []),
+      ]
+
+      // Pool de linhas do client — cada item requerido CONSOME uma linha (por
+      // compra id + qtde exata), nunca reaproveita a mesma pra dois itens.
+      // Isso permite base e recheio precisarem do MESMO ingrediente sem que
+      // um "roube" a linha do outro (ex.: os dois usam açúcar).
+      const linhasDisponiveis = [...data.linhas]
+
+      const linhasSnapshot = requeridos.map((req) => {
+        const compra = compraPorIngrediente.get(req.ingredienteId)
+        if (!compra) throw new Error('DADOS_DESATUALIZADOS')
+        const qtdeUsadaServer =
+          req.escalaPor === 'multiplicador'
+            ? req.qtdeBase.times(data.multiplicador)
+            : req.qtdeBase.times(data.rendimentoReal)
+        const idx = linhasDisponiveis.findIndex(
+          (l) => l.ingredienteCompraId === compra.id && l.qtde.toFixed(3) === qtdeUsadaServer.toFixed(3),
+        )
+        if (idx === -1) throw new Error('DADOS_DESATUALIZADOS')
+        linhasDisponiveis.splice(idx, 1)
         return {
           compra: {
             id: compra.id,
@@ -102,9 +133,13 @@ export async function produzirLote(input: unknown): Promise<LoteActionState> {
         }
       })
 
+      const custoGasTotal = (receita.custoGas ? new Decimal(receita.custoGas) : new Decimal(0)).plus(
+        recheioReceita?.custoGas ? new Decimal(recheioReceita.custoGas) : new Decimal(0),
+      )
+
       const snapshot = computeLoteSnapshot({
         linhas: linhasSnapshot,
-        custoGas: receita.custoGas ? new Decimal(receita.custoGas) : new Decimal(0),
+        custoGas: custoGasTotal,
         rendimentoReal: data.rendimentoReal,
       })
 
@@ -164,30 +199,72 @@ export type DadosProducao = {
     validadeDias: number | null
     custoGas: string | null
   }
+  recheio: { id: string; nome: string } | null
   linhas: Array<{
     ingredienteId: string
     nome: string
     unidadeBase: string
     qtdeBase: string
+    origem: 'base' | 'recheio'
     compraSelecionada: { id: string; marca: string; dataCompra: string; custoPorUnidadeBase: string } | null
   }>
 }
 
-/** D-05 — dados pra montar o form de produção, com a última compra pré-selecionada por ingrediente. */
-export async function dadosProducao(receitaId: string): Promise<DadosProducao | null> {
+/**
+ * D-05 — dados pra montar o form de produção, com a última compra
+ * pré-selecionada por ingrediente. Recebe o PRODUTO (não a receita direto)
+ * porque precisa saber se ele tem recheio anexo (D-12).
+ */
+export async function dadosProducao(produtoId: string): Promise<DadosProducao | null> {
   try {
     await requireAdmin()
   } catch {
     return null
   }
   try {
+    const produto = await prisma.produto.findUnique({ where: { id: produtoId } })
+    if (!produto?.receitaId) return null
+
     const receita = await prisma.receita.findUnique({
-      where: { id: receitaId },
+      where: { id: produto.receitaId },
       include: { itens: { include: { ingrediente: true } } },
     })
     if (!receita) return null
 
-    const ultimas = await ultimasCompras(receita.itens.map((item) => item.ingredienteId))
+    const recheioReceita = produto.recheioReceitaId
+      ? await prisma.receita.findUnique({
+          where: { id: produto.recheioReceitaId },
+          include: { itens: { include: { ingrediente: true } } },
+        })
+      : null
+
+    const todosIngredienteIds = [
+      ...receita.itens.map((item) => item.ingredienteId),
+      ...(recheioReceita?.itens.map((item) => item.ingredienteId) ?? []),
+    ]
+    const ultimas = await ultimasCompras(todosIngredienteIds)
+
+    function serializarLinha(
+      item: { ingredienteId: string; qtde: Decimal; ingrediente: { nome: string; unidadeBase: string } },
+      origem: 'base' | 'recheio',
+    ) {
+      const ultima = ultimas.get(item.ingredienteId)
+      return {
+        ingredienteId: item.ingredienteId,
+        nome: item.ingrediente.nome,
+        unidadeBase: item.ingrediente.unidadeBase,
+        qtdeBase: item.qtde.toFixed(3),
+        origem,
+        compraSelecionada: ultima
+          ? {
+              id: ultima.id,
+              marca: ultima.marca,
+              dataCompra: ultima.dataCompra.toISOString().slice(0, 10),
+              custoPorUnidadeBase: ultima.custoPorUnidadeBase.toFixed(6),
+            }
+          : null,
+      }
+    }
 
     return {
       receita: {
@@ -197,23 +274,11 @@ export async function dadosProducao(receitaId: string): Promise<DadosProducao | 
         validadeDias: receita.validadeDias,
         custoGas: receita.custoGas ? receita.custoGas.toFixed(4) : null,
       },
-      linhas: receita.itens.map((item) => {
-        const ultima = ultimas.get(item.ingredienteId)
-        return {
-          ingredienteId: item.ingredienteId,
-          nome: item.ingrediente.nome,
-          unidadeBase: item.ingrediente.unidadeBase,
-          qtdeBase: item.qtde.toFixed(3),
-          compraSelecionada: ultima
-            ? {
-                id: ultima.id,
-                marca: ultima.marca,
-                dataCompra: ultima.dataCompra.toISOString().slice(0, 10),
-                custoPorUnidadeBase: ultima.custoPorUnidadeBase.toFixed(6),
-              }
-            : null,
-        }
-      }),
+      recheio: recheioReceita ? { id: recheioReceita.id, nome: recheioReceita.nome } : null,
+      linhas: [
+        ...receita.itens.map((item) => serializarLinha(item, 'base')),
+        ...(recheioReceita?.itens.map((item) => serializarLinha(item, 'recheio')) ?? []),
+      ],
     }
   } catch {
     return null

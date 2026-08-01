@@ -12,12 +12,14 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
   })
   if (!produto) notFound()
 
-  const [receitasDisponiveis, unitariosRaw, config] = await Promise.all([
+  const [receitasDisponiveisRaw, todasReceitasRaw, unitariosRaw, config] = await Promise.all([
     prisma.receita.findMany({
       where: { OR: [{ produto: null }, { produto: { id } }] },
       include: { itens: true },
       orderBy: { nome: 'asc' },
     }),
+    // Recheio não é @unique — qualquer receita serve, mesmo já usada como base de outro produto.
+    prisma.receita.findMany({ include: { itens: true }, orderBy: { nome: 'asc' } }),
     prisma.produto.findMany({
       where: { tipo: 'UNITARIO', id: { not: id } },
       include: { receita: { include: { itens: true } } },
@@ -27,19 +29,22 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
   ])
 
   const todasReceitas = [
-    ...receitasDisponiveis,
+    ...todasReceitasRaw,
     ...unitariosRaw.flatMap((p) => (p.receita ? [p.receita] : [])),
   ]
   const custos = await custosCorrentesReceitas(todasReceitas)
 
-  const receitas = receitasDisponiveis.map((r) => {
+  function serializar(r: { id: string; nome: string }) {
     const custo = custos.get(r.id)!
     return {
       id: r.id,
       nome: r.nome,
       custoPorUnidade: custo.faltamCompras.length > 0 && custo.total.isZero() ? null : custo.porUnidade.toFixed(6),
     }
-  })
+  }
+
+  const receitas = receitasDisponiveisRaw.map(serializar)
+  const recheios = todasReceitasRaw.map(serializar)
 
   const unitarios = unitariosRaw
     .filter((p) => p.receitaId)
@@ -59,6 +64,7 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
       <h1 className="font-display text-3xl font-semibold">Editar produto</h1>
       <ProdutoForm
         receitas={receitas}
+        recheios={recheios}
         unitarios={unitarios}
         margemMinimaGlobal={margemMinimaGlobal}
         defaults={{
@@ -70,6 +76,7 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
           precoVenda: produto.precoVenda.toFixed(4),
           margemMinimaOverride: produto.margemMinimaOverride ? produto.margemMinimaOverride.toFixed(2) : null,
           receitaId: produto.receitaId,
+          recheioReceitaId: produto.recheioReceitaId,
           kitItens: produto.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: i.qtde })),
         }}
       />

@@ -30,45 +30,45 @@ enum Role {
 }
 
 model User {
-  id                  String    @id @default(uuid()) @db.Uuid
-  email               String    @unique
-  emailVerified       Boolean   @default(false)
-  emailVerifiedAt     DateTime? @db.Timestamptz(6) @map("email_verified_at")
-  name                String
-  telefone            String?
-  role                Role      @default(customer)
-  isAdult             Boolean   @default(false) @map("is_adult")
-  termsVersion        String?   @map("terms_version")
-  termsAcceptedAt     DateTime? @db.Timestamptz(6) @map("terms_accepted_at")
-  privacyVersion      String?   @map("privacy_version")
-  privacyAcceptedAt   DateTime? @db.Timestamptz(6) @map("privacy_accepted_at")
-  deletedAt           DateTime? @db.Timestamptz(6) @map("deleted_at")
-  anonymizedAt        DateTime? @db.Timestamptz(6) @map("anonymized_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique
+  emailVerified     Boolean   @default(false)
+  emailVerifiedAt   DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  name              String
+  telefone          String?
+  role              Role      @default(customer)
+  isAdult           Boolean   @default(false) @map("is_adult")
+  termsVersion      String?   @map("terms_version")
+  termsAcceptedAt   DateTime? @map("terms_accepted_at") @db.Timestamptz(6)
+  privacyVersion    String?   @map("privacy_version")
+  privacyAcceptedAt DateTime? @map("privacy_accepted_at") @db.Timestamptz(6)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
+  anonymizedAt      DateTime? @map("anonymized_at") @db.Timestamptz(6)
   // Better Auth admin plugin fields (input:false — set only via admin APIs).
-  banned              Boolean   @default(false)
-  banReason           String?   @map("ban_reason")
-  banExpires          DateTime? @db.Timestamptz(6) @map("ban_expires")
-  createdAt           DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
-  updatedAt           DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at")
+  banned            Boolean   @default(false)
+  banReason         String?   @map("ban_reason")
+  banExpires        DateTime? @map("ban_expires") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  sessions  Session[]
-  accounts  Account[]
+  sessions      Session[]
+  accounts      Account[]
   verifications Verification[]
 
   @@map("users")
 }
 
 model Session {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid @map("user_id")
-  token     String   @unique
-  expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  token          String   @unique
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
   // Better Auth admin plugin — set when an admin impersonates a user.
-  impersonatedBy String? @map("impersonated_by")
-  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
-  updatedAt DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+  impersonatedBy String?  @map("impersonated_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -77,20 +77,20 @@ model Session {
 }
 
 model Account {
-  id                String    @id @default(uuid()) @db.Uuid
-  userId            String    @db.Uuid @map("user_id")
-  accountId         String    @map("account_id")
-  providerId        String    @map("provider_id")
-  password          String?
-  accessToken       String?   @map("access_token")
-  refreshToken      String?   @map("refresh_token")
-  idToken           String?   @map("id_token")
-  accessTokenExpiresAt  DateTime? @db.Timestamptz(6) @map("access_token_expires_at")
-  refreshTokenExpiresAt DateTime? @db.Timestamptz(6) @map("refresh_token_expires_at")
-  scope             String?
-  emailInvalid      Boolean   @default(false) @map("email_invalid")
-  createdAt         DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
-  updatedAt         DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at")
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  password              String?
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?
+  emailInvalid          Boolean   @default(false) @map("email_invalid")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -101,12 +101,12 @@ model Account {
 
 model Verification {
   id         String   @id @default(uuid()) @db.Uuid
-  userId     String?  @db.Uuid @map("user_id")
+  userId     String?  @map("user_id") @db.Uuid
   identifier String
   value      String
-  expiresAt  DateTime @db.Timestamptz(6) @map("expires_at")
-  createdAt  DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -115,16 +115,16 @@ model Verification {
 }
 
 model AuditLog {
-  id         BigInt    @id @default(autoincrement())
-  actorType  String    @map("actor_type")
-  actorId    String?   @db.Uuid @map("actor_id")
+  id         BigInt   @id @default(autoincrement())
+  actorType  String   @map("actor_type")
+  actorId    String?  @map("actor_id") @db.Uuid
   action     String
-  entityType String?   @map("entity_type")
-  entityId   String?   @map("entity_id")
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
   metadata   Json?
-  ipHash     String?   @map("ip_hash")
-  uaHash     String?   @map("ua_hash")
-  ts         DateTime  @default(now()) @db.Timestamptz(6)
+  ipHash     String?  @map("ip_hash")
+  uaHash     String?  @map("ua_hash")
+  ts         DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([ts(sort: Desc)])
   @@index([action])
@@ -159,12 +159,12 @@ enum TipoProduto {
 }
 
 model Ingrediente {
-  id           String              @id @default(uuid()) @db.Uuid
-  nome         String              @unique
-  unidadeBase  UnidadeBase         @map("unidade_base")
-  tipo         TipoIngrediente     @default(INGREDIENTE)
-  criadoEm     DateTime            @default(now()) @db.Timestamptz(6) @map("criado_em")
-  atualizadoEm DateTime            @updatedAt @db.Timestamptz(6) @map("atualizado_em")
+  id           String               @id @default(uuid()) @db.Uuid
+  nome         String               @unique
+  unidadeBase  UnidadeBase          @map("unidade_base")
+  tipo         TipoIngrediente      @default(INGREDIENTE)
+  criadoEm     DateTime             @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm DateTime             @updatedAt @map("atualizado_em") @db.Timestamptz(6)
   compras      IngredienteCompra[]
   receitaItens ReceitaIngrediente[]
 
@@ -173,17 +173,17 @@ model Ingrediente {
 
 model IngredienteCompra {
   id                  String   @id @default(uuid()) @db.Uuid
-  ingredienteId       String   @db.Uuid @map("ingrediente_id")
-  dataCompra          DateTime @db.Date @map("data_compra")
+  ingredienteId       String   @map("ingrediente_id") @db.Uuid
+  dataCompra          DateTime @map("data_compra") @db.Date
   mercado             String
   marca               String
-  qtdeEmbalagens      Decimal  @db.Decimal(10, 3) @map("qtde_embalagens")
-  tamanhoEmbalagem    Decimal  @db.Decimal(12, 3) @map("tamanho_embalagem")
-  precoPorEmbalagem   Decimal  @db.Decimal(19, 4) @map("preco_por_embalagem")
-  qtdeTotalBase       Decimal  @db.Decimal(14, 3) @map("qtde_total_base")
-  precoTotal          Decimal  @db.Decimal(19, 4) @map("preco_total")
-  custoPorUnidadeBase Decimal  @db.Decimal(19, 6) @map("custo_por_unidade_base")
-  criadoEm            DateTime @default(now()) @db.Timestamptz(6) @map("criado_em")
+  qtdeEmbalagens      Decimal  @map("qtde_embalagens") @db.Decimal(10, 3)
+  tamanhoEmbalagem    Decimal  @map("tamanho_embalagem") @db.Decimal(12, 3)
+  precoPorEmbalagem   Decimal  @map("preco_por_embalagem") @db.Decimal(19, 4)
+  qtdeTotalBase       Decimal  @map("qtde_total_base") @db.Decimal(14, 3)
+  precoTotal          Decimal  @map("preco_total") @db.Decimal(19, 4)
+  custoPorUnidadeBase Decimal  @map("custo_por_unidade_base") @db.Decimal(19, 6)
+  criadoEm            DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
 
   ingrediente Ingrediente          @relation(fields: [ingredienteId], references: [id], onDelete: Restrict)
   usos        LoteUsoIngrediente[]
@@ -196,21 +196,22 @@ model Receita {
   id               String   @id @default(uuid()) @db.Uuid
   nome             String
   rendimentoPadrao Int      @map("rendimento_padrao")
-  custoGas         Decimal? @db.Decimal(19, 4) @map("custo_gas")
+  custoGas         Decimal? @map("custo_gas") @db.Decimal(19, 4)
   validadeDias     Int?     @map("validade_dias")
-  criadoEm         DateTime @default(now()) @db.Timestamptz(6) @map("criado_em")
-  atualizadoEm     DateTime @updatedAt @db.Timestamptz(6) @map("atualizado_em")
+  criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm     DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  itens   ReceitaIngrediente[]
-  produto Produto?
-  lotes   Lote[]
+  itens              ReceitaIngrediente[]
+  produto            Produto?
+  produtosComRecheio Produto[]            @relation("recheio")
+  lotes              Lote[]
 
   @@map("receitas")
 }
 
 model ReceitaIngrediente {
-  receitaId     String  @db.Uuid @map("receita_id")
-  ingredienteId String  @db.Uuid @map("ingrediente_id")
+  receitaId     String  @map("receita_id") @db.Uuid
+  ingredienteId String  @map("ingrediente_id") @db.Uuid
   qtde          Decimal @db.Decimal(14, 3)
 
   receita     Receita     @relation(fields: [receitaId], references: [id], onDelete: Cascade)
@@ -226,23 +227,31 @@ model Produto {
   descricao            String
   categoria            String
   tipo                 TipoProduto
-  precoVenda           Decimal     @db.Decimal(19, 4) @map("preco_venda")
-  margemMinimaOverride Decimal?    @db.Decimal(5, 2) @map("margem_minima_override")
-  receitaId            String?     @unique @db.Uuid @map("receita_id")
-  criadoEm             DateTime    @default(now()) @db.Timestamptz(6) @map("criado_em")
-  atualizadoEm         DateTime    @updatedAt @db.Timestamptz(6) @map("atualizado_em")
+  precoVenda           Decimal     @map("preco_venda") @db.Decimal(19, 4)
+  margemMinimaOverride Decimal?    @map("margem_minima_override") @db.Decimal(5, 2)
+  receitaId            String?     @unique @map("receita_id") @db.Uuid
+  // Recheio (D-12): receita ANEXA opcional, só p/ UNITARIO. Rendimento da
+  // receita de recheio é sempre tratado como "por unidade final" (qtde de
+  // cada item já é a dose de 1 doce) — escala por rendimentoReal na
+  // produção, não pelo multiplicador da base (ver lib/actions/lotes.ts).
+  // Não é @unique: a mesma receita de recheio pode atender vários produtos
+  // (ex.: "Recheio de nutella" no brownie E no bolo).
+  recheioReceitaId     String?     @map("recheio_receita_id") @db.Uuid
+  criadoEm             DateTime    @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm         DateTime    @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  receita  Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
-  kitItens ProdutoKitItem[] @relation("kit")
-  emKits   ProdutoKitItem[] @relation("componente")
-  lotes    Lote[]
+  receita        Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
+  receitaRecheio Receita?         @relation("recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
+  kitItens       ProdutoKitItem[] @relation("kit")
+  emKits         ProdutoKitItem[] @relation("componente")
+  lotes          Lote[]
 
   @@map("produtos")
 }
 
 model ProdutoKitItem {
-  kitId        String @db.Uuid @map("kit_id")
-  componenteId String @db.Uuid @map("componente_id")
+  kitId        String @map("kit_id") @db.Uuid
+  componenteId String @map("componente_id") @db.Uuid
   qtde         Int
 
   kit        Produto @relation("kit", fields: [kitId], references: [id], onDelete: Cascade)
@@ -254,18 +263,18 @@ model ProdutoKitItem {
 
 model Lote {
   id                       String   @id @default(uuid()) @db.Uuid
-  produtoId                String   @db.Uuid @map("produto_id")
-  receitaId                String   @db.Uuid @map("receita_id")
+  produtoId                String   @map("produto_id") @db.Uuid
+  receitaId                String   @map("receita_id") @db.Uuid
   multiplicador            Decimal  @db.Decimal(6, 2)
   rendimentoReal           Int      @map("rendimento_real")
-  produzidoEm              DateTime @default(now()) @db.Timestamptz(6) @map("produzido_em")
+  produzidoEm              DateTime @default(now()) @map("produzido_em") @db.Timestamptz(6)
   validade                 DateTime @db.Date
   qtdeDisponivel           Int      @map("qtde_disponivel")
   qtdeReservada            Int      @default(0) @map("qtde_reservada")
-  custoGasCongelado        Decimal  @db.Decimal(19, 4) @map("custo_gas_congelado")
-  custoTotalCongelado      Decimal  @db.Decimal(19, 4) @map("custo_total_congelado")
-  custoPorUnidadeCongelado Decimal  @db.Decimal(19, 6) @map("custo_por_unidade_congelado")
-  criadoEm                 DateTime @default(now()) @db.Timestamptz(6) @map("criado_em")
+  custoGasCongelado        Decimal  @map("custo_gas_congelado") @db.Decimal(19, 4)
+  custoTotalCongelado      Decimal  @map("custo_total_congelado") @db.Decimal(19, 4)
+  custoPorUnidadeCongelado Decimal  @map("custo_por_unidade_congelado") @db.Decimal(19, 6)
+  criadoEm                 DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
 
   produto Produto              @relation(fields: [produtoId], references: [id], onDelete: Restrict)
   receita Receita              @relation(fields: [receitaId], references: [id], onDelete: Restrict)
@@ -277,12 +286,12 @@ model Lote {
 
 model LoteUsoIngrediente {
   id                     String  @id @default(uuid()) @db.Uuid
-  loteId                 String  @db.Uuid @map("lote_id")
-  ingredienteCompraId    String  @db.Uuid @map("ingrediente_compra_id")
-  qtdeUsada              Decimal @db.Decimal(14, 3) @map("qtde_usada")
+  loteId                 String  @map("lote_id") @db.Uuid
+  ingredienteCompraId    String  @map("ingrediente_compra_id") @db.Uuid
+  qtdeUsada              Decimal @map("qtde_usada") @db.Decimal(14, 3)
   marcaSnapshot          String  @map("marca_snapshot")
-  custoUnitarioCongelado Decimal @db.Decimal(19, 6) @map("custo_unitario_congelado")
-  custoCongelado         Decimal @db.Decimal(19, 4) @map("custo_congelado")
+  custoUnitarioCongelado Decimal @map("custo_unitario_congelado") @db.Decimal(19, 6)
+  custoCongelado         Decimal @map("custo_congelado") @db.Decimal(19, 4)
 
   lote   Lote              @relation(fields: [loteId], references: [id], onDelete: Cascade)
   compra IngredienteCompra @relation(fields: [ingredienteCompraId], references: [id], onDelete: Restrict)
@@ -293,7 +302,7 @@ model LoteUsoIngrediente {
 
 model Configuracao {
   id                 Int     @id @default(1)
-  margemMinimaPadrao Decimal @default(30) @db.Decimal(5, 2) @map("margem_minima_padrao")
+  margemMinimaPadrao Decimal @default(30) @map("margem_minima_padrao") @db.Decimal(5, 2)
 
   @@map("configuracoes")
 }

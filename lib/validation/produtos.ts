@@ -16,6 +16,11 @@ export const ProdutoSchema = z
       .uuid()
       .optional()
       .or(z.literal('').transform(() => undefined)),
+    recheioReceitaId: z
+      .string()
+      .uuid()
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     kitItens: z
       .array(z.object({ componenteId: z.string().uuid(), qtde: z.coerce.number().int().min(1) }))
       .optional(),
@@ -28,12 +33,22 @@ export const ProdutoSchema = z
       if (v.kitItens && v.kitItens.length > 0) {
         ctx.addIssue({ code: 'custom', message: 'Doce único não tem itens de kit.', path: ['kitItens'] })
       }
+      if (v.recheioReceitaId && v.recheioReceitaId === v.receitaId) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'O recheio precisa ser uma receita diferente da base.',
+          path: ['recheioReceitaId'],
+        })
+      }
     } else {
       if (!v.kitItens || v.kitItens.length === 0) {
         ctx.addIssue({ code: 'custom', message: 'O kit precisa de pelo menos um item.', path: ['kitItens'] })
       }
       if (v.receitaId) {
         ctx.addIssue({ code: 'custom', message: 'Kit não tem receita própria.', path: ['receitaId'] })
+      }
+      if (v.recheioReceitaId) {
+        ctx.addIssue({ code: 'custom', message: 'Kit não tem recheio próprio.', path: ['recheioReceitaId'] })
       }
     }
   })

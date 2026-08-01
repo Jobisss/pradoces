@@ -38,9 +38,21 @@ type LinhaState = {
   nome: string
   unidadeBase: string
   qtdeBase: string
+  origem: 'base' | 'recheio'
   compra: OpcaoCompra | null
   trocandoCompra: boolean
   opcoesCompra: OpcaoCompra[]
+}
+
+/**
+ * D-12: base escala pelo multiplicador (quantas receitas — D-07); recheio
+ * escala pelas unidades reais que saíram (o rendimento do recheio já é "por
+ * unidade final", não por fornada — ver lib/actions/lotes.ts).
+ */
+function escalarQtde(linha: LinhaState, mult: Decimal, rendimentoReal: string): Decimal {
+  if (linha.origem === 'base') return new Decimal(linha.qtdeBase).times(mult)
+  const rendimento = toDecimal(rendimentoReal) ?? new Decimal(0)
+  return new Decimal(linha.qtdeBase).times(rendimento)
 }
 
 /**
@@ -67,8 +79,10 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
   function selecionarReceita(id: string) {
     setReceitaId(id)
     setErro(null)
+    const produto = receitas.find((r) => r.receitaId === id)
+    if (!produto) return
     startCarregarReceita(async () => {
-      const result = await dadosProducao(id)
+      const result = await dadosProducao(produto.produtoId)
       if (!result) {
         setErro('Não consegui carregar essa receita.')
         return
@@ -80,6 +94,7 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
           nome: l.nome,
           unidadeBase: l.unidadeBase,
           qtdeBase: l.qtdeBase,
+          origem: l.origem,
           compra: l.compraSelecionada,
           trocandoCompra: false,
           opcoesCompra: [],
@@ -117,7 +132,7 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
   if (dados && rendimentoReal && Number(rendimentoReal) > 0 && linhas.length > 0 && linhas.every((l) => l.compra)) {
     let total = new Decimal(0)
     for (const linha of linhas) {
-      const qtdeEscalada = new Decimal(linha.qtdeBase).times(mult)
+      const qtdeEscalada = escalarQtde(linha, mult, rendimentoReal)
       total = total.plus(qtdeEscalada.times(new Decimal(linha.compra!.custoPorUnidadeBase)))
     }
     if (dados.receita.custoGas) total = total.plus(new Decimal(dados.receita.custoGas))
@@ -151,7 +166,7 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
       validade,
       linhas: linhas.map((l) => ({
         ingredienteCompraId: l.compra!.id,
-        qtde: new Decimal(l.qtdeBase).times(mult).toFixed(3),
+        qtde: escalarQtde(l, mult, rendimentoReal).toFixed(3),
       })),
     }
 
@@ -221,9 +236,17 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Ingredientes que você usou</h2>
             {linhas.map((linha, index) => {
-              const qtdeEscalada = new Decimal(linha.qtdeBase).times(mult)
+              const qtdeEscalada = escalarQtde(linha, mult, rendimentoReal)
+              const primeiraDoRecheio =
+                linha.origem === 'recheio' && (index === 0 || linhas[index - 1].origem === 'base')
               return (
-                <div key={linha.ingredienteId} className="space-y-2 rounded-lg border border-border p-3">
+                <div key={`${linha.origem}-${linha.ingredienteId}`} className="space-y-2">
+                  {primeiraDoRecheio && dados.recheio && (
+                    <h3 className="pt-2 text-sm font-semibold text-muted-foreground">
+                      Recheio: {dados.recheio.nome}
+                    </h3>
+                  )}
+                  <div className="space-y-2 rounded-lg border border-border p-3">
                   {linha.compra ? (
                     <p className="tabular-nums text-sm">
                       {linha.nome} · {qtdeEscalada.toFixed(0)}
@@ -265,6 +288,7 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
                       Trocar compra
                     </button>
                   )}
+                  </div>
                 </div>
               )
             })}

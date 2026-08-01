@@ -125,8 +125,10 @@ export async function custosCorrentesReceitas(
 
 /**
  * Custo corrente de um produto. UNITARIO delega pra custoCorrenteReceita da
- * receita vinculada. KIT soma os custos por unidade dos componentes × qtde
- * (D-11) — cada componente é, por definição, um produto UNITARIO com receita.
+ * receita vinculada + a receita de recheio quando houver (D-12 — rendimento
+ * do recheio é sempre "por unidade final", soma direta sem escalar). KIT
+ * soma os custos por unidade dos componentes × qtde (D-11) — cada componente
+ * é, por definição, um produto UNITARIO com receita.
  */
 export async function custoCorrenteProduto(
   produtoId: string,
@@ -138,8 +140,13 @@ export async function custoCorrenteProduto(
 
   if (produto.tipo === 'UNITARIO') {
     if (!produto.receitaId) return { custo: new Decimal(0), faltamCompras: [] }
-    const { porUnidade, faltamCompras } = await custoCorrenteReceita(produto.receitaId)
-    return { custo: porUnidade, faltamCompras }
+    const base = await custoCorrenteReceita(produto.receitaId)
+    if (!produto.recheioReceitaId) return { custo: base.porUnidade, faltamCompras: base.faltamCompras }
+    const recheio = await custoCorrenteReceita(produto.recheioReceitaId)
+    return {
+      custo: base.porUnidade.plus(recheio.porUnidade),
+      faltamCompras: [...base.faltamCompras, ...recheio.faltamCompras],
+    }
   }
 
   let custo = new Decimal(0)
@@ -187,6 +194,7 @@ export async function margensCorrentesBatch(): Promise<
   const produtos = await prisma.produto.findMany({
     include: {
       receita: { include: { itens: true } },
+      receitaRecheio: { include: { itens: true } },
       kitItens: {
         include: { componente: { include: { receita: { include: { itens: true } } } } },
       },
@@ -196,6 +204,7 @@ export async function margensCorrentesBatch(): Promise<
   const ingredienteIds = new Set<string>()
   for (const produto of produtos) {
     for (const item of produto.receita?.itens ?? []) ingredienteIds.add(item.ingredienteId)
+    for (const item of produto.receitaRecheio?.itens ?? []) ingredienteIds.add(item.ingredienteId)
     for (const kitItem of produto.kitItens) {
       for (const item of kitItem.componente.receita?.itens ?? []) ingredienteIds.add(item.ingredienteId)
     }
@@ -224,6 +233,11 @@ export async function margensCorrentesBatch(): Promise<
       const r = custoReceitaEmMemoria(produto.receita)
       custoBruto = r.porUnidade
       algumEncontrado = r.algumEncontrado
+      if (produto.receitaRecheio) {
+        const recheio = custoReceitaEmMemoria(produto.receitaRecheio)
+        custoBruto = custoBruto.plus(recheio.porUnidade)
+        if (recheio.algumEncontrado) algumEncontrado = true
+      }
     } else {
       for (const kitItem of produto.kitItens) {
         const r = custoReceitaEmMemoria(kitItem.componente.receita)

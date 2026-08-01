@@ -3,12 +3,14 @@ import { custosCorrentesReceitas } from '@/lib/custo/corrente'
 import { ProdutoForm } from '@/components/admin/produto-form'
 
 export default async function NovoProdutoPage() {
-  const [receitasRaw, unitariosRaw, config] = await Promise.all([
+  const [receitasDisponiveisRaw, todasReceitasRaw, unitariosRaw, config] = await Promise.all([
     prisma.receita.findMany({
       where: { produto: null },
       include: { itens: true },
       orderBy: { nome: 'asc' },
     }),
+    // Recheio não é @unique — qualquer receita serve, mesmo já usada como base de outro produto.
+    prisma.receita.findMany({ include: { itens: true }, orderBy: { nome: 'asc' } }),
     prisma.produto.findMany({
       where: { tipo: 'UNITARIO' },
       include: { receita: { include: { itens: true } } },
@@ -18,19 +20,22 @@ export default async function NovoProdutoPage() {
   ])
 
   const todasReceitas = [
-    ...receitasRaw,
+    ...todasReceitasRaw,
     ...unitariosRaw.flatMap((p) => (p.receita ? [p.receita] : [])),
   ]
   const custos = await custosCorrentesReceitas(todasReceitas)
 
-  const receitas = receitasRaw.map((r) => {
+  function serializar(r: { id: string; nome: string }) {
     const custo = custos.get(r.id)!
     return {
       id: r.id,
       nome: r.nome,
       custoPorUnidade: custo.faltamCompras.length > 0 && custo.total.isZero() ? null : custo.porUnidade.toFixed(6),
     }
-  })
+  }
+
+  const receitas = receitasDisponiveisRaw.map(serializar)
+  const recheios = todasReceitasRaw.map(serializar)
 
   const unitarios = unitariosRaw
     .filter((p) => p.receitaId)
@@ -48,7 +53,12 @@ export default async function NovoProdutoPage() {
   return (
     <div className="mx-auto w-full max-w-md space-y-6">
       <h1 className="font-display text-3xl font-semibold">Novo produto</h1>
-      <ProdutoForm receitas={receitas} unitarios={unitarios} margemMinimaGlobal={margemMinimaGlobal} />
+      <ProdutoForm
+        receitas={receitas}
+        recheios={recheios}
+        unitarios={unitarios}
+        margemMinimaGlobal={margemMinimaGlobal}
+      />
     </div>
   )
 }

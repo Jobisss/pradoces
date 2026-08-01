@@ -41,11 +41,13 @@ type ProdutoFormValues = {
   precoVenda: string
   margemMinimaOverride: string
   receitaId: string
+  recheioReceitaId: string
   kitItens: Array<{ componenteId: string; qtde: string }>
 }
 
 type ProdutoFormProps = {
   receitas: OpcaoCusto[]
+  recheios: OpcaoCusto[]
   unitarios: OpcaoCusto[]
   margemMinimaGlobal: string
   defaults?: {
@@ -57,6 +59,7 @@ type ProdutoFormProps = {
     precoVenda: string
     margemMinimaOverride: string | null
     receitaId: string | null
+    recheioReceitaId: string | null
     kitItens: Array<{ componenteId: string; qtde: number }>
   }
 }
@@ -67,7 +70,7 @@ type ProdutoFormProps = {
  * bloqueio PROD-09 (preço < custo). O bloqueio aqui é cortesia visual — quem
  * decide de verdade é a action (lib/actions/produtos.ts), testado no 02-06.
  */
-export function ProdutoForm({ receitas, unitarios, margemMinimaGlobal, defaults }: ProdutoFormProps) {
+export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal, defaults }: ProdutoFormProps) {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -81,6 +84,7 @@ export function ProdutoForm({ receitas, unitarios, margemMinimaGlobal, defaults 
       precoVenda: defaults?.precoVenda ?? '',
       margemMinimaOverride: defaults?.margemMinimaOverride ?? '',
       receitaId: defaults?.receitaId ?? '',
+      recheioReceitaId: defaults?.recheioReceitaId ?? '',
       kitItens: defaults?.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: String(i.qtde) })) ?? [],
     },
   })
@@ -89,6 +93,7 @@ export function ProdutoForm({ receitas, unitarios, margemMinimaGlobal, defaults 
 
   const tipo = watch('tipo')
   const receitaId = watch('receitaId')
+  const recheioReceitaId = watch('recheioReceitaId')
   const kitItens = watch('kitItens')
   const precoVendaRaw = watch('precoVenda')
   const margemOverrideRaw = watch('margemMinimaOverride')
@@ -97,7 +102,14 @@ export function ProdutoForm({ receitas, unitarios, margemMinimaGlobal, defaults 
   let custo: Decimal | null = null
   if (tipo === 'UNITARIO') {
     const r = receitas.find((x) => x.id === receitaId)
-    custo = r?.custoPorUnidade ? new Decimal(r.custoPorUnidade) : null
+    const base = r?.custoPorUnidade ? new Decimal(r.custoPorUnidade) : null
+    if (base && recheioReceitaId) {
+      const recheio = recheios.find((x) => x.id === recheioReceitaId)
+      const custoRecheio = recheio?.custoPorUnidade ? new Decimal(recheio.custoPorUnidade) : new Decimal(0)
+      custo = base.plus(custoRecheio)
+    } else {
+      custo = base
+    }
   } else {
     let total = new Decimal(0)
     let algumFaltando = kitItens.length === 0
@@ -174,6 +186,7 @@ export function ProdutoForm({ receitas, unitarios, margemMinimaGlobal, defaults 
       precoVenda: data.precoVenda,
       margemMinimaOverride: data.margemMinimaOverride,
       receitaId: data.tipo === 'UNITARIO' ? data.receitaId : undefined,
+      recheioReceitaId: data.tipo === 'UNITARIO' ? data.recheioReceitaId || undefined : undefined,
       kitItens:
         data.tipo === 'KIT'
           ? data.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: Number(i.qtde) || 1 }))
@@ -257,30 +270,63 @@ export function ProdutoForm({ receitas, unitarios, margemMinimaGlobal, defaults 
         />
 
         {tipo === 'UNITARIO' && (
-          <FormField
-            control={control}
-            name="receitaId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Receita</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Escolhe a receita" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {receitas.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <>
+            <FormField
+              control={control}
+              name="receitaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Receita</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Escolhe a receita" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {receitas.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name="recheioReceitaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Recheio (opcional) — se esse doce tiver</FormLabel>
+                  <Select
+                    value={field.value || 'nenhum'}
+                    onValueChange={(v) => field.onChange(v === 'nenhum' ? '' : v)}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Sem recheio" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="nenhum">Sem recheio</SelectItem>
+                      {recheios
+                        .filter((r) => r.id !== receitaId)
+                        .map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.nome}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
         )}
 
         {tipo === 'KIT' && (
