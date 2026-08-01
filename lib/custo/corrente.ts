@@ -96,6 +96,34 @@ export async function custoCorrenteReceita(
 }
 
 /**
+ * Custo corrente de VÁRIAS receitas de uma vez, sem N+1 (Pitfall 9 — usada
+ * pela lista de receitas): 1 chamada ultimasCompras com todos os
+ * ingredienteIds coletados, resto em memória. `receitas` já vem com `itens`
+ * (e opcionalmente `itens.ingrediente` pro nome aparecer em faltamCompras).
+ */
+export async function custosCorrentesReceitas(
+  receitas: Array<{ id: string } & ReceitaComItens>,
+): Promise<Map<string, { total: Decimal; porUnidade: Decimal; faltamCompras: string[] }>> {
+  const ingredienteIds = new Set<string>()
+  for (const receita of receitas) {
+    for (const item of receita.itens) ingredienteIds.add(item.ingredienteId)
+  }
+  const ultimas = await ultimasCompras([...ingredienteIds])
+
+  const resultado = new Map<string, { total: Decimal; porUnidade: Decimal; faltamCompras: string[] }>()
+  for (const receita of receitas) {
+    const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
+    const total = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    resultado.set(receita.id, {
+      total,
+      porUnidade: total.dividedBy(receita.rendimentoPadrao),
+      faltamCompras,
+    })
+  }
+  return resultado
+}
+
+/**
  * Custo corrente de um produto. UNITARIO delega pra custoCorrenteReceita da
  * receita vinculada. KIT soma os custos por unidade dos componentes × qtde
  * (D-11) — cada componente é, por definição, um produto UNITARIO com receita.
