@@ -87,6 +87,17 @@ export async function createTestUser(opts?: {
 export async function truncateAll(): Promise<void> {
   // Children first (FK order), users last. Atomic — no orphaned rows.
   await prisma.$transaction([
+    // Phase 2 (motor financeiro) models — children first (FK order).
+    prisma.loteUsoIngrediente.deleteMany(),
+    prisma.lote.deleteMany(),
+    prisma.produtoKitItem.deleteMany(),
+    prisma.produto.deleteMany(),
+    prisma.receitaIngrediente.deleteMany(),
+    prisma.receita.deleteMany(),
+    prisma.ingredienteCompra.deleteMany(),
+    prisma.ingrediente.deleteMany(),
+    prisma.configuracao.deleteMany(),
+    // Phase 1 (foundation) models.
     prisma.session.deleteMany(),
     prisma.account.deleteMany(),
     prisma.verification.deleteMany(),
