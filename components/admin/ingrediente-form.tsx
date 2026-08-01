@@ -52,7 +52,7 @@ export function IngredienteForm({ defaults }: IngredienteFormProps) {
           </>
         ) : (
           <Select name="unidadeBase" defaultValue={defaults?.unidadeBase}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="unidadeBase" className="w-full">
               <SelectValue placeholder="Escolhe uma unidade" />
             </SelectTrigger>
             <SelectContent>
@@ -67,7 +67,7 @@ export function IngredienteForm({ defaults }: IngredienteFormProps) {
       <div className="space-y-1.5">
         <Label htmlFor="tipo">É ingrediente ou embalagem?</Label>
         <Select name="tipo" defaultValue={defaults?.tipo ?? 'INGREDIENTE'}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="tipo" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
