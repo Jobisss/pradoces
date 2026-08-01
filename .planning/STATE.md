@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 UI-SPEC approved
-last_updated: "2026-07-03T18:35:17.668Z"
-last_activity: 2026-07-03 -- Phase 1 execution started
+stopped_at: Phase 2 Plan 01 complete
+last_updated: "2026-08-01T15:40:00.000Z"
+last_activity: 2026-08-01 -- Phase 2 Plan 01 (motor financeiro schema) executed
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 11
-  completed_plans: 10
-  percent: 91
+  total_plans: 22
+  completed_plans: 11
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Sua mãe enxerga o lucro real de cada doce vendido (custo rastreado até a marca do ingrediente) e fideliza a clientela do bairro com pontos — sem perder o contato pessoal via WhatsApp.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 2 — Motor Financeiro
 
 ## Current Position
 
-Phase: 1 (Foundation) — EXECUTING
-Plan: 1 of 11
-Status: Executing Phase 1
-Last activity: 2026-07-03 -- Phase 1 execution started
+Phase: 2 (Motor Financeiro) — EXECUTING
+Plan: 1 of 11 complete (02-02 next)
+Status: Executing Phase 2
+Last activity: 2026-08-01 -- Phase 2 Plan 01 executed (schema foundation: 9 models, trigger, CHECKs, test harness)
 
-Progress: [████████░░] ~75% (auth core + email/audit + job harness + rate limit + admin bootstrap + design system/shell + cadastro/login/reset/auditoria UI + LGPD export/delete prontos; só infra de deploy/01-05 pendente p/ fechar a fase)
+Progress: [█████░░░░░] Phase 1: 10/11 plans (só infra de deploy/01-05 pendente p/ fechar a fase). Phase 2: 1/11 plans (02-01 schema foundation done — trg_compra_imutavel + LOTE-04 CHECKs proven live; 02-02 UI infra next)
 
 ## Performance Metrics
 
@@ -45,11 +45,12 @@ Progress: [████████░░] ~75% (auth core + email/audit + job h
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 5 (01-04, 01-06, 01-07, 01-08, 01-09) | 154 min | 30.8 min |
+| 02-motor-financeiro | 1 (02-01) | ~30 min | 30 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-08 (~33 min ativo, wall-clock inflado por checkpoint human-verify; 2 tasks + checkpoint, 11 files), 01-07 (99 min wall / ~45 min ativo, 2 tasks + checkpoint, 22 files), 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files), 01-04 (10 min, 3 tasks, 10 files)
-- Trend: planos com checkpoint humano (01-07, 01-08) inflam o wall-clock; tempo ativo permanece ~30-45 min
+- Last 5 plans: 02-01 (~30 min, 3 tasks, 5 files — includes env setup: local dev Postgres container had to be recreated from scratch), 01-08 (~33 min ativo, wall-clock inflado por checkpoint human-verify; 2 tasks + checkpoint, 11 files), 01-07 (99 min wall / ~45 min ativo, 2 tasks + checkpoint, 22 files), 01-09 (3 min, 1 task TDD, 2 files), 01-06 (9 min, 3 tasks TDD, 8 files)
+- Trend: planos com checkpoint humano (01-07, 01-08) inflam o wall-clock; tempo ativo permanece ~30-45 min. 02-01 confirma: schema/migration plans com SQL custom + verificação viva contra Postgres também levam ~30 min mesmo sem checkpoint.
 
 *Updated after each plan completion*
 
@@ -87,6 +88,9 @@ Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY
 - (01-08) Consentimento LGPD (+18/termos) validado com `z.boolean().refine(v===true)` (não `z.literal`) — checkbox desmarcado é HARD BLOCK antes de qualquer INSERT (LGPD-01/02); a action mapeia `'on'`/ausente → boolean real
 - (01-08) Server Actions testáveis no runtime node: testes mockam `next/headers` (headers + cookies) e `next/navigation` (redirect); IP do contexto é mutável por teste p/ a asserção de rate limit. Padrão p/ Plans 10/Phase 4
 - (01-08) Auth pages sob `app/(public)/` (herdam shell D-03, URLs inalteradas); rate limit nas actions é defesa-em-profundidade (limite primário no proxy/Plan 06, mesmas instâncias in-process)
+- (02-01) Custo congelado é enforced no SCHEMA (Pitfall 5.5): `lote_uso_ingredientes.ingrediente_compra_id` NOT NULL FK pra COMPRA (nunca pro ingrediente) + `trg_compra_imutavel` (BEFORE UPDATE OR DELETE) + CHECKs `lotes.qtde_disponivel/qtde_reservada >= 0` + `configuracoes.id = 1` singleton — todos aplicados via SQL custom anexado ao `prisma migrate dev --create-only`, NUNCA `db push`. Provado contra Postgres vivo em `tests/financeiro/schema.test.ts` (7 testes), não só lido do migration.sql
+- (02-01) LOTE-06 (validade imutável após 1ª reserva ativa) satisfeito vacuamente nesta fase (reservas só existem na Phase 4) — Phase 4 PRECISA adicionar o trigger/CHECK junto com a tabela de reservas
+- (02-01) Container Postgres de dev local (`doces-pg`, porta 5440, doc convention do `.env`) não existia mais nesta máquina — recriado via `docker run postgres:16-alpine -p 127.0.0.1:5440:5432 --restart unless-stopped` + `prisma migrate deploy` pra baseline. `.env` não precisou mudar. Se sumir de novo, recriar com os mesmos parâmetros (ver 02-01-SUMMARY.md §Decisions)
 
 ### Pending Todos
 
@@ -116,7 +120,7 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 
 ## Session Continuity
 
-Last session: 2026-07-03T18:35:17.662Z
-Stopped at: Phase 2 UI-SPEC approved
-Resume file: .planning/phases/02-motor-financeiro/02-UI-SPEC.md
+Last session: 2026-08-01T15:40:00.000Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-motor-financeiro/02-02-PLAN.md
 Setup pendente (não bloqueia código): verificar domínio docesvalentina.com.br no Resend (user_setup do Plan 04) para entrega real de email de confirmação/reset.

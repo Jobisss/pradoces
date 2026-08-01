@@ -50,7 +50,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 11 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Schema + migration (9 models, trigger ING-07, CHECKs LOTE-04) + harness de testes (wave 1)
+- [x] 02-01-PLAN.md — Schema + migration (9 models, trigger ING-07, CHECKs LOTE-04) + harness de testes (wave 1)
 - [ ] 02-02-PLAN.md — Infra de UI: RHF + shadcn (workaround form stub) + nav admin + ajuda ANVISA (wave 1)
 - [ ] 02-03-PLAN.md — Núcleo monetário: requireAdmin, zDecimalBRL, lib/custo, fixtures + testes (wave 2)
 - [ ] 02-04-PLAN.md — Backend ingredientes + compras (D-01..04, ING-01..07) + testes (wave 3)
@@ -145,7 +145,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 10/11 | In progress | - |
-| 2. Motor Financeiro | 0/TBD | Not started | - |
+| 2. Motor Financeiro | 1/11 | In progress | - |
 | 3. Catálogo Público | 0/TBD | Not started | - |
 | 4. Reserva + Pontos | 0/TBD | Not started | - |
 | 5. Engagement | 0/TBD | Not started | - |

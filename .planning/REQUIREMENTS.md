@@ -38,7 +38,7 @@
 - [x] **AUTH-03**: Quando cliente tenta cadastrar email já existente, sistema mostra "talvez você tenha digitado o email errado, tente fazer login" antes de bloquear duplicata — 01-08 (branch AUTH-03)
 - [x] **AUTH-04**: Verificação de email obrigatória no cadastro (link de confirmação válido por 24h) — 01-04 (envio real Resend + emailVerification.expiresIn 24h)
 - [x] **AUTH-05**: Recuperação de senha OWASP-compliant — token único de 32 bytes, hash no DB, expiração 30-60min, single-use, revoga sessões ativas após reset — 01-03 (token 1h + revokeSessionsOnPasswordReset) + 01-04 (email real)
-- [ ] **AUTH-06**: Senhas hasheadas com argon2id (parâmetros recomendados pelo OWASP)
+- [x] **AUTH-06**: Senhas hasheadas com argon2id (parâmetros recomendados pelo OWASP) — 01-03 (lib/auth/argon2.ts, profile 2: m=19MiB/t=2/p=1, wired em lib/auth/server.ts)
 - [x] **AUTH-07**: Mensagens genéricas em fluxos sensíveis ("Se o email existir, você receberá um link") para não revelar enumeração — 01-08 (signinUser/requestPasswordReset copy idêntica)
 - [x] **AUTH-08**: Cliente loga e mantém sessão (Better Auth com sessions DB) — 01-08 (signinUser; UI de login fica no Plan 10)
 - [x] **AUTH-09**: Cliente acessa painel próprio (saldo, histórico de reservas, histórico de pontos)
@@ -59,10 +59,10 @@
 - [ ] **ING-01**: Mãe cadastra ingrediente (conceito): nome + unidade-base de cálculo (g, ml, un)
 - [ ] **ING-02**: Mãe registra compra: ingrediente + mercado + marca + quantidade comprada + preço pago + data
 - [ ] **ING-03**: Sistema deriva R$/unidade-base automaticamente para cada compra
-- [ ] **ING-04**: Compras são append-only (event sourcing parcial — `ingrediente_compras` é imutável)
+- [x] **ING-04**: Compras são append-only (event sourcing parcial — `ingrediente_compras` é imutável)
 - [ ] **ING-05**: Preço corrente do ingrediente = última compra
 - [ ] **ING-06**: Embalagens (forminha, caixa, fita, sacola) cadastradas como ingredientes do tipo "embalagem"
-- [ ] **ING-07**: Trigger Postgres `BEFORE UPDATE` em `ingrediente_compras` bloqueia mudança se referenciada por lote (custo congelado preservado)
+- [x] **ING-07**: Trigger Postgres `BEFORE UPDATE` em `ingrediente_compras` bloqueia mudança se referenciada por lote (custo congelado preservado)
 - [ ] **ING-08**: Mãe vê histórico cronológico de compras por ingrediente
 
 ### Receitas (REC)
@@ -76,11 +76,11 @@
 ### Lotes de produção (LOTE)
 
 - [ ] **LOTE-01**: Mãe registra lote produzido: produto + receita + rendimento real + validade manual
-- [ ] **LOTE-02**: Cada `lote_uso_ingredientes` referencia uma compra específica (FK não-nula `ingrediente_compra_id`, NÃO `ingrediente_id`)
+- [x] **LOTE-02**: Cada `lote_uso_ingredientes` referencia uma compra específica (FK não-nula `ingrediente_compra_id`, NÃO `ingrediente_id`)
 - [ ] **LOTE-03**: Sistema congela `marca_snapshot` + `custo_congelado` no momento da produção (colunas tipadas, não JSON)
-- [ ] **LOTE-04**: Lote tem `qtde_disponivel` + `qtde_reservada` (constraint CHECK ≥ 0)
-- [ ] **LOTE-05**: Lote vencido removido automaticamente da vitrine (cron de hora em hora, não 1×/dia, devido a timezone)
-- [ ] **LOTE-06**: Validade do lote vira imutável após primeira reserva ativa
+- [x] **LOTE-04**: Lote tem `qtde_disponivel` + `qtde_reservada` (constraint CHECK ≥ 0)
+- [x] **LOTE-05**: Lote vencido removido automaticamente da vitrine (cron de hora em hora, não 1×/dia, devido a timezone) — *02-01 entrega só schema/coluna `validade`; cron real é Phase 5*
+- [x] **LOTE-06**: Validade do lote vira imutável após primeira reserva ativa — *02-01 satisfeito vacuamente (reservas não existem ainda); trigger real entra na Phase 4*
 - [ ] **LOTE-07**: Mãe vê todos os lotes (filtros: vigentes, vencidos, esgotados)
 - [ ] **LOTE-08**: Teste de regressão automatizado: "muda preço corrente do ingrediente → relatório do lote antigo permanece com custo congelado"
 
@@ -298,7 +298,7 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | AUTH-03 | Phase 1 — Foundation | Done (01-08) |
 | AUTH-04 | Phase 1 — Foundation | Done (01-04, 01-08) |
 | AUTH-05 | Phase 1 — Foundation | Done (01-04, 01-10) |
-| AUTH-06 | Phase 1 — Foundation | Pending |
+| AUTH-06 | Phase 1 — Foundation | Done (01-03) |
 | AUTH-07 | Phase 1 — Foundation | Done (01-08, 01-10) |
 | AUTH-08 | Phase 1 — Foundation | Done (01-08, 01-10) |
 | AUTH-09 | Phase 1 — Foundation | Done (01-11) |
@@ -313,10 +313,10 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | ING-01 | Phase 2 — Motor Financeiro | Pending |
 | ING-02 | Phase 2 — Motor Financeiro | Pending |
 | ING-03 | Phase 2 — Motor Financeiro | Pending |
-| ING-04 | Phase 2 — Motor Financeiro | Pending |
+| ING-04 | Phase 2 — Motor Financeiro | Done (02-01) |
 | ING-05 | Phase 2 — Motor Financeiro | Pending |
 | ING-06 | Phase 2 — Motor Financeiro | Pending |
-| ING-07 | Phase 2 — Motor Financeiro | Pending |
+| ING-07 | Phase 2 — Motor Financeiro | Done (02-01) |
 | ING-08 | Phase 2 — Motor Financeiro | Pending |
 | REC-01 | Phase 2 — Motor Financeiro | Pending |
 | REC-02 | Phase 2 — Motor Financeiro | Pending |
@@ -324,11 +324,11 @@ Mapeamento de cada requirement para a fase em que será entregue. Coverage 100% 
 | REC-04 | Phase 2 — Motor Financeiro | Pending |
 | REC-05 | Phase 2 — Motor Financeiro | Pending |
 | LOTE-01 | Phase 2 — Motor Financeiro | Pending |
-| LOTE-02 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-02 | Phase 2 — Motor Financeiro | Done (02-01) |
 | LOTE-03 | Phase 2 — Motor Financeiro | Pending |
-| LOTE-04 | Phase 2 — Motor Financeiro | Pending |
-| LOTE-05 | Phase 2 — Motor Financeiro | Pending |
-| LOTE-06 | Phase 2 — Motor Financeiro | Pending |
+| LOTE-04 | Phase 2 — Motor Financeiro | Done (02-01) |
+| LOTE-05 | Phase 2 — Motor Financeiro | Partial (02-01 — schema/coluna; cron em Phase 5) |
+| LOTE-06 | Phase 2 — Motor Financeiro | Partial (02-01 — vacuamente; trigger real em Phase 4) |
 | LOTE-07 | Phase 2 — Motor Financeiro | Pending |
 | LOTE-08 | Phase 2 — Motor Financeiro | Pending |
 | PROD-01 | Phase 2 — Motor Financeiro | Pending |
