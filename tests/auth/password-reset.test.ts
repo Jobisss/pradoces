@@ -55,15 +55,16 @@ describe('resetPassword OWASP (AUTH-05 — single-use + revoke)', () => {
     await auth.api.requestPasswordReset({ body: { email, redirectTo: '/redefinir-senha' } })
     expect(captured.token).toBeTruthy()
 
-    // First use succeeds (action redirects on success -> no error returned).
+    // First use succeeds: the action redirect()s (mocked -> returns undefined,
+    // i.e. no error state). Success is proven by the revocation + replay below.
     const r1 = await resetPassword(undefined, form({ token: captured.token, newPassword: 'new-password-456' }))
-    expect(r1.error).toBeUndefined()
+    expect(r1?.error).toBeUndefined()
 
-    // Sessions revoked.
+    // Sessions revoked (revokeSessionsOnPasswordReset / Pitfall #8).
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0)
 
     // Second use of the SAME token fails (single-use — verification consumed).
     const r2 = await resetPassword(undefined, form({ token: captured.token, newPassword: 'another-789' }))
-    expect(r2.error).toBeTruthy()
+    expect(r2?.error).toBeTruthy()
   })
 })
