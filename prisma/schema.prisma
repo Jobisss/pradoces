@@ -130,3 +130,170 @@ model AuditLog {
   @@index([action])
   @@map("audit_log")
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2: Motor Financeiro (domain models — 02-01-PLAN.md)
+//
+// Core invariant: frozen cost is enforced in the SCHEMA, not by app convention
+// (Pitfall 5.5). `lote_uso_ingredientes.ingrediente_compra_id` is a NOT NULL FK
+// to the PURCHASE (never to the ingredient); `trg_compra_imutavel` (custom SQL
+// appended to the generated migration) blocks UPDATE/DELETE on a purchase once
+// referenced by a lote. CHECK constraints (also custom SQL) keep lote stock
+// columns non-negative and `configuracoes` a true singleton.
+// ---------------------------------------------------------------------------
+
+enum UnidadeBase {
+  g
+  ml
+  un
+}
+
+enum TipoIngrediente {
+  INGREDIENTE
+  EMBALAGEM
+}
+
+enum TipoProduto {
+  UNITARIO
+  KIT
+}
+
+model Ingrediente {
+  id           String              @id @default(uuid()) @db.Uuid
+  nome         String              @unique
+  unidadeBase  UnidadeBase         @map("unidade_base")
+  tipo         TipoIngrediente     @default(INGREDIENTE)
+  criadoEm     DateTime            @default(now()) @db.Timestamptz(6) @map("criado_em")
+  atualizadoEm DateTime            @updatedAt @db.Timestamptz(6) @map("atualizado_em")
+  compras      IngredienteCompra[]
+  receitaItens ReceitaIngrediente[]
+
+  @@map("ingredientes")
+}
+
+model IngredienteCompra {
+  id                  String   @id @default(uuid()) @db.Uuid
+  ingredienteId       String   @db.Uuid @map("ingrediente_id")
+  dataCompra          DateTime @db.Date @map("data_compra")
+  mercado             String
+  marca               String
+  qtdeEmbalagens      Decimal  @db.Decimal(10, 3) @map("qtde_embalagens")
+  tamanhoEmbalagem    Decimal  @db.Decimal(12, 3) @map("tamanho_embalagem")
+  precoPorEmbalagem   Decimal  @db.Decimal(19, 4) @map("preco_por_embalagem")
+  qtdeTotalBase       Decimal  @db.Decimal(14, 3) @map("qtde_total_base")
+  precoTotal          Decimal  @db.Decimal(19, 4) @map("preco_total")
+  custoPorUnidadeBase Decimal  @db.Decimal(19, 6) @map("custo_por_unidade_base")
+  criadoEm            DateTime @default(now()) @db.Timestamptz(6) @map("criado_em")
+
+  ingrediente Ingrediente          @relation(fields: [ingredienteId], references: [id], onDelete: Restrict)
+  usos        LoteUsoIngrediente[]
+
+  @@index([ingredienteId, dataCompra(sort: Desc)])
+  @@map("ingrediente_compras")
+}
+
+model Receita {
+  id               String   @id @default(uuid()) @db.Uuid
+  nome             String
+  rendimentoPadrao Int      @map("rendimento_padrao")
+  custoGas         Decimal? @db.Decimal(19, 4) @map("custo_gas")
+  validadeDias     Int?     @map("validade_dias")
+  criadoEm         DateTime @default(now()) @db.Timestamptz(6) @map("criado_em")
+  atualizadoEm     DateTime @updatedAt @db.Timestamptz(6) @map("atualizado_em")
+
+  itens   ReceitaIngrediente[]
+  produto Produto?
+  lotes   Lote[]
+
+  @@map("receitas")
+}
+
+model ReceitaIngrediente {
+  receitaId     String  @db.Uuid @map("receita_id")
+  ingredienteId String  @db.Uuid @map("ingrediente_id")
+  qtde          Decimal @db.Decimal(14, 3)
+
+  receita     Receita     @relation(fields: [receitaId], references: [id], onDelete: Cascade)
+  ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id], onDelete: Restrict)
+
+  @@id([receitaId, ingredienteId])
+  @@map("receita_ingredientes")
+}
+
+model Produto {
+  id                   String      @id @default(uuid()) @db.Uuid
+  nome                 String
+  descricao            String
+  categoria            String
+  tipo                 TipoProduto
+  precoVenda           Decimal     @db.Decimal(19, 4) @map("preco_venda")
+  margemMinimaOverride Decimal?    @db.Decimal(5, 2) @map("margem_minima_override")
+  receitaId            String?     @unique @db.Uuid @map("receita_id")
+  criadoEm             DateTime    @default(now()) @db.Timestamptz(6) @map("criado_em")
+  atualizadoEm         DateTime    @updatedAt @db.Timestamptz(6) @map("atualizado_em")
+
+  receita  Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
+  kitItens ProdutoKitItem[] @relation("kit")
+  emKits   ProdutoKitItem[] @relation("componente")
+  lotes    Lote[]
+
+  @@map("produtos")
+}
+
+model ProdutoKitItem {
+  kitId        String @db.Uuid @map("kit_id")
+  componenteId String @db.Uuid @map("componente_id")
+  qtde         Int
+
+  kit        Produto @relation("kit", fields: [kitId], references: [id], onDelete: Cascade)
+  componente Produto @relation("componente", fields: [componenteId], references: [id], onDelete: Restrict)
+
+  @@id([kitId, componenteId])
+  @@map("produto_kit_items")
+}
+
+model Lote {
+  id                       String   @id @default(uuid()) @db.Uuid
+  produtoId                String   @db.Uuid @map("produto_id")
+  receitaId                String   @db.Uuid @map("receita_id")
+  multiplicador            Decimal  @db.Decimal(6, 2)
+  rendimentoReal           Int      @map("rendimento_real")
+  produzidoEm              DateTime @default(now()) @db.Timestamptz(6) @map("produzido_em")
+  validade                 DateTime @db.Date
+  qtdeDisponivel           Int      @map("qtde_disponivel")
+  qtdeReservada            Int      @default(0) @map("qtde_reservada")
+  custoGasCongelado        Decimal  @db.Decimal(19, 4) @map("custo_gas_congelado")
+  custoTotalCongelado      Decimal  @db.Decimal(19, 4) @map("custo_total_congelado")
+  custoPorUnidadeCongelado Decimal  @db.Decimal(19, 6) @map("custo_por_unidade_congelado")
+  criadoEm                 DateTime @default(now()) @db.Timestamptz(6) @map("criado_em")
+
+  produto Produto              @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  receita Receita              @relation(fields: [receitaId], references: [id], onDelete: Restrict)
+  usos    LoteUsoIngrediente[]
+
+  @@index([validade])
+  @@map("lotes")
+}
+
+model LoteUsoIngrediente {
+  id                     String  @id @default(uuid()) @db.Uuid
+  loteId                 String  @db.Uuid @map("lote_id")
+  ingredienteCompraId    String  @db.Uuid @map("ingrediente_compra_id")
+  qtdeUsada              Decimal @db.Decimal(14, 3) @map("qtde_usada")
+  marcaSnapshot          String  @map("marca_snapshot")
+  custoUnitarioCongelado Decimal @db.Decimal(19, 6) @map("custo_unitario_congelado")
+  custoCongelado         Decimal @db.Decimal(19, 4) @map("custo_congelado")
+
+  lote   Lote              @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  compra IngredienteCompra @relation(fields: [ingredienteCompraId], references: [id], onDelete: Restrict)
+
+  @@index([ingredienteCompraId])
+  @@map("lote_uso_ingredientes")
+}
+
+model Configuracao {
+  id                 Int     @id @default(1)
+  margemMinimaPadrao Decimal @default(30) @db.Decimal(5, 2) @map("margem_minima_padrao")
+
+  @@map("configuracoes")
+}
