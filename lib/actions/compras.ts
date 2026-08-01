@@ -30,7 +30,13 @@ export type CompraActionState = {
   fieldErrors?: Record<string, string[] | undefined>
   message?: string
   ok?: boolean
-  item?: { id: string; resumo: string }
+  item?: {
+    id: string
+    marca: string
+    qtdeEmbalagens: string
+    tamanhoEmbalagem: string
+    precoTotal: string
+  }
 }
 
 async function clientContext() {
@@ -124,7 +130,13 @@ export async function registrarCompra(
   return {
     ok: true,
     message: 'Anotado!',
-    item: { id: compra.id, resumo: `${marca} — R$ ${custoPorUnidadeBase.toFixed(4)}/un` },
+    item: {
+      id: compra.id,
+      marca,
+      qtdeEmbalagens: parsed.data.qtdeEmbalagens.toFixed(0),
+      tamanhoEmbalagem: parsed.data.tamanhoEmbalagem.toFixed(0),
+      precoTotal: precoTotal.toFixed(4),
+    },
   }
 }
 
