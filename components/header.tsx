@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers as nextHeaders } from 'next/headers'
@@ -26,11 +27,15 @@ export async function Header() {
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:h-16 md:px-8">
-      <Link
-        href="/"
-        className="font-display text-[28px] leading-none font-medium text-foreground md:text-[32px]"
-      >
-        Luizinha Confeitaria
+      <Link href="/" className="flex items-center">
+        <Image
+          src="/logo/logo-header.png"
+          alt="Luizinha Confeitaria"
+          width={700}
+          height={306}
+          priority
+          className="h-10 w-auto md:h-12"
+        />
       </Link>
 
       <nav className="flex items-center gap-2">
