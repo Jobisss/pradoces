@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { Suspense, useActionState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signinUser, type AuthActionState } from '@/lib/actions/auth'
@@ -20,9 +20,20 @@ import { Label } from '@/components/ui/label'
  */
 const initialState: AuthActionState = {}
 
+function ResetSuccessBanner() {
+  const resetOk = useSearchParams().get('reset') === 'ok'
+  if (!resetOk) return null
+
+  return (
+    <div role="status" className="rounded-lg border border-border bg-card p-3 text-sm">
+      Pronto! Sua senha foi atualizada. Pode entrar com a nova. Por segurança, encerramos qualquer
+      sessão antiga aberta.
+    </div>
+  )
+}
+
 export default function EntrarPage() {
   const [state, formAction, pending] = useActionState(signinUser, initialState)
-  const resetOk = useSearchParams().get('reset') === 'ok'
 
   return (
     <div className="mx-auto w-full max-w-md px-6 py-12">
@@ -31,12 +42,9 @@ export default function EntrarPage() {
           <h1 className="font-display text-3xl font-semibold">Entrar</h1>
         </header>
 
-        {resetOk && (
-          <div role="status" className="rounded-lg border border-border bg-card p-3 text-sm">
-            Pronto! Sua senha foi atualizada. Pode entrar com a nova. Por segurança, encerramos
-            qualquer sessão antiga aberta.
-          </div>
-        )}
+        <Suspense fallback={null}>
+          <ResetSuccessBanner />
+        </Suspense>
 
         {/* Erro genérico AUTH-07 (vem da action): "Email ou senha não conferem" */}
         {state.error && (
