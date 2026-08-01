@@ -1,6 +1,7 @@
 import { headers as nextHeaders } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth/server'
+import { AdminNav } from '@/components/admin/admin-nav'
 
 /**
  * Admin shell — DB role gate (2nd security layer; proxy.ts is the 1st).
@@ -23,5 +24,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </div>
     )
   }
-  return <>{children}</>
+
+  async function signOut() {
+    'use server'
+    await auth.api.signOut({ headers: await nextHeaders() })
+    redirect('/admin/entrar')
+  }
+
+  return <AdminNav signOut={signOut}>{children}</AdminNav>
 }
