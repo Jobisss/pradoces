@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "PontosMotivo" ADD VALUE 'CANCELAMENTO';

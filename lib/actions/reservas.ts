@@ -147,3 +147,83 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
   revalidatePath('/admin/reservas')
   return { ok: true, id: resultado.id, token: resultado.token }
 }
+
+/**
+ * RES-08/09 — cancelamento do próprio cliente, sem dialog de confirmação (a
+ * UI dá 30s de UNDO antes de chamar isto — ver components/cancelar-reserva-
+ * botao.tsx). Cobre PENDENTE (só libera o soft hold) e CONFIRMADA (devolve
+ * estoque + estorna os pontos daquela reserva com um débito compensatório —
+ * nunca edita/deleta o crédito original, o ledger é imutável).
+ *
+ * Nota: RES-08 fala em "até X horas antes da retirada" (janelaCancelamentoHoras
+ * em Configuracao), mas `janelaRetirada` é texto livre (ex.: "amanhã de
+ * manhã") — não existe um horário estruturado pra comparar. Por ora o
+ * cancelamento é permitido em qualquer momento antes de AGUARDANDO_RETIRADA;
+ * a janela configurável fica pra quando existir um horário de retirada real.
+ */
+export async function cancelarReserva(reservaId: string): Promise<ReservaActionState> {
+  const h = await nextHeaders()
+  const ip = clientIp(h)
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let cliente: Awaited<ReturnType<typeof requireCliente>>
+  try {
+    cliente = await requireCliente()
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const reserva = await tx.reserva.findUnique({
+        where: { id: reservaId },
+        select: { id: true, clienteId: true, status: true, itens: { select: { loteId: true, qtde: true } } },
+      })
+      if (!reserva || reserva.clienteId !== cliente.id) throw new ReservaError(GENERIC_SERVER_ERROR)
+      if (reserva.status !== 'PENDENTE' && reserva.status !== 'CONFIRMADA') {
+        throw new ReservaError('Essa reserva não pode mais ser cancelada.')
+      }
+
+      for (const item of reserva.itens) {
+        await tx.lote.update({
+          where: { id: item.loteId },
+          data:
+            reserva.status === 'PENDENTE'
+              ? { qtdeReservada: { decrement: item.qtde } }
+              : { qtdeDisponivel: { increment: item.qtde } },
+        })
+      }
+
+      if (reserva.status === 'CONFIRMADA') {
+        const creditos = await tx.pontosTransacao.findMany({
+          where: { reservaId: reserva.id, motivo: 'RESERVA_CONFIRMADA' },
+        })
+        for (const credito of creditos) {
+          await tx.pontosTransacao.create({
+            data: { clienteId: cliente.id, valor: -credito.valor, motivo: 'CANCELAMENTO', reservaId: reserva.id },
+          })
+        }
+      }
+
+      await tx.reserva.update({ where: { id: reservaId }, data: { status: 'CANCELADA', canceladaEm: new Date() } })
+    })
+  } catch (e) {
+    if (e instanceof ReservaError) return { error: e.message }
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  await logAudit({
+    actorType: 'customer',
+    actorId: cliente.id,
+    action: 'reserva_cancelada',
+    entityType: 'reserva',
+    entityId: reservaId,
+    rawIp: ip,
+  })
+
+  revalidatePath('/minha-conta/reservas')
+  revalidatePath('/minha-conta/pontos')
+  revalidatePath('/admin/reservas')
+  return { ok: true }
+}

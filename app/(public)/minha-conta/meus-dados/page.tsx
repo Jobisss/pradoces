@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
+import { MinhaContaNav } from '@/components/minha-conta-nav'
 
 export const metadata: Metadata = {
   title: 'Seus dados — Luizinha Confeitaria',
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 export default function MeusDadosPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-12">
+      <MinhaContaNav ativo="/minha-conta/meus-dados" />
       <div className="space-y-6">
         <header className="space-y-2">
           <h1 className="font-display text-3xl font-semibold">Seus dados, do seu jeito</h1>

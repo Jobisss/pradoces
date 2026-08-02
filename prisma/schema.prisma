@@ -344,6 +344,7 @@ enum DeliveryMode {
 
 enum PontosMotivo {
   RESERVA_CONFIRMADA
+  CANCELAMENTO
   EXPIRACAO
   AJUSTE_ADMIN
 }
