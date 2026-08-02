@@ -58,6 +58,8 @@ model User {
   // Better Auth (já existiam pra outro fim) em vez de duplicar um campo novo.
   reservas         Reserva[]
   pontosTransacoes PontosTransacao[]
+  sorteiosVencidos Sorteio[]
+  sorteioChances   SorteioChance[]
 
   @@map("users")
 }
@@ -262,12 +264,13 @@ model Produto {
   criadoEm             DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm         DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  receita        Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
-  receitaRecheio Receita?         @relation("recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
-  kitItens       ProdutoKitItem[] @relation("kit")
-  emKits         ProdutoKitItem[] @relation("componente")
-  lotes          Lote[]
-  fotos          ProdutoFoto[]
+  receita          Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
+  receitaRecheio   Receita?         @relation("recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
+  kitItens         ProdutoKitItem[] @relation("kit")
+  emKits           ProdutoKitItem[] @relation("componente")
+  lotes            Lote[]
+  fotos            ProdutoFoto[]
+  itensResgataveis ItemResgatavel[]
 
   @@map("produtos")
 }
@@ -347,29 +350,108 @@ enum PontosMotivo {
   CANCELAMENTO
   EXPIRACAO
   AJUSTE_ADMIN
+  RESGATE
+  RESGATE_REJEITADO
+  SORTEIO
+}
+
+// RESG-03 — resgate cria uma Reserva "especial": mesmo fluxo de confirmação
+// manual da mãe, só que paga em pontos (débito imediato, RESG-04) em vez de
+// gerar crédito. RESGATE não tem ReservaItem/lote — o que vai ser entregue
+// está em `itemResgatavel`, não numa lista de lotes.
+enum TipoReserva {
+  PADRAO
+  RESGATE
 }
 
 model Reserva {
-  id             String        @id @default(uuid()) @db.Uuid
-  clienteId      String        @map("cliente_id") @db.Uuid
-  status         ReservaStatus @default(PENDENTE)
-  deliveryMode   DeliveryMode  @default(PICKUP_ONLY) @map("delivery_mode")
-  janelaRetirada String        @map("janela_retirada")
-  observacao     String?
+  id               String        @id @default(uuid()) @db.Uuid
+  clienteId        String        @map("cliente_id") @db.Uuid
+  tipo             TipoReserva   @default(PADRAO)
+  status           ReservaStatus @default(PENDENTE)
+  deliveryMode     DeliveryMode  @default(PICKUP_ONLY) @map("delivery_mode")
+  janelaRetirada   String        @map("janela_retirada")
+  observacao       String?
+  // Só quando tipo=RESGATE (RESG-03) — o que vai ser entregue.
+  itemResgatavelId String?       @map("item_resgatavel_id") @db.Uuid
   // Comprovante público /r/<token> (RES-10) — sem login, token não sequencial.
-  token          String        @unique @default(uuid())
-  criadoEm       DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
-  confirmadaEm   DateTime?     @map("confirmada_em") @db.Timestamptz(6)
-  canceladaEm    DateTime?     @map("cancelada_em") @db.Timestamptz(6)
-  retiradaEm     DateTime?     @map("retirada_em") @db.Timestamptz(6)
+  token            String        @unique @default(uuid())
+  criadoEm         DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
+  confirmadaEm     DateTime?     @map("confirmada_em") @db.Timestamptz(6)
+  canceladaEm      DateTime?     @map("cancelada_em") @db.Timestamptz(6)
+  retiradaEm       DateTime?     @map("retirada_em") @db.Timestamptz(6)
 
   cliente          User              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  itemResgatavel   ItemResgatavel?   @relation(fields: [itemResgatavelId], references: [id], onDelete: Restrict)
   itens            ReservaItem[]
   pontosTransacoes PontosTransacao[]
 
   @@index([clienteId])
   @@index([status])
   @@map("reservas")
+}
+
+// RESG-01/02/07 — XOR entre produtoId e nomeCustom garantido por CHECK
+// custom SQL (Prisma não modela XOR nativamente). "Esgotado" (RESG-06) só
+// existe pra item linkado a produto (deriva da disponibilidade real de
+// lote, mesma lógica do catálogo público); item nomeCustom não tem noção de
+// estoque — a mãe desativa manualmente (`ativo`) quando acabar.
+model ItemResgatavel {
+  id          String   @id @default(uuid()) @db.Uuid
+  produtoId   String?  @map("produto_id") @db.Uuid
+  nomeCustom  String?  @map("nome_custom")
+  custoPontos Int      @map("custo_pontos")
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  produto  Produto?  @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  reservas Reserva[]
+
+  @@map("itens_resgataveis")
+}
+
+enum SorteioStatus {
+  ABERTO
+  ENCERRADO
+}
+
+// SORT-04/05 — randomSeed + snapshotInscritos tornam o sorteio auditável:
+// qualquer um pode recomputar o vencedor a partir do seed + da lista
+// congelada de chances (lib/sorteios/sortear.ts), sem precisar confiar
+// "no olho" que rodou limpo.
+model Sorteio {
+  id                String        @id @default(uuid()) @db.Uuid
+  nome              String
+  premio            String
+  fotoPath          String?       @map("foto_path")
+  custoPontos       Int           @map("custo_pontos")
+  capPorCliente     Int           @default(10) @map("cap_por_cliente")
+  prazo             DateTime      @db.Timestamptz(6)
+  status            SorteioStatus @default(ABERTO)
+  randomSeed        String?       @map("random_seed")
+  vencedorId        String?       @map("vencedor_id") @db.Uuid
+  snapshotInscritos Json?         @map("snapshot_inscritos")
+  encerradoEm       DateTime?     @map("encerrado_em") @db.Timestamptz(6)
+  criadoEm          DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  vencedor User?           @relation(fields: [vencedorId], references: [id], onDelete: SetNull)
+  chances  SorteioChance[]
+
+  @@index([status])
+  @@map("sorteios")
+}
+
+model SorteioChance {
+  id        String   @id @default(uuid()) @db.Uuid
+  sorteioId String   @map("sorteio_id") @db.Uuid
+  clienteId String   @map("cliente_id") @db.Uuid
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  sorteio Sorteio @relation(fields: [sorteioId], references: [id], onDelete: Cascade)
+  cliente User    @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+
+  @@index([sorteioId])
+  @@map("sorteio_chances")
 }
 
 // Sempre um Lote ESPECÍFICO (nunca o produto agregado) — mesmo padrão do
