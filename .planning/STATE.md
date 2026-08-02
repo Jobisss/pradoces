@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 (Engagement) completa — resgate + sorteios funcionando ponta a ponta
-last_updated: "2026-08-02T18:10:00.000Z"
-last_activity: 2026-08-02 -- Phases 3, 4 e 5 implementadas direto na mesma sessão (sem orquestração GSD). Phase 5 fecha as 15 requirements (RESG-01..07, SORT-01..08)
+stopped_at: Phase 6 (Sazonalidade Visual) completa — paleta/banner sazonal automáticos
+last_updated: "2026-08-02T18:45:00.000Z"
+last_activity: 2026-08-02 -- Phases 3, 4, 5 e 6 implementadas direto na mesma sessão (sem orquestração GSD). Phase 6 fecha SAZON-01..04. Só resta Phase 7 (Admin Operacional + Relatórios) no roadmap
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 22
   completed_plans: 21
-  percent: 85
+  percent: 92
 ---
 
 # Project State
@@ -121,6 +121,26 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 | Segurança | Anonimização programada após 5 anos (SEC-03) | Deferido para v1.x | 2026-04-29 (init) |
 
 ## Session Continuity
+
+**2026-08-02 — Phase 6 (Sazonalidade Visual) completa.** 5 campanhas
+hardcoded (Páscoa/Mães/Junina/Crianças/Natal) em `lib/campanhas/definicoes.ts`
+com janela MM-DD fixa (aproximação deliberada — não calcula datas móveis
+reais) e paleta CSS vars própria. `campanhaAtiva()` resolve server-side, sem
+flash de tema entre páginas, escopado só em `(public)` (admin não muda de
+cara). Produto ganha vínculo M:N com campanhas (checkbox no form, mesmo
+padrão de alergênicos); vitrine badge produtos da campanha vigente + link
+opt-in pra filtrar só eles. Verificado visualmente ativando cada janela
+temporariamente e revertendo.
+
+Nota fora do escopo das requirements: BRAND.md tinha uma decisão pendente
+("trocar --font-display por uma script tipo Pacifico/Lobster") marcada como
+"Phase 6 ou antes" — NÃO fiz essa troca, porque `font-display` hoje é usado
+em TODO h1 do site (admin incluso), não só no wordmark; uma fonte cursiva
+ficaria ruim em títulos tipo "Editar produto". Decisão de design real,
+melhor o usuário escolher.
+
+`npm run build` limpo com todas as ~60 rotas do site (Phases 1-6) depois
+dessa sessão.
 
 **2026-08-02 — Phase 5 (Engagement) completa.** Catálogo de resgate (XOR
 produto/nomeCustom via CHECK) + sorteios (chances ponderadas, cron horário
