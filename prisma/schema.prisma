@@ -264,15 +264,33 @@ model Produto {
   criadoEm             DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm         DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  receita          Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
-  receitaRecheio   Receita?         @relation("recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
-  kitItens         ProdutoKitItem[] @relation("kit")
-  emKits           ProdutoKitItem[] @relation("componente")
+  receita          Receita?          @relation(fields: [receitaId], references: [id], onDelete: Restrict)
+  receitaRecheio   Receita?          @relation("recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
+  kitItens         ProdutoKitItem[]  @relation("kit")
+  emKits           ProdutoKitItem[]  @relation("componente")
   lotes            Lote[]
   fotos            ProdutoFoto[]
   itensResgataveis ItemResgatavel[]
+  campanhas        CampanhaProduto[]
 
   @@map("produtos")
+}
+
+// SAZON-01/02 — campanhas em si são HARDCODED em código (lib/campanhas/
+// definicoes.ts: nome, janela de ativação, paleta), de propósito, pra não
+// abrir espaço pra um editor WYSIWYG (anti-feature confirmada na pesquisa).
+// Só o VÍNCULO produto<->campanha precisa ser dado de app (a mãe decide quais
+// produtos aparecem em destaque em cada campanha) — por isso só essa tabela
+// de junção existe no banco; `campanhaId` não é FK porque não há tabela
+// "campanhas" pra referenciar, é validado contra a lista hardcoded em app.
+model CampanhaProduto {
+  campanhaId String @map("campanha_id")
+  produtoId  String @map("produto_id") @db.Uuid
+
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@id([campanhaId, produtoId])
+  @@map("campanha_produtos")
 }
 
 // PROD-04/05: `path` é o prefixo sem extensão/tamanho dentro de
