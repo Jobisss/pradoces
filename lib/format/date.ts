@@ -23,3 +23,12 @@ export const instanteFmtBR = new Intl.DateTimeFormat('pt-BR', {
   month: '2-digit',
   timeZone: 'America/Sao_Paulo',
 })
+
+/** Igual instanteFmtBR + hora — pra prazos que importam a que horas exata (ex.: encerramento de sorteio). */
+export const datetimeFmtBR = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'America/Sao_Paulo',
+})
