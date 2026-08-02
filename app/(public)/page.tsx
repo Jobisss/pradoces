@@ -1,83 +1,97 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { headers as nextHeaders } from 'next/headers'
-import { auth } from '@/lib/auth/server'
-import { Button } from '@/components/ui/button'
+import Image from 'next/image'
+import { listarProdutosAtivos, listarCategoriasAtivas } from '@/lib/catalogo/produtos'
+import { WhatsappButton } from '@/components/whatsapp-button'
+
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 /**
- * Landing da raiz `/` (D-01/D-02/D-04) — RSC, 3 variants por sessão.
- *
- * Placeholder narrativo de Phase 1 (Phase 3 troca por vitrine). Hero curto, voz de
- * vizinha (UI-SPEC §Brand & Voice), sem prometer prazo. Os CTAs trocam conforme a
- * sessão lida server-side (sem flicker, T-01-07-02).
+ * Vitrine pública (CAT-01/04/08) — troca o placeholder narrativo de Phase 1.
+ * Mobile-first: cards em grid de 2 colunas no celular, touch target da foto
+ * inteira (>44px em qualquer tela), preço sempre visível sem precisar clicar.
  */
-export default async function Home() {
-  const session = await auth.api.getSession({ headers: await nextHeaders() })
-  const role = session?.user.role
-
-  async function signOut() {
-    'use server'
-    await auth.api.signOut({ headers: await nextHeaders() })
-    redirect('/')
-  }
+export default async function Home({ searchParams }: { searchParams: Promise<{ categoria?: string }> }) {
+  const { categoria } = await searchParams
+  const [produtos, categorias] = await Promise.all([listarProdutosAtivos(categoria), listarCategoriasAtivas()])
 
   return (
-    <section className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-6 py-16 text-center md:py-24">
-      <p className="font-display text-4xl font-medium text-primary md:text-5xl">Luizinha Confeitaria</p>
-
-      <h1 className="text-2xl font-semibold text-foreground md:text-3xl">
-        Em breve: reserva os doces caseiros da Luizinha
-      </h1>
-
-      <div className="space-y-4 text-base text-muted-foreground">
-        <p>
-          A Luizinha cozinha em casa, do jeito de sempre. Aqui você vai poder reservar os doces
-          dela com antecedência — sem perder o carinho do atendimento no WhatsApp.
+    <section className="mx-auto max-w-5xl px-4 py-8 md:px-8">
+      <div className="mb-6 space-y-2">
+        <p className="font-display text-3xl font-medium text-primary md:text-4xl">Luizinha Confeitaria</p>
+        <p className="text-base text-muted-foreground">
+          Doces caseiros pra reservar e retirar. Confirma tudo com a Luizinha pelo WhatsApp.
         </p>
-        <p>
-          Cria sua conta pra ser avisada(o) quando abrir, juntar pontos a cada reserva e garantir
-          os seus favoritos antes que acabem.
-        </p>
+        <WhatsappButton />
       </div>
 
-      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-        {!session && (
-          <>
-            <Button asChild className="h-12 px-6 text-base">
-              <Link href="/cadastro">Criar minha conta</Link>
-            </Button>
-            <Button asChild variant="outline" className="h-12 px-6 text-base">
-              <Link href="/entrar">Entrar</Link>
-            </Button>
-          </>
-        )}
+      {categorias.length > 1 && (
+        <nav className="mb-6 flex flex-wrap gap-2" aria-label="Filtrar por categoria">
+          <Link
+            href="/"
+            className={`flex h-11 items-center rounded-lg px-4 text-sm font-medium ${
+              !categoria ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground'
+            }`}
+          >
+            Todas
+          </Link>
+          {categorias.map((c) => (
+            <Link
+              key={c}
+              href={`/?categoria=${encodeURIComponent(c)}`}
+              className={`flex h-11 items-center rounded-lg px-4 text-sm font-medium ${
+                categoria === c ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground'
+              }`}
+            >
+              {c}
+            </Link>
+          ))}
+        </nav>
+      )}
 
-        {session && role !== 'admin' && (
-          <>
-            <Button asChild className="h-12 px-6 text-base">
-              <Link href="/minha-conta/meus-dados">Minha conta</Link>
-            </Button>
-            <form action={signOut}>
-              <Button type="submit" variant="outline" className="h-12 px-6 text-base">
-                Sair
-              </Button>
-            </form>
-          </>
-        )}
-
-        {session && role === 'admin' && (
-          <>
-            <Button asChild className="h-12 px-6 text-base">
-              <Link href="/admin">Painel admin</Link>
-            </Button>
-            <form action={signOut}>
-              <Button type="submit" variant="outline" className="h-12 px-6 text-base">
-                Sair
-              </Button>
-            </form>
-          </>
-        )}
-      </div>
+      {produtos.length === 0 ? (
+        <div className="space-y-1 py-12 text-center">
+          <p className="text-base font-medium">
+            {categoria ? 'Nada nessa categoria por enquanto' : 'Ainda não tem doces por aqui'}
+          </p>
+          <p className="text-sm text-muted-foreground">Volta mais tarde — a Luizinha tá sempre cozinhando.</p>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          {produtos.map((p) => (
+            <li key={p.id}>
+              <Link
+                href={`/produtos/${p.id}`}
+                className="block overflow-hidden rounded-lg border border-border transition-opacity hover:opacity-90"
+              >
+                <div className="relative aspect-square bg-muted">
+                  {p.capaPath ? (
+                    <Image
+                      src={`/uploads/${p.capaPath}-medio.webp`}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 50vw, 25vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      Sem foto
+                    </div>
+                  )}
+                  {!p.disponivel && (
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      Esgotado
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-0.5 p-2">
+                  <p className="truncate text-sm font-medium text-foreground">{p.nome}</p>
+                  <p className="tabular-nums text-sm text-muted-foreground">{currency.format(Number(p.precoVenda))}</p>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

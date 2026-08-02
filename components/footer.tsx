@@ -13,6 +13,9 @@ export function Footer() {
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-1 text-center md:flex-row md:justify-between md:gap-4 md:text-left">
         <p className="font-display text-base text-foreground">Luizinha Confeitaria</p>
         <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <a href="/onde-retirar" className="underline-offset-2 hover:underline">
+            Onde retirar
+          </a>
           <a href="/termos" className="underline-offset-2 hover:underline">
             Termos
           </a>
