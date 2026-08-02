@@ -24,6 +24,10 @@ services:
       # Inside the compose network the db is only reachable as "db:5432" —
       # override so the app container doesn't try to dial out to the host.
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/doces
+    volumes:
+      # PROD-04/05: fotos de produto persistem entre deploys/recreations do
+      # container (a imagem em si é descartável, o volume não).
+      - uploads:/app/public/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -50,3 +54,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

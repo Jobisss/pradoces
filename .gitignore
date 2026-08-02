@@ -38,6 +38,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# uploads de usuário (PROD-04/05) — persistem via volume Docker em prod,
+# nunca fazem parte da imagem/do repo
+/public/uploads/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

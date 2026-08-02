@@ -17,6 +17,12 @@ export const env = createEnv({
     ADMIN_INITIAL_PASSWORD: z.string().min(8).optional(),
     ADMIN_RESET_PASSWORD: z.string().min(8).optional(),
     NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: z.string().optional(),
+    // CAT-06/07: opcionais — sem valor real ainda, telas caem num aviso
+    // discreto em vez de quebrar (ver lib/contato.ts).
+    WHATSAPP_NUMERO: z.string().optional(),
+    ENDERECO_RETIRADA: z.string().optional(),
+    ENDERECO_OBSERVACAO: z.string().optional(),
+    ENDERECO_MAPS_URL: z.string().url().optional(),
   },
   client: {
     NEXT_PUBLIC_URL: z.string().url(),
@@ -34,6 +40,10 @@ export const env = createEnv({
     ADMIN_INITIAL_PASSWORD: process.env.ADMIN_INITIAL_PASSWORD,
     ADMIN_RESET_PASSWORD: process.env.ADMIN_RESET_PASSWORD,
     NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY,
+    WHATSAPP_NUMERO: process.env.WHATSAPP_NUMERO,
+    ENDERECO_RETIRADA: process.env.ENDERECO_RETIRADA,
+    ENDERECO_OBSERVACAO: process.env.ENDERECO_OBSERVACAO,
+    ENDERECO_MAPS_URL: process.env.ENDERECO_MAPS_URL,
     NEXT_PUBLIC_URL: process.env.NEXT_PUBLIC_URL,
   },
   emptyStringAsUndefined: true,

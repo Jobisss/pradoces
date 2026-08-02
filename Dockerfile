@@ -61,6 +61,11 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
+# PROD-04/05: fotos de produto vivem num volume nomeado montado aqui (ver
+# docker-compose.yml) — precisa existir e pertencer ao "node" ANTES do mount,
+# senão o Docker cria o mountpoint como root e o server não consegue escrever.
+RUN mkdir -p ./public/uploads && chown node:node ./public/uploads
+
 USER node
 EXPOSE 3000
 # Standalone entrypoint: node server.js
