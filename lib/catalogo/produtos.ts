@@ -18,6 +18,7 @@ export type ProdutoCard = {
   precoVenda: string
   capaPath: string | null
   disponivel: boolean
+  emCampanha: boolean
 }
 
 function inicioDoDiaSaoPaulo(): Date {
@@ -44,9 +45,18 @@ export async function listarCategoriasAtivas(): Promise<string[]> {
   return rows.map((r) => r.categoria)
 }
 
-export async function listarProdutosAtivos(categoria?: string): Promise<ProdutoCard[]> {
+/**
+ * CAT-01 — `campanhaId` filtra pra só os produtos vinculados à campanha
+ * vigente (SAZON-04); sem campanhaId, mostra tudo normal (o card ainda
+ * carrega `emCampanha` pra destacar visualmente quem tá na campanha).
+ */
+export async function listarProdutosAtivos(categoria?: string, campanhaId?: string): Promise<ProdutoCard[]> {
   const produtos = await prisma.produto.findMany({
-    where: { ativo: true, ...(categoria ? { categoria } : {}) },
+    where: {
+      ativo: true,
+      ...(categoria ? { categoria } : {}),
+      ...(campanhaId ? { campanhas: { some: { campanhaId } } } : {}),
+    },
     select: {
       id: true,
       nome: true,
@@ -55,6 +65,7 @@ export async function listarProdutosAtivos(categoria?: string): Promise<ProdutoC
       precoVenda: true,
       fotos: { where: { ordem: 0 }, select: { path: true } },
       kitItens: { select: { componenteId: true } },
+      campanhas: { select: { campanhaId: true } },
     },
     orderBy: { nome: 'asc' },
   })
@@ -72,6 +83,7 @@ export async function listarProdutosAtivos(categoria?: string): Promise<ProdutoC
       p.tipo === 'UNITARIO'
         ? disponiveis.has(p.id)
         : p.kitItens.length > 0 && p.kitItens.every((k) => disponiveis.has(k.componenteId)),
+    emCampanha: p.campanhas.length > 0,
   }))
 }
 

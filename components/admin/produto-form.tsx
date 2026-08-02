@@ -7,6 +7,7 @@ import Decimal from 'decimal.js'
 import { TriangleAlert, XIcon } from 'lucide-react'
 import { criarProduto, editarProduto, sugestoesCategoria } from '@/lib/actions/produtos'
 import { ALERGENICOS } from '@/lib/validation/produtos'
+import { CAMPANHAS } from '@/lib/campanhas/definicoes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,6 +44,7 @@ type ProdutoFormValues = {
   tipo: 'UNITARIO' | 'KIT'
   ativo: boolean
   alergenicos: string[]
+  campanhas: string[]
   precoVenda: string
   margemMinimaOverride: string
   receitaId: string
@@ -63,6 +65,7 @@ type ProdutoFormProps = {
     tipo: 'UNITARIO' | 'KIT'
     ativo: boolean
     alergenicos: string[]
+    campanhas: string[]
     precoVenda: string
     margemMinimaOverride: string | null
     receitaId: string | null
@@ -91,6 +94,7 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       tipo: defaults?.tipo ?? 'UNITARIO',
       ativo: defaults?.ativo ?? true,
       alergenicos: defaults?.alergenicos ?? [],
+      campanhas: defaults?.campanhas ?? [],
       precoVenda: defaults?.precoVenda ?? '',
       margemMinimaOverride: defaults?.margemMinimaOverride ?? '',
       receitaId: defaults?.receitaId ?? '',
@@ -195,6 +199,7 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       tipo: data.tipo,
       ativo: data.ativo,
       alergenicos: data.alergenicos,
+      campanhas: data.campanhas,
       precoVenda: data.precoVenda,
       margemMinimaOverride: data.margemMinimaOverride,
       receitaId: data.tipo === 'UNITARIO' ? data.receitaId : undefined,
@@ -320,6 +325,35 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
                   </label>
                 ))}
               </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name="campanhas"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Campanhas sazonais (opcional)</FormLabel>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {CAMPANHAS.map((c) => (
+                  <label key={c.id} className="group/field flex items-center gap-2 text-sm font-normal">
+                    <Checkbox
+                      checked={field.value.includes(c.id)}
+                      onCheckedChange={(checked) =>
+                        field.onChange(
+                          checked === true ? [...field.value, c.id] : field.value.filter((v) => v !== c.id),
+                        )
+                      }
+                    />
+                    {c.nome}
+                  </label>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Destaca esse produto na vitrine durante a campanha marcada.
+              </p>
               <FormMessage />
             </FormItem>
           )}

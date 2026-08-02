@@ -10,6 +10,7 @@ import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { custoCorrenteReceita } from '@/lib/custo/corrente'
 import { ProdutoSchema, type ProdutoInput } from '@/lib/validation/produtos'
+import { CAMPANHAS } from '@/lib/campanhas/definicoes'
 
 /**
  * Produto (PROD-01/02/08/09), admin-only. PROD-09 é o requisito de segurança
@@ -112,6 +113,9 @@ export async function criarProduto(input: unknown): Promise<ProdutoActionState> 
     return { error: precoAbaixoDoCustoCopy(custo) }
   }
 
+  const campanhaIdsValidos = new Set(CAMPANHAS.map((c) => c.id))
+  const campanhas = parsed.data.campanhas.filter((c) => campanhaIdsValidos.has(c as (typeof CAMPANHAS)[number]['id']))
+
   let produto: { id: string }
   try {
     produto = await prisma.produto.create({
@@ -132,6 +136,7 @@ export async function criarProduto(input: unknown): Promise<ProdutoActionState> 
           parsed.data.tipo === 'KIT' && parsed.data.kitItens
             ? { create: parsed.data.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: i.qtde })) }
             : undefined,
+        campanhas: campanhas.length > 0 ? { create: campanhas.map((campanhaId) => ({ campanhaId })) } : undefined,
       },
       select: { id: true },
     })
@@ -140,6 +145,7 @@ export async function criarProduto(input: unknown): Promise<ProdutoActionState> 
   }
 
   revalidatePath('/admin/produtos')
+  revalidatePath('/')
   return { ok: true, id: produto.id }
 }
 
@@ -169,9 +175,13 @@ export async function editarProduto(id: string, input: unknown): Promise<Produto
   const atual = await prisma.produto.findUnique({ where: { id } })
   if (!atual) return { error: GENERIC_SERVER_ERROR }
 
+  const campanhaIdsValidos = new Set(CAMPANHAS.map((c) => c.id))
+  const campanhas = parsed.data.campanhas.filter((c) => campanhaIdsValidos.has(c as (typeof CAMPANHAS)[number]['id']))
+
   try {
     await prisma.$transaction([
       prisma.produtoKitItem.deleteMany({ where: { kitId: id } }),
+      prisma.campanhaProduto.deleteMany({ where: { produtoId: id } }),
       prisma.produto.update({
         where: { id },
         data: {
@@ -200,6 +210,9 @@ export async function editarProduto(id: string, input: unknown): Promise<Produto
             }),
           ]
         : []),
+      ...(campanhas.length > 0
+        ? [prisma.campanhaProduto.createMany({ data: campanhas.map((campanhaId) => ({ campanhaId, produtoId: id })) })]
+        : []),
     ])
   } catch {
     return { error: GENERIC_SERVER_ERROR }
@@ -219,6 +232,7 @@ export async function editarProduto(id: string, input: unknown): Promise<Produto
   }
 
   revalidatePath('/admin/produtos')
+  revalidatePath('/')
   return { ok: true, id }
 }
 

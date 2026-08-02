@@ -33,6 +33,9 @@ export const ProdutoSchema = z
     tipo: z.enum(['UNITARIO', 'KIT']),
     ativo: z.boolean().default(true),
     alergenicos: z.array(z.enum(ALERGENICO_VALUES)).default([]),
+    // SAZON-02 — validado contra a lista hardcoded em lib/campanhas/definicoes.ts
+    // no action, não aqui (evita import de módulo client-safe puxar mais coisa).
+    campanhas: z.array(z.string()).default([]),
     precoVenda: zDecimalBRL,
     margemMinimaOverride: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
     receitaId: z

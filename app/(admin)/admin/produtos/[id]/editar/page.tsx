@@ -8,7 +8,7 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
 
   const produto = await prisma.produto.findUnique({
     where: { id },
-    include: { kitItens: true, fotos: { orderBy: { ordem: 'asc' } } },
+    include: { kitItens: true, fotos: { orderBy: { ordem: 'asc' } }, campanhas: true },
   })
   if (!produto) notFound()
 
@@ -75,6 +75,7 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
           tipo: produto.tipo,
           ativo: produto.ativo,
           alergenicos: produto.alergenicos,
+          campanhas: produto.campanhas.map((c) => c.campanhaId),
           precoVenda: produto.precoVenda.toFixed(4),
           margemMinimaOverride: produto.margemMinimaOverride ? produto.margemMinimaOverride.toFixed(2) : null,
           receitaId: produto.receitaId,
