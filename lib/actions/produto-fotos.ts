@@ -40,14 +40,17 @@ export async function removerFotoProduto(fotoId: string): Promise<FotoActionStat
   const foto = await prisma.produtoFoto.findUnique({ where: { id: fotoId } })
   if (!foto) return { error: GENERIC_SERVER_ERROR }
 
-  try {
-    await rm(path.join(process.cwd(), 'public', 'uploads', foto.path.split('/').slice(0, -1).join('/')), {
-      recursive: true,
-      force: true,
-    })
-  } catch {
-    // best-effort: se o arquivo já sumiu do disco, a limpeza do DB continua.
-  }
+  // Só os 3 arquivos DESSA foto — nunca a pasta do produto inteira, que tem
+  // as outras fotos junto (bug real: apagava todo mundo ao remover 1).
+  await Promise.all(
+    (['thumb', 'medio', 'grande'] as const).map((sufixo) =>
+      rm(path.join(process.cwd(), 'public', 'uploads', `${foto.path}-${sufixo}.webp`), { force: true }).catch(
+        () => {
+          // best-effort: se o arquivo já sumiu do disco, a limpeza do DB continua.
+        },
+      ),
+    ),
+  )
 
   const restantes = await prisma.produtoFoto.findMany({
     where: { produtoId: foto.produtoId, id: { not: fotoId } },
