@@ -51,15 +51,25 @@ export default async function MinhasReservasPage() {
                     Ver comprovante
                   </Link>
                 </div>
-                <ul className="space-y-1 text-sm">
-                  {r.itens.map((item, i) => (
-                    <li key={i} className="tabular-nums">
-                      {item.qtde}× {item.lote.produto.nome} (lote vence {dataCivilFmtBR.format(item.lote.validade)})
-                    </li>
-                  ))}
-                </ul>
+                {r.tipo === 'RESGATE' ? (
+                  <p className="text-sm">
+                    Resgate: {r.itemResgatavel?.produto?.nome ?? r.itemResgatavel?.nomeCustom}
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {r.itens.map((item, i) => (
+                      <li key={i} className="tabular-nums">
+                        {item.qtde}× {item.lote.produto.nome} (lote vence {dataCivilFmtBR.format(item.lote.validade)})
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-sm text-muted-foreground">Retirada: {r.janelaRetirada}</p>
-                <p className="tabular-nums text-sm font-medium">{currency.format(total)}</p>
+                {r.tipo === 'RESGATE' ? (
+                  <p className="tabular-nums text-sm font-medium">{r.itemResgatavel?.custoPontos} pontos</p>
+                ) : (
+                  <p className="tabular-nums text-sm font-medium">{currency.format(total)}</p>
+                )}
                 {cancelavel && <CancelarReservaBotao reservaId={r.id} />}
               </li>
             )

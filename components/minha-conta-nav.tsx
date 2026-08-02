@@ -4,6 +4,8 @@ const ITEMS = [
   { href: '/minha-conta/meus-dados', label: 'Meus dados' },
   { href: '/minha-conta/reservas', label: 'Minhas reservas' },
   { href: '/minha-conta/pontos', label: 'Meus pontos' },
+  { href: '/minha-conta/resgates', label: 'Trocar pontos' },
+  { href: '/minha-conta/sorteios', label: 'Sorteios' },
 ] as const
 
 export function MinhaContaNav({ ativo }: { ativo: (typeof ITEMS)[number]['href'] }) {

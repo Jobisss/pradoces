@@ -84,13 +84,21 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                   </div>
                 </div>
 
-                <ul className="space-y-1 text-sm">
-                  {r.itens.map((item, i) => (
-                    <li key={i} className="tabular-nums">
-                      {item.qtde}× {item.lote.produto.nome} (lote vence {dataCivilFmtBR.format(item.lote.validade)})
-                    </li>
-                  ))}
-                </ul>
+                {r.tipo === 'RESGATE' ? (
+                  <p className="text-sm">
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium">Resgate</span>{' '}
+                    {r.itemResgatavel?.produto?.nome ?? r.itemResgatavel?.nomeCustom} —{' '}
+                    <span className="tabular-nums">{r.itemResgatavel?.custoPontos} pontos</span>
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {r.itens.map((item, i) => (
+                      <li key={i} className="tabular-nums">
+                        {item.qtde}× {item.lote.produto.nome} (lote vence {dataCivilFmtBR.format(item.lote.validade)})
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
                 <p className="text-sm">
                   <span className="font-medium">Retirada: </span>
@@ -102,9 +110,11 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                     {r.observacao}
                   </p>
                 )}
-                <p className="tabular-nums text-sm text-muted-foreground">
-                  Total {currency.format(total)} · pedida em {instanteFmtBR.format(r.criadoEm)}
-                </p>
+                {r.tipo !== 'RESGATE' && (
+                  <p className="tabular-nums text-sm text-muted-foreground">
+                    Total {currency.format(total)} · pedida em {instanteFmtBR.format(r.criadoEm)}
+                  </p>
+                )}
 
                 <ReservaAcoes
                   reservaId={r.id}

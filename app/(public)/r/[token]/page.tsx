@@ -42,19 +42,29 @@ export default async function ComprovantePage({ params }: { params: Promise<{ to
           </p>
         )}
 
-        <ul className="divide-y divide-border">
-          {reserva.itens.map((item, i) => (
-            <li key={i} className="flex items-center justify-between py-2 text-sm">
-              <span>
-                {item.qtde}× {item.lote.produto.nome}{' '}
-                <span className="text-muted-foreground">(lote vence {dateFmt.format(item.lote.validade)})</span>
-              </span>
-              <span className="tabular-nums">{currency.format(item.qtde * Number(item.precoUnitarioCongelado))}</span>
-            </li>
-          ))}
-        </ul>
-
-        <p className="tabular-nums text-right text-base font-medium">Total: {currency.format(total)}</p>
+        {reserva.tipo === 'RESGATE' ? (
+          <div className="flex items-center justify-between py-2 text-sm">
+            <span>{reserva.itemResgatavel?.produto?.nome ?? reserva.itemResgatavel?.nomeCustom}</span>
+            <span className="tabular-nums">{reserva.itemResgatavel?.custoPontos} pontos</span>
+          </div>
+        ) : (
+          <>
+            <ul className="divide-y divide-border">
+              {reserva.itens.map((item, i) => (
+                <li key={i} className="flex items-center justify-between py-2 text-sm">
+                  <span>
+                    {item.qtde}× {item.lote.produto.nome}{' '}
+                    <span className="text-muted-foreground">(lote vence {dateFmt.format(item.lote.validade)})</span>
+                  </span>
+                  <span className="tabular-nums">
+                    {currency.format(item.qtde * Number(item.precoUnitarioCongelado))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="tabular-nums text-right text-base font-medium">Total: {currency.format(total)}</p>
+          </>
+        )}
       </div>
 
       <p className="text-sm text-muted-foreground">

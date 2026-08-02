@@ -48,10 +48,25 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
     await prisma.$transaction(async (tx) => {
       const reserva = await tx.reserva.findUnique({
         where: { id: reservaId },
-        select: { id: true, status: true, clienteId: true, itens: { select: { loteId: true, qtde: true, precoUnitarioCongelado: true } } },
+        select: {
+          id: true,
+          status: true,
+          tipo: true,
+          clienteId: true,
+          itens: { select: { loteId: true, qtde: true, precoUnitarioCongelado: true } },
+        },
       })
       if (!reserva) throw new ReservaAdminError(GENERIC_SERVER_ERROR)
       if (reserva.status !== 'PENDENTE') throw new ReservaAdminError(JA_PROCESSADA)
+
+      const confirmadaEm = new Date()
+
+      // RESGATE já debitou os pontos na hora do resgate (RESG-04) e não tem
+      // ReservaItem/lote — confirmar é só virar o status.
+      if (reserva.tipo === 'RESGATE') {
+        await tx.reserva.update({ where: { id: reservaId }, data: { status: 'CONFIRMADA', confirmadaEm } })
+        return
+      }
 
       for (const item of reserva.itens) {
         // O UPDATE serializa contra outra transação concorrente na mesma
@@ -75,7 +90,6 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
       const pontosCalculados = valorTotal.times(pontosPorReal).floor()
       const pontos = Decimal.min(pontosCalculados, cap).toNumber()
 
-      const confirmadaEm = new Date()
       const expiraEm = new Date(confirmadaEm)
       expiraEm.setMonth(expiraEm.getMonth() + expiracaoMeses)
 
@@ -135,13 +149,38 @@ export async function rejeitarReserva(reservaId: string): Promise<ReservaAdminAc
     await prisma.$transaction(async (tx) => {
       const reserva = await tx.reserva.findUnique({
         where: { id: reservaId },
-        select: { id: true, status: true, itens: { select: { loteId: true, qtde: true } } },
+        select: {
+          id: true,
+          status: true,
+          tipo: true,
+          clienteId: true,
+          itemResgatavelId: true,
+          itens: { select: { loteId: true, qtde: true } },
+        },
       })
       if (!reserva) throw new ReservaAdminError(GENERIC_SERVER_ERROR)
       if (reserva.status !== 'PENDENTE') throw new ReservaAdminError(JA_PROCESSADA)
 
-      for (const item of reserva.itens) {
-        await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
+      if (reserva.tipo === 'RESGATE') {
+        // RESG-05 — estorna os pontos debitados no resgate, com um crédito
+        // compensatório (nunca edita o débito original).
+        const debito = await tx.pontosTransacao.findFirst({
+          where: { reservaId: reserva.id, motivo: 'RESGATE' },
+        })
+        if (debito) {
+          await tx.pontosTransacao.create({
+            data: {
+              clienteId: reserva.clienteId,
+              valor: -debito.valor,
+              motivo: 'RESGATE_REJEITADO',
+              reservaId: reserva.id,
+            },
+          })
+        }
+      } else {
+        for (const item of reserva.itens) {
+          await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
+        }
       }
 
       await tx.reserva.update({ where: { id: reservaId }, data: { status: 'CANCELADA', canceladaEm: new Date() } })

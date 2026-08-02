@@ -18,6 +18,7 @@ export async function listarReservasAdmin(filtro: FiltroReserva) {
     include: {
       cliente: { select: { id: true, name: true, email: true, telefone: true, banned: true, banReason: true } },
       itens: { include: { lote: { select: { validade: true, produto: { select: { nome: true } } } } } },
+      itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
     },
     orderBy: { criadoEm: filtro === 'pendentes' ? 'asc' : 'desc' },
   })
@@ -39,6 +40,7 @@ export async function listarReservasCliente(clienteId: string) {
     where: { clienteId },
     select: {
       id: true,
+      tipo: true,
       status: true,
       janelaRetirada: true,
       observacao: true,
@@ -51,6 +53,7 @@ export async function listarReservasCliente(clienteId: string) {
           lote: { select: { validade: true, produto: { select: { nome: true } } } },
         },
       },
+      itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
     },
     orderBy: { criadoEm: 'desc' },
   })
@@ -62,6 +65,7 @@ export async function buscarReservaPorToken(token: string) {
     where: { token },
     select: {
       id: true,
+      tipo: true,
       status: true,
       janelaRetirada: true,
       observacao: true,
@@ -74,6 +78,7 @@ export async function buscarReservaPorToken(token: string) {
           lote: { select: { validade: true, produto: { select: { nome: true } } } },
         },
       },
+      itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
     },
   })
 }

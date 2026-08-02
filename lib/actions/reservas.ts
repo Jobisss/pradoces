@@ -178,31 +178,42 @@ export async function cancelarReserva(reservaId: string): Promise<ReservaActionS
     await prisma.$transaction(async (tx) => {
       const reserva = await tx.reserva.findUnique({
         where: { id: reservaId },
-        select: { id: true, clienteId: true, status: true, itens: { select: { loteId: true, qtde: true } } },
+        select: { id: true, clienteId: true, status: true, tipo: true, itens: { select: { loteId: true, qtde: true } } },
       })
       if (!reserva || reserva.clienteId !== cliente.id) throw new ReservaError(GENERIC_SERVER_ERROR)
       if (reserva.status !== 'PENDENTE' && reserva.status !== 'CONFIRMADA') {
         throw new ReservaError('Essa reserva não pode mais ser cancelada.')
       }
 
-      for (const item of reserva.itens) {
-        await tx.lote.update({
-          where: { id: item.loteId },
-          data:
-            reserva.status === 'PENDENTE'
-              ? { qtdeReservada: { decrement: item.qtde } }
-              : { qtdeDisponivel: { increment: item.qtde } },
-        })
-      }
-
-      if (reserva.status === 'CONFIRMADA') {
-        const creditos = await tx.pontosTransacao.findMany({
-          where: { reservaId: reserva.id, motivo: 'RESERVA_CONFIRMADA' },
-        })
-        for (const credito of creditos) {
+      if (reserva.tipo === 'RESGATE') {
+        // Devolve os pontos do resgate (débito imediato na hora de trocar,
+        // RESG-04) — mesmo padrão de rejeitarReserva no admin.
+        const debito = await tx.pontosTransacao.findFirst({ where: { reservaId: reserva.id, motivo: 'RESGATE' } })
+        if (debito) {
           await tx.pontosTransacao.create({
-            data: { clienteId: cliente.id, valor: -credito.valor, motivo: 'CANCELAMENTO', reservaId: reserva.id },
+            data: { clienteId: cliente.id, valor: -debito.valor, motivo: 'RESGATE_REJEITADO', reservaId: reserva.id },
           })
+        }
+      } else {
+        for (const item of reserva.itens) {
+          await tx.lote.update({
+            where: { id: item.loteId },
+            data:
+              reserva.status === 'PENDENTE'
+                ? { qtdeReservada: { decrement: item.qtde } }
+                : { qtdeDisponivel: { increment: item.qtde } },
+          })
+        }
+
+        if (reserva.status === 'CONFIRMADA') {
+          const creditos = await tx.pontosTransacao.findMany({
+            where: { reservaId: reserva.id, motivo: 'RESERVA_CONFIRMADA' },
+          })
+          for (const credito of creditos) {
+            await tx.pontosTransacao.create({
+              data: { clienteId: cliente.id, valor: -credito.valor, motivo: 'CANCELAMENTO', reservaId: reserva.id },
+            })
+          }
         }
       }
 
