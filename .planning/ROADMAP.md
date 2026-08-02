@@ -14,9 +14,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - Infra defensável (Docker/Cloudflare/UFW), schema com numeric+timestamptz, auth Better Auth + argon2id + OWASP reset, LGPD baseline, audit log e email infra
 - [x] **Phase 2: Motor Financeiro** - Ingredientes, compras imutáveis (event sourcing), receitas, produtos básicos, lotes com custo congelado e alerta de margem/preço-piso
-- [ ] **Phase 3: Catálogo Público** - Vitrine mobile-first, detalhe com lotes/validade/alergênicos, fotos via sharp (3 tamanhos WebP), categorias, kits, wa.me e endereço/Maps
-- [ ] **Phase 4: Reserva + Pontos** - Reserva com soft hold (qtde_reservada), confirmação atômica, ledger imutável de pontos, painel cliente, painel do dia da mãe, comprovante público
-- [ ] **Phase 5: Engagement** - Catálogo de resgate (XOR produto/custom), troca de pontos, sorteios com random_seed auditado, cron de expiração e de lotes vencidos
+- [x] **Phase 3: Catálogo Público** (parcial — falta CAT-08 auditoria Lighthouse real) - Vitrine mobile-first, detalhe com lotes/validade/alergênicos, fotos via sharp (3 tamanhos WebP), categorias, kits, wa.me e endereço/Maps
+- [x] **Phase 4: Reserva + Pontos** (falta só NOTIF-*, bloqueado no Resend) - Reserva com soft hold (qtde_reservada), confirmação atômica, ledger imutável de pontos, painel cliente, painel do dia da mãe, comprovante público
+- [x] **Phase 5: Engagement** - Catálogo de resgate (XOR produto/custom), troca de pontos, sorteios com random_seed auditado, cron de expiração e de lotes vencidos
 - [ ] **Phase 6: Sazonalidade Visual** - Campanhas hardcoded (Páscoa, Mães, Junina, Crianças, Natal) com paleta JSON e CampanhaResolver aplicando banner+CSS vars automaticamente
 - [ ] **Phase 7: Admin Operacional + Relatórios** - Home admin de ações pendentes, lista de separação PDF, resumo do dia, faturamento/margem/lucro real, análise por marca, sazonalidade no histórico
 
@@ -147,9 +147,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Foundation | 10/11 | In progress | - |
 | 2. Motor Financeiro | 11/11 + D-12 | Done | 2026-08-01 |
-| 3. Catálogo Público | 0/TBD | In progress | - |
-| 4. Reserva + Pontos | 0/TBD | Not started | - |
-| 5. Engagement | 0/TBD | Not started | - |
+| 3. Catálogo Público | done (menos CAT-08) | Quase completo | - |
+| 4. Reserva + Pontos | done (menos NOTIF-*) | Quase completo | - |
+| 5. Engagement | 15/15 REQ | Done | 2026-08-02 |
 | 6. Sazonalidade Visual | 0/TBD | Not started | - |
 | 7. Admin Operacional + Relatórios | 0/TBD | Not started | - |
 

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 completo (11/11 + D-12 recheio); Phase 3 iniciando
-last_updated: "2026-08-02T00:00:00.000Z"
-last_activity: 2026-08-02 -- Phase 2 marcado completo nos docs (implementado direto, fora da orquestração GSD); Phase 3 (Catálogo Público) iniciando
+stopped_at: Phase 5 (Engagement) completa — resgate + sorteios funcionando ponta a ponta
+last_updated: "2026-08-02T18:10:00.000Z"
+last_activity: 2026-08-02 -- Phases 3, 4 e 5 implementadas direto na mesma sessão (sem orquestração GSD). Phase 5 fecha as 15 requirements (RESG-01..07, SORT-01..08)
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 3
   total_plans: 22
   completed_plans: 21
-  percent: 68
+  percent: 85
 ---
 
 # Project State
@@ -121,6 +121,21 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 | Segurança | Anonimização programada após 5 anos (SEC-03) | Deferido para v1.x | 2026-04-29 (init) |
 
 ## Session Continuity
+
+**2026-08-02 — Phase 5 (Engagement) completa.** Catálogo de resgate (XOR
+produto/nomeCustom via CHECK) + sorteios (chances ponderadas, cron horário
+`encerrar-sorteios` sorteia com seed determinístico/auditável). Resgate reusa
+Reserva (tipo=RESGATE, sem ReservaItem/lote) — confirmarReserva/
+rejeitarReserva/cancelarReserva agora branecham por tipo, testado ponta a
+ponta incluindo estorno de pontos quando a mãe recusa um resgate. Segundo job
+real do pg-boss registrado (primeiro foi expirar-pontos na Phase 4).
+
+Decisão de escopo importante: sorteios são construídos e testados
+normalmente, mas a usuária foi avisada explicitamente que a Lei 5.768/71
+(sorteio vinculado a técnica de venda) exige revisão jurídica leve antes de
+abrir qualquer sorteio pro público — ela concordou em não lançar até
+confirmar com contador/advogado. Isso é uma decisão de LANÇAMENTO, não
+bloqueia o código.
 
 Last session: 2026-08-02T00:00:00.000Z
 Stopped at: **Phase 4 (Reserva + Pontos) — laço funcional completo implementado e testado ponta a ponta**:
