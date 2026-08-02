@@ -51,9 +51,13 @@ model User {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  sessions      Session[]
-  accounts      Account[]
-  verifications Verification[]
+  sessions         Session[]
+  accounts         Account[]
+  verifications    Verification[]
+  // RES-14: bloqueio de cliente reusa banned/banReason do plugin admin do
+  // Better Auth (já existiam pra outro fim) em vez de duplicar um campo novo.
+  reservas         Reserva[]
+  pontosTransacoes PontosTransacao[]
 
   @@map("users")
 }
@@ -234,14 +238,14 @@ model ReceitaIngrediente {
 }
 
 model Produto {
-  id                   String      @id @default(uuid()) @db.Uuid
+  id                   String       @id @default(uuid()) @db.Uuid
   nome                 String
   descricao            String
   categoria            String
   tipo                 TipoProduto
-  precoVenda           Decimal     @map("preco_venda") @db.Decimal(19, 4)
-  margemMinimaOverride Decimal?    @map("margem_minima_override") @db.Decimal(5, 2)
-  receitaId            String?     @unique @map("receita_id") @db.Uuid
+  precoVenda           Decimal      @map("preco_venda") @db.Decimal(19, 4)
+  margemMinimaOverride Decimal?     @map("margem_minima_override") @db.Decimal(5, 2)
+  receitaId            String?      @unique @map("receita_id") @db.Uuid
   // Recheio (D-12): receita ANEXA opcional, só p/ UNITARIO. Rendimento da
   // receita de recheio é sempre tratado como "por unidade final" (qtde de
   // cada item já é a dose de 1 doce) — escala por rendimentoReal na
@@ -312,12 +316,96 @@ model Lote {
   custoPorUnidadeCongelado Decimal  @map("custo_por_unidade_congelado") @db.Decimal(19, 6)
   criadoEm                 DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
 
-  produto Produto              @relation(fields: [produtoId], references: [id], onDelete: Restrict)
-  receita Receita              @relation(fields: [receitaId], references: [id], onDelete: Restrict)
-  usos    LoteUsoIngrediente[]
+  produto      Produto              @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  receita      Receita              @relation(fields: [receitaId], references: [id], onDelete: Restrict)
+  usos         LoteUsoIngrediente[]
+  reservaItens ReservaItem[]
 
   @@index([validade])
   @@map("lotes")
+}
+
+// ============ Phase 4: Reserva + Pontos ============
+
+enum ReservaStatus {
+  PENDENTE
+  CONFIRMADA
+  AGUARDANDO_RETIRADA
+  RETIRADA
+  CANCELADA
+  NO_SHOW
+}
+
+// v1 é só retirada (PROJECT.md, decisão explícita) — coluna existe desde já
+// pra entrega futura não exigir migration de novo, mas a UI esconde a opção.
+enum DeliveryMode {
+  PICKUP_ONLY
+}
+
+enum PontosMotivo {
+  RESERVA_CONFIRMADA
+  EXPIRACAO
+  AJUSTE_ADMIN
+}
+
+model Reserva {
+  id             String        @id @default(uuid()) @db.Uuid
+  clienteId      String        @map("cliente_id") @db.Uuid
+  status         ReservaStatus @default(PENDENTE)
+  deliveryMode   DeliveryMode  @default(PICKUP_ONLY) @map("delivery_mode")
+  janelaRetirada String        @map("janela_retirada")
+  observacao     String?
+  // Comprovante público /r/<token> (RES-10) — sem login, token não sequencial.
+  token          String        @unique @default(uuid())
+  criadoEm       DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
+  confirmadaEm   DateTime?     @map("confirmada_em") @db.Timestamptz(6)
+  canceladaEm    DateTime?     @map("cancelada_em") @db.Timestamptz(6)
+  retiradaEm     DateTime?     @map("retirada_em") @db.Timestamptz(6)
+
+  cliente          User              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  itens            ReservaItem[]
+  pontosTransacoes PontosTransacao[]
+
+  @@index([clienteId])
+  @@index([status])
+  @@map("reservas")
+}
+
+// Sempre um Lote ESPECÍFICO (nunca o produto agregado) — mesmo padrão do
+// LoteUsoIngrediente com ingrediente_compra_id: o cliente reserva de um lote
+// concreto (mostrado com validade no catálogo), não de um pool abstrato.
+// v1 não cobre KIT no carrinho (precisaria expandir em itens dos componentes
+// unitários) — fast-follow, fora do escopo desta primeira fatia.
+model ReservaItem {
+  id                     String  @id @default(uuid()) @db.Uuid
+  reservaId              String  @map("reserva_id") @db.Uuid
+  loteId                 String  @map("lote_id") @db.Uuid
+  qtde                   Int
+  precoUnitarioCongelado Decimal @map("preco_unitario_congelado") @db.Decimal(19, 4)
+
+  reserva Reserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  lote    Lote    @relation(fields: [loteId], references: [id], onDelete: Restrict)
+
+  @@map("reserva_itens")
+}
+
+// PT-03: saldo é DERIVADO por SUM aqui — nunca uma coluna em User. Ledger
+// imutável (sem UPDATE/DELETE de app, só INSERT); valor negativo = débito.
+model PontosTransacao {
+  id        String       @id @default(uuid()) @db.Uuid
+  clienteId String       @map("cliente_id") @db.Uuid
+  valor     Int
+  motivo    PontosMotivo
+  reservaId String?      @map("reserva_id") @db.Uuid
+  // Só em créditos (RESERVA_CONFIRMADA): quando esse crédito expira (PT-05).
+  expiraEm  DateTime?    @map("expira_em") @db.Timestamptz(6)
+  criadoEm  DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  cliente User     @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  reserva Reserva? @relation(fields: [reservaId], references: [id], onDelete: SetNull)
+
+  @@index([clienteId])
+  @@map("pontos_transacoes")
 }
 
 model LoteUsoIngrediente {
@@ -337,8 +425,16 @@ model LoteUsoIngrediente {
 }
 
 model Configuracao {
-  id                 Int     @id @default(1)
-  margemMinimaPadrao Decimal @default(30) @map("margem_minima_padrao") @db.Decimal(5, 2)
+  id                      Int     @id @default(1)
+  margemMinimaPadrao      Decimal @default(30) @map("margem_minima_padrao") @db.Decimal(5, 2)
+  // PT-01: pontos creditados = valor da reserva confirmada × essa taxa.
+  pontosPorReal           Decimal @default(1) @map("pontos_por_real") @db.Decimal(6, 2)
+  // PT-04: anti-abuse — teto de pontos creditados numa única reserva.
+  pontosCapPorReserva     Int     @default(500) @map("pontos_cap_por_reserva")
+  // PT-05: crédito expira N meses após a confirmação da reserva.
+  pontosExpiracaoMeses    Int     @default(12) @map("pontos_expiracao_meses")
+  // RES-08: cliente só cancela sozinho até X horas antes da retirada.
+  janelaCancelamentoHoras Int     @default(24) @map("janela_cancelamento_horas")
 
   @@map("configuracoes")
 }
