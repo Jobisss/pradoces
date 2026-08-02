@@ -210,7 +210,10 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
         setServerError(res.error)
         return
       }
-      router.push('/admin/produtos')
+      // Ao criar (não editar), manda pro próprio form de edição em vez da
+      // lista — é só ali que dá pra adicionar foto (precisa do id do
+      // produto), senão a mãe salva e nunca acha onde colocar a imagem.
+      router.push(defaults || !res.id ? '/admin/produtos' : `/admin/produtos/${res.id}/editar`)
     })
   }
 
@@ -329,7 +332,13 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
           </FormItem>
         )}
         {!defaults && (
-          <p className="text-sm text-muted-foreground">Salva o produto primeiro pra poder adicionar fotos.</p>
+          <FormItem>
+            <FormLabel>Fotos</FormLabel>
+            <p className="text-sm text-muted-foreground">
+              Salva o produto primeiro — depois de salvar, você volta pra essa tela já com o campo de
+              foto liberado.
+            </p>
+          </FormItem>
         )}
 
         {tipo === 'UNITARIO' && (
