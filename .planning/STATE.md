@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 Plan 01 complete
-last_updated: "2026-08-01T15:40:00.000Z"
-last_activity: 2026-08-01 -- Phase 2 Plan 01 (motor financeiro schema) executed
+stopped_at: Phase 2 completo (11/11 + D-12 recheio); Phase 3 iniciando
+last_updated: "2026-08-02T00:00:00.000Z"
+last_activity: 2026-08-02 -- Phase 2 marcado completo nos docs (implementado direto, fora da orquestração GSD); Phase 3 (Catálogo Público) iniciando
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 22
-  completed_plans: 11
-  percent: 50
+  completed_plans: 21
+  percent: 68
 ---
 
 # Project State
@@ -21,16 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Sua mãe enxerga o lucro real de cada doce vendido (custo rastreado até a marca do ingrediente) e fideliza a clientela do bairro com pontos — sem perder o contato pessoal via WhatsApp.
-**Current focus:** Phase 2 — Motor Financeiro
+**Current focus:** Phase 3 — Catálogo Público
 
 ## Current Position
 
-Phase: 2 (Motor Financeiro) — EXECUTING
-Plan: 1 of 11 complete (02-02 next)
-Status: Executing Phase 2
-Last activity: 2026-08-01 -- Phase 2 Plan 01 executed (schema foundation: 9 models, trigger, CHECKs, test harness)
+Phase: 3 (Catálogo Público) — EXECUTING (implementação direta, sem orquestração GSD)
+Status: Iniciando Phase 3
+Last activity: 2026-08-02 -- Phase 2 fechado nos docs (11/11 plans + D-12 recheio, fora do escopo original); iniciando Phase 3
 
-Progress: [█████░░░░░] Phase 1: 10/11 plans (só infra de deploy/01-05 pendente p/ fechar a fase). Phase 2: 1/11 plans (02-01 schema foundation done — trg_compra_imutavel + LOTE-04 CHECKs proven live; 02-02 UI infra next)
+Progress: [███████░░░] Phase 1: 10/11 plans (só infra de deploy/01-05 pendente p/ fechar a fase). Phase 2: DONE (11/11 + D-12). Phase 3: iniciando (0/TBD)
 
 ## Performance Metrics
 
@@ -91,6 +90,9 @@ Decisões iniciais (registradas em PROJECT.md "Key Decisions" + research/SUMMARY
 - (02-01) Custo congelado é enforced no SCHEMA (Pitfall 5.5): `lote_uso_ingredientes.ingrediente_compra_id` NOT NULL FK pra COMPRA (nunca pro ingrediente) + `trg_compra_imutavel` (BEFORE UPDATE OR DELETE) + CHECKs `lotes.qtde_disponivel/qtde_reservada >= 0` + `configuracoes.id = 1` singleton — todos aplicados via SQL custom anexado ao `prisma migrate dev --create-only`, NUNCA `db push`. Provado contra Postgres vivo em `tests/financeiro/schema.test.ts` (7 testes), não só lido do migration.sql
 - (02-01) LOTE-06 (validade imutável após 1ª reserva ativa) satisfeito vacuamente nesta fase (reservas só existem na Phase 4) — Phase 4 PRECISA adicionar o trigger/CHECK junto com a tabela de reservas
 - (02-01) Container Postgres de dev local (`doces-pg`, porta 5440, doc convention do `.env`) não existia mais nesta máquina — recriado via `docker run postgres:16-alpine -p 127.0.0.1:5440:5432 --restart unless-stopped` + `prisma migrate deploy` pra baseline. `.env` não precisou mudar. Se sumir de novo, recriar com os mesmos parâmetros (ver 02-01-SUMMARY.md §Decisions)
+- (2026-08-01) **Orquestração GSD (`gsd-executor` multi-agent) abandonada a partir de 02-02**: usuário considerou complicado demais pra um projeto deste porte. Planos 02-02..02-11 de `.planning/phases/02-motor-financeiro/*-PLAN.md` foram implementados DIRETO (schema → backend → UI por vertical slice, commits atômicos, `tsc`/`vitest`/`docker compose build` como gate a cada passo), sem spawnar `gsd-executor` nem gerar `*-SUMMARY.md` por plano. `.planning/` continua sendo mantido como referência (requirements/roadmap/state), só a orquestração de execução foi descartada. Vale para todas as fases seguintes, incluindo Phase 3
+- (2026-08-01) **D-12 (recheio, fora do escopo original de Phase 2)**: recheio de produto (ex.: brownie c/ nutella) modelado como uma `Receita` anexa opcional (`Produto.recheioReceitaId`, não-único — a mesma receita de recheio pode atender vários produtos), com `rendimentoPadrao=1` tratado como "por unidade final". Custo do produto soma base+recheio; em `produzirLote`, base escala por `multiplicador` e recheio escala por `rendimentoReal` (eixos diferentes, pool de linhas consumível via `findIndex`+`splice` pra permitir o mesmo ingrediente aparecer nos dois com quantidades diferentes)
+- (2026-08-01) **Risco de DB compartilhado entre dev e test**: `npm test` roda `truncateAll()` no MESMO Postgres que `npm run dev` usa — não existe DB de teste separado. Um incidente real apagou dados manualmente cadastrados pela usuária durante um checkpoint de verificação humana. Regra permanente: nunca rodar `npm test`/`vitest` neste projeto enquanto a usuária possa ter dado entrada manual de dados no dev sem confirmar antes (persistido em memory `feedback_test_db_shared_with_dev`)
 
 ### Pending Todos
 
@@ -120,7 +122,7 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 
 ## Session Continuity
 
-Last session: 2026-08-01T15:40:00.000Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-motor-financeiro/02-02-PLAN.md
+Last session: 2026-08-02T00:00:00.000Z
+Stopped at: Phase 2 fechado nos docs; Phase 3 (Catálogo Público) iniciando implementação direta (schema: `ativo`/alergênicos/fotos em Produto; pipeline sharp; vitrine; detalhe de produto; wa.me; onde retirar)
+Resume file: nenhum plano formal — Phase 3 não tem `*-PLAN.md` (GSD orchestration abandonada); acompanhar via commits e este STATE.md
 Setup pendente (não bloqueia código): verificar domínio docesvalentina.com.br no Resend (user_setup do Plan 04) para entrega real de email de confirmação/reset.
