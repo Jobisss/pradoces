@@ -3,12 +3,36 @@ import { zDecimalBRL } from '@/lib/validation/decimal'
 
 const OBRIGATORIO = 'Esse campo é obrigatório.'
 
+// PROD-03 — mesma ordem usada no <select multiple> do form e no card público.
+// Valores precisam bater 1:1 com o enum Alergenico do schema.prisma.
+const ALERGENICO_VALUES = [
+  'GLUTEN',
+  'LEITE',
+  'OVO',
+  'AMENDOIM',
+  'CASTANHA',
+  'SOJA',
+  'DERIVADOS_SOJA',
+] as const
+
+export const ALERGENICOS = [
+  { value: 'GLUTEN', label: 'Glúten' },
+  { value: 'LEITE', label: 'Leite' },
+  { value: 'OVO', label: 'Ovo' },
+  { value: 'AMENDOIM', label: 'Amendoim' },
+  { value: 'CASTANHA', label: 'Castanha' },
+  { value: 'SOJA', label: 'Soja' },
+  { value: 'DERIVADOS_SOJA', label: 'Derivados de soja' },
+] as const satisfies { value: (typeof ALERGENICO_VALUES)[number]; label: string }[]
+
 export const ProdutoSchema = z
   .object({
     nome: z.string().trim().min(1, OBRIGATORIO),
     descricao: z.string().trim().min(1, OBRIGATORIO),
     categoria: z.string().trim().min(1, OBRIGATORIO),
     tipo: z.enum(['UNITARIO', 'KIT']),
+    ativo: z.boolean().default(true),
+    alergenicos: z.array(z.enum(ALERGENICO_VALUES)).default([]),
     precoVenda: zDecimalBRL,
     margemMinimaOverride: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
     receitaId: z

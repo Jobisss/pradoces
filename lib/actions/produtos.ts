@@ -120,6 +120,8 @@ export async function criarProduto(input: unknown): Promise<ProdutoActionState> 
         descricao: parsed.data.descricao,
         categoria: parsed.data.categoria,
         tipo: parsed.data.tipo,
+        ativo: parsed.data.ativo,
+        alergenicos: parsed.data.alergenicos,
         precoVenda: parsed.data.precoVenda.toFixed(4),
         margemMinimaOverride: parsed.data.margemMinimaOverride
           ? parsed.data.margemMinimaOverride.toFixed(2)
@@ -177,6 +179,8 @@ export async function editarProduto(id: string, input: unknown): Promise<Produto
           descricao: parsed.data.descricao,
           categoria: parsed.data.categoria,
           tipo: parsed.data.tipo,
+          ativo: parsed.data.ativo,
+          alergenicos: parsed.data.alergenicos,
           precoVenda: parsed.data.precoVenda.toFixed(4),
           margemMinimaOverride: parsed.data.margemMinimaOverride
             ? parsed.data.margemMinimaOverride.toFixed(2)
