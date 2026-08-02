@@ -123,6 +123,17 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 ## Session Continuity
 
 Last session: 2026-08-02T00:00:00.000Z
-Stopped at: Phase 2 fechado nos docs; Phase 3 (Catálogo Público) iniciando implementação direta (schema: `ativo`/alergênicos/fotos em Produto; pipeline sharp; vitrine; detalhe de produto; wa.me; onde retirar)
+Stopped at: Phase 3 primeira fatia implementada e commitada (schema
+`ativo`/`alergenicos`/`ProdutoFoto`; pipeline sharp via Route Handler;
+`lib/catalogo/produtos.ts`; vitrine `/`; detalhe `/produtos/[id]`;
+`/onde-retirar`; WhatsappButton) — testado via Playwright manual
+(upload de foto ponta a ponta, 404 de produto inexistente/desativado,
+esgotado, filtro de categoria) e `next build`/`docker compose build
+app` limpos. NENHUM teste automatizado (vitest) foi adicionado/rodado
+ainda — a usuária tem dado real no dev DB (produto "Pão de Mel
+Simples" recadastrado à mão após o incidente de truncate) e
+`npm test` reseta esse banco (ver [[feedback_test_db_shared_with_dev]]
+em memory) — perguntar antes de rodar a suíte.
 Resume file: nenhum plano formal — Phase 3 não tem `*-PLAN.md` (GSD orchestration abandonada); acompanhar via commits e este STATE.md
+Pendente pra fechar Phase 3: (1) decidir sobre cobertura de teste automatizado do catálogo sem truncar o dev DB; (2) CAT-08 (auditoria Lighthouse mobile real — os componentes já seguem os tokens/touch-targets ≥44px do UI-SPEC, mas não foi auditado com Lighthouse de verdade); (3) dados reais de WHATSAPP_NUMERO/ENDERECO_* no .env (usuária optou por placeholder por enquanto).
 Setup pendente (não bloqueia código): verificar domínio docesvalentina.com.br no Resend (user_setup do Plan 04) para entrega real de email de confirmação/reset.
