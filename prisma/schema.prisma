@@ -158,6 +158,18 @@ enum TipoProduto {
   KIT
 }
 
+// PROD-03: lista fechada — cobre os alérgenos de declaração obrigatória pela
+// RDC 26/2015 mais os comuns no nicho de confeitaria caseira.
+enum Alergenico {
+  GLUTEN
+  LEITE
+  OVO
+  AMENDOIM
+  CASTANHA
+  SOJA
+  DERIVADOS_SOJA
+}
+
 model Ingrediente {
   id           String               @id @default(uuid()) @db.Uuid
   nome         String               @unique
@@ -236,17 +248,41 @@ model Produto {
   // produção, não pelo multiplicador da base (ver lib/actions/lotes.ts).
   // Não é @unique: a mesma receita de recheio pode atender vários produtos
   // (ex.: "Recheio de nutella" no brownie E no bolo).
-  recheioReceitaId     String?     @map("recheio_receita_id") @db.Uuid
-  criadoEm             DateTime    @default(now()) @map("criado_em") @db.Timestamptz(6)
-  atualizadoEm         DateTime    @updatedAt @map("atualizado_em") @db.Timestamptz(6)
+  recheioReceitaId     String?      @map("recheio_receita_id") @db.Uuid
+  // PROD-06: some da vitrine pública imediatamente quando false; admin
+  // continua enxergando (histórico de lotes/reservas não depende disso).
+  ativo                Boolean      @default(true)
+  // PROD-03: array nativo do Postgres — conjunto pequeno e fechado, sem
+  // metadata extra por item, não justifica tabela de junção.
+  alergenicos          Alergenico[]
+  criadoEm             DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm         DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   receita        Receita?         @relation(fields: [receitaId], references: [id], onDelete: Restrict)
   receitaRecheio Receita?         @relation("recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
   kitItens       ProdutoKitItem[] @relation("kit")
   emKits         ProdutoKitItem[] @relation("componente")
   lotes          Lote[]
+  fotos          ProdutoFoto[]
 
   @@map("produtos")
+}
+
+// PROD-04/05: `path` é o prefixo sem extensão/tamanho dentro de
+// public/uploads/produtos/<produtoId>/ — os 3 tamanhos WebP (thumb/medio/
+// grande) e o original efêmero (deletado após processar) derivam dele.
+// `ordem=0` é sempre a capa (PROD-04); enforced por @@unique, não por app.
+model ProdutoFoto {
+  id        String   @id @default(uuid()) @db.Uuid
+  produtoId String   @map("produto_id") @db.Uuid
+  ordem     Int
+  path      String
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([produtoId, ordem])
+  @@map("produto_fotos")
 }
 
 model ProdutoKitItem {
