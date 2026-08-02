@@ -3,9 +3,9 @@ import { notFound } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import { prisma } from '@/lib/db/client'
 import { CompraAcoes } from '@/components/admin/compra-acoes'
+import { dataCivilFmtBR as dateFmt } from '@/lib/format/date'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' })
 
 export default async function IngredienteDetalhePage({
   params,

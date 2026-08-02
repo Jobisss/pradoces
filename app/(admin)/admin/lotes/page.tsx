@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { TriangleAlert, PackageX } from 'lucide-react'
 import { listarLotes, type FiltroLote } from '@/lib/lotes/queries'
 import { Button } from '@/components/ui/button'
+import { dataCivilFmtBR, instanteFmtBR } from '@/lib/format/date'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' })
 
 const FILTROS: Array<{ value: FiltroLote; label: string }> = [
   { value: 'vigentes', label: 'Vigentes' },
@@ -64,8 +64,8 @@ export default async function LotesPage({
           {lotes.map((lote) => (
             <li key={lote.id} className="space-y-1 py-3">
               <p className="tabular-nums text-base">
-                {lote.produto.nome} — lote de {dateFmt.format(lote.produzidoEm)} · vence{' '}
-                {dateFmt.format(lote.validade)} · {lote.qtdeDisponivel} disponíveis
+                {lote.produto.nome} — lote de {instanteFmtBR.format(lote.produzidoEm)} · vence{' '}
+                {dataCivilFmtBR.format(lote.validade)} · {lote.qtdeDisponivel} disponíveis
               </p>
               <div className="flex items-center gap-3">
                 <p className="tabular-nums text-sm text-muted-foreground">
