@@ -137,9 +137,22 @@ Escopo deliberadamente cortado desta fatia (não são bugs, são decisões — r
 - NENHUM teste automatizado (vitest) rodado — dev DB tem dado real da usuária (ver [[feedback_test_db_shared_with_dev]])
 
 Resume file: nenhum plano formal — Phase 4 não tem `*-PLAN.md` (GSD orchestration abandonada); acompanhar via commits e este STATE.md.
+
+**Task #28 (expiração de pontos + simulador PT-09) — feito**: cron pg-boss diário (3h
+America/Sao_Paulo) expira créditos vencidos com débito compensatório idempotente,
+testado disparando o job manualmente contra o worker real. Ajustes ganhou os campos
+de Configuracao que só existiam no banco (pontosPorReal/cap/expiração/janela) +
+simulador PT-09. Nota cosmética não corrigida: os inputs do simulador voltam a
+mostrar o valor default depois de simular (Server Action revalida a RSC tree) — a
+CONTA em si usa o valor submetido certinho, só o display do input reseta.
+
 Pendente pra fechar Phase 4:
-- **Task #27 (notificações por email)**: BLOQUEADO — precisa do Resend configurado (domínio verificado), pendência antiga do projeto (ver linha "Setup pendente" abaixo)
-- **Task #28 (expiração de pontos + simulador PT-09)**: não bloqueado, não iniciado
+- **Task #27 (notificações por email)**: ÚNICO item que falta — BLOQUEADO até o
+  Resend estar configurado (domínio verificado), pendência antiga do projeto (ver
+  linha "Setup pendente" abaixo). Sem isso, cliente/mãe não recebem email quando uma
+  reserva é criada/confirmada/pontos creditados — o painel admin funciona sozinho
+  sem depender disso, mas a notificação passiva (não precisar ficar checando o site)
+  não existe ainda.
 - CAT-08/Phase 3 (auditoria Lighthouse mobile real) ainda pendente de antes
 - Dados reais de WHATSAPP_NUMERO/ENDERECO_* no .env (usuária optou por placeholder)
 
