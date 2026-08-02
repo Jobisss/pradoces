@@ -6,13 +6,16 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import Decimal from 'decimal.js'
 import { TriangleAlert, XIcon } from 'lucide-react'
 import { criarProduto, editarProduto, sugestoesCategoria } from '@/lib/actions/produtos'
+import { ALERGENICOS } from '@/lib/validation/produtos'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
+import { Checkbox } from '@/components/ui/checkbox'
 import { SuggestInput } from '@/components/admin/suggest-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ProdutoFotosManager } from '@/components/admin/produto-fotos-manager'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -38,6 +41,8 @@ type ProdutoFormValues = {
   descricao: string
   categoria: string
   tipo: 'UNITARIO' | 'KIT'
+  ativo: boolean
+  alergenicos: string[]
   precoVenda: string
   margemMinimaOverride: string
   receitaId: string
@@ -56,11 +61,14 @@ type ProdutoFormProps = {
     descricao: string
     categoria: string
     tipo: 'UNITARIO' | 'KIT'
+    ativo: boolean
+    alergenicos: string[]
     precoVenda: string
     margemMinimaOverride: string | null
     receitaId: string | null
     recheioReceitaId: string | null
     kitItens: Array<{ componenteId: string; qtde: number }>
+    fotos: Array<{ id: string; path: string; ordem: number }>
   }
 }
 
@@ -81,6 +89,8 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       descricao: defaults?.descricao ?? '',
       categoria: defaults?.categoria ?? '',
       tipo: defaults?.tipo ?? 'UNITARIO',
+      ativo: defaults?.ativo ?? true,
+      alergenicos: defaults?.alergenicos ?? [],
       precoVenda: defaults?.precoVenda ?? '',
       margemMinimaOverride: defaults?.margemMinimaOverride ?? '',
       receitaId: defaults?.receitaId ?? '',
@@ -183,6 +193,8 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       descricao: data.descricao,
       categoria: data.categoria,
       tipo: data.tipo,
+      ativo: data.ativo,
+      alergenicos: data.alergenicos,
       precoVenda: data.precoVenda,
       margemMinimaOverride: data.margemMinimaOverride,
       receitaId: data.tipo === 'UNITARIO' ? data.receitaId : undefined,
@@ -268,6 +280,57 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
             </FormItem>
           )}
         />
+
+        <FormField
+          control={control}
+          name="ativo"
+          render={({ field }) => (
+            <FormItem className="group/field flex flex-row items-center gap-2 space-y-0">
+              <FormControl>
+                <Checkbox checked={field.value} onCheckedChange={(v) => field.onChange(v === true)} />
+              </FormControl>
+              <FormLabel className="font-normal">Ativo (aparece na vitrine pro cliente)</FormLabel>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name="alergenicos"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Alergênicos</FormLabel>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ALERGENICOS.map((a) => (
+                  <label key={a.value} className="group/field flex items-center gap-2 text-sm font-normal">
+                    <Checkbox
+                      checked={field.value.includes(a.value)}
+                      onCheckedChange={(checked) =>
+                        field.onChange(
+                          checked === true
+                            ? [...field.value, a.value]
+                            : field.value.filter((v) => v !== a.value),
+                        )
+                      }
+                    />
+                    {a.label}
+                  </label>
+                ))}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {defaults && (
+          <FormItem>
+            <FormLabel>Fotos</FormLabel>
+            <ProdutoFotosManager produtoId={defaults.id} fotosIniciais={defaults.fotos} />
+          </FormItem>
+        )}
+        {!defaults && (
+          <p className="text-sm text-muted-foreground">Salva o produto primeiro pra poder adicionar fotos.</p>
+        )}
 
         {tipo === 'UNITARIO' && (
           <>
