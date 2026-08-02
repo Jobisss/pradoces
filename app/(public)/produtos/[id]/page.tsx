@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
-import Image from 'next/image'
 import Link from 'next/link'
 import { PackageXIcon } from 'lucide-react'
 import { buscarProdutoPublico } from '@/lib/catalogo/produtos'
 import { ALERGENICOS } from '@/lib/validation/produtos'
 import { WhatsappButton } from '@/components/whatsapp-button'
+import { ProdutoGaleria } from '@/components/produto-galeria'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const rotuloAlergenico = new Map<string, string>(ALERGENICOS.map((a) => [a.value, a.label]))
@@ -25,19 +25,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
 
   return (
     <section className="mx-auto max-w-2xl px-4 py-6 md:px-8">
-      {produto.fotos.length > 0 ? (
-        <div className="-mx-4 mb-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
-          {produto.fotos.map((path) => (
-            <div key={path} className="relative aspect-square w-full shrink-0 snap-center overflow-hidden rounded-lg bg-muted">
-              <Image src={`/uploads/${path}-grande.webp`} alt={produto.nome} fill sizes="100vw" className="object-cover" priority />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mb-4 flex aspect-square items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
-          Sem foto
-        </div>
-      )}
+      <ProdutoGaleria fotos={produto.fotos} nome={produto.nome} />
 
       <div className="space-y-4">
         <div>
