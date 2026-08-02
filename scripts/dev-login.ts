@@ -4,12 +4,19 @@
  * Enquanto a página de login `/entrar` (Plan 01-10) e o envio real de email
  * (Resend, user_setup do Plan 04) não existem, este utilitário permite:
  *
- *   tsx scripts/dev-login.ts                      -> lista os usuários (prova que o cadastro gravou)
- *   tsx scripts/dev-login.ts <email>              -> marca o email como verificado e FORJA uma sessão
+ *   tsx scripts/dev-login.ts                       -> lista os usuários (prova que o cadastro gravou)
+ *   tsx scripts/dev-login.ts <email>               -> marca o email como verificado e FORJA uma sessão
+ *   tsx scripts/dev-login.ts --senha <email> <senha> -> define uma senha conhecida (pra logar de verdade em /entrar)
  *
  * No modo <email> ele imprime um cookie de sessão assinado (mesmo esquema do
  * seed-admin / fixtures de teste) e a linha pra colar no console do navegador,
  * pra você abrir /minha-conta/meus-dados logado e verificar o fluxo LGPD.
+ *
+ * O modo --senha usa o mesmo truque do seed-admin (forjar uma sessão admin
+ * de 5min pra chamar `auth.api.setUserPassword`, que vive atrás do
+ * adminMiddleware) — só que mirando o userId de QUALQUER conta, não só a
+ * do próprio admin. Exige que já exista um admin no banco (roda seed:admin
+ * antes se precisar).
  *
  * Guard de segurança: recusa rodar se NODE_ENV === 'production'.
  *
@@ -92,6 +99,52 @@ async function forgeSession(prisma: Prisma, email: string) {
   console.log('==========================================\n')
 }
 
+async function setPassword(prisma: Prisma, email: string, senha: string) {
+  const { auth } = await import('@/lib/auth/server')
+
+  const alvo = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+  if (!alvo) {
+    console.error(`\nUsuário não encontrado: ${email}\n`)
+    process.exit(1)
+  }
+  const admin = await prisma.user.findFirst({ where: { role: 'admin', deletedAt: null } })
+  if (!admin) {
+    console.error('\nNenhum admin encontrado — rode `npm run seed:admin` primeiro.\n')
+    process.exit(1)
+  }
+
+  if (!alvo.emailVerified) {
+    await prisma.user.update({
+      where: { id: alvo.id },
+      data: { emailVerified: true, emailVerifiedAt: new Date() },
+    })
+  }
+
+  // Mesmo truque do seed-admin: sessão admin forjada de 5min, single-use,
+  // só pra autorizar a chamada ao endpoint do admin-plugin.
+  const ctx = await auth.$context
+  const cookieName = ctx.authCookies.sessionToken.name
+  const token = `dev-set-password-${randomUUID()}`
+  await prisma.session.create({
+    data: { userId: admin.id, token, expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+  })
+  const signature = crypto
+    .createHmac('sha256', process.env.BETTER_AUTH_SECRET as string)
+    .update(token)
+    .digest('base64')
+  const headers = new Headers({ cookie: `${cookieName}=${encodeURIComponent(`${token}.${signature}`)}` })
+
+  await auth.api.setUserPassword({ headers, body: { userId: alvo.id, newPassword: senha } })
+  await prisma.session.delete({ where: { token } }).catch(() => {})
+
+  console.log('\n================ SENHA DEFINIDA ================')
+  console.log(`Email: ${alvo.email}`)
+  console.log(`Senha: ${senha}`)
+  console.log(`Papel: ${alvo.role}`)
+  console.log('\nEntra em http://localhost:3000/entrar com esses dados.')
+  console.log('==================================================\n')
+}
+
 async function main() {
   // Carrega .env ANTES de importar o prisma (Node 24 built-in).
   try {
@@ -107,6 +160,16 @@ async function main() {
   const { prisma } = await import('@/lib/db/client')
 
   try {
+    if (process.argv[2] === '--senha') {
+      const [, , , email, senha] = process.argv
+      if (!email || !senha) {
+        console.error('\nUso: tsx scripts/dev-login.ts --senha <email> <senha>\n')
+        process.exit(1)
+      }
+      await setPassword(prisma, email, senha)
+      return
+    }
+
     const email = process.argv[2]
     if (email) {
       await forgeSession(prisma, email)
