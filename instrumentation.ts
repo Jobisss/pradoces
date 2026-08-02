@@ -10,11 +10,22 @@
  * runs after Prisma is already connected, so migration order (public.* first,
  * then pgboss.*) holds naturally (T-01-06-02).
  *
- * Phase 1 registers ZERO domain workers — this only proves the queue boots.
- * Phase 4 adds boss.work('send-email', handler) etc. here.
+ * Phase 1 registrou ZERO domain workers — só provava que a fila subia.
+ * Phase 4 adiciona o primeiro job real: expiração diária de pontos (PT-05).
+ * Envio de email (NOTIF-01/02) fica pra quando o Resend estiver configurado.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const { boss } = await import('./lib/queue/boss')
   await boss.start()
+
+  const { expirarPontosVencidos } = await import('./lib/pontos/expirar')
+  const QUEUE = 'expirar-pontos'
+  await boss.createQueue(QUEUE)
+  await boss.work(QUEUE, async () => {
+    const { expirados } = await expirarPontosVencidos()
+    if (expirados > 0) console.log(`[${QUEUE}] ${expirados} crédito(s) de pontos expirado(s)`)
+  })
+  // 3h da manhã, horário do negócio — fora do pico de uso do site.
+  await boss.schedule(QUEUE, '0 3 * * *', null, { tz: 'America/Sao_Paulo' })
 }

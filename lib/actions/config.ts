@@ -37,17 +37,25 @@ export async function salvarMargemGlobal(
 
   const parsed = ConfigSchema.safeParse({
     margemMinimaPadrao: String(formData.get('margemMinimaPadrao') ?? ''),
+    pontosPorReal: String(formData.get('pontosPorReal') ?? ''),
+    pontosCapPorReserva: String(formData.get('pontosCapPorReserva') ?? ''),
+    pontosExpiracaoMeses: String(formData.get('pontosExpiracaoMeses') ?? ''),
+    janelaCancelamentoHoras: String(formData.get('janelaCancelamentoHoras') ?? ''),
   })
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
   }
 
+  const data = {
+    margemMinimaPadrao: parsed.data.margemMinimaPadrao.toFixed(2),
+    pontosPorReal: parsed.data.pontosPorReal.toFixed(2),
+    pontosCapPorReserva: parsed.data.pontosCapPorReserva,
+    pontosExpiracaoMeses: parsed.data.pontosExpiracaoMeses,
+    janelaCancelamentoHoras: parsed.data.janelaCancelamentoHoras,
+  }
+
   try {
-    await prisma.configuracao.upsert({
-      where: { id: 1 },
-      create: { id: 1, margemMinimaPadrao: parsed.data.margemMinimaPadrao.toFixed(2) },
-      update: { margemMinimaPadrao: parsed.data.margemMinimaPadrao.toFixed(2) },
-    })
+    await prisma.configuracao.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data })
   } catch {
     return { error: GENERIC_SERVER_ERROR }
   }
