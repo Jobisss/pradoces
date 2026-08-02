@@ -15,6 +15,7 @@ import {
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Início' },
+  { href: '/admin/reservas', label: 'Reservas' },
   { href: '/admin/ingredientes', label: 'Ingredientes' },
   { href: '/admin/receitas', label: 'Receitas' },
   { href: '/admin/produtos', label: 'Produtos' },
