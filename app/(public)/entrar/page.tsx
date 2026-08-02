@@ -32,6 +32,13 @@ function ResetSuccessBanner() {
   )
 }
 
+/** Ex.: /entrar?next=/carrinho volta pro carrinho depois de logar (§signinUser valida o destino). */
+function NextField() {
+  const next = useSearchParams().get('next')
+  if (!next) return null
+  return <input type="hidden" name="next" value={next} />
+}
+
 export default function EntrarPage() {
   const [state, formAction, pending] = useActionState(signinUser, initialState)
 
@@ -44,6 +51,9 @@ export default function EntrarPage() {
 
         <Suspense fallback={null}>
           <ResetSuccessBanner />
+        </Suspense>
+        <Suspense fallback={null}>
+          <NextField />
         </Suspense>
 
         {/* Erro genérico AUTH-07 (vem da action): "Email ou senha não conferem" */}

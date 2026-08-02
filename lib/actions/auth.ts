@@ -154,7 +154,11 @@ export async function signinUser(
     return { error: INVALID_CREDENTIALS }
   }
 
-  redirect('/')
+  // `next` (ex.: voltar pro /carrinho após logar pra finalizar reserva) só é
+  // honrado se for um caminho relativo interno — nunca um host externo
+  // (open-redirect). "//evil.com" também é rejeitado (protocol-relative).
+  const next = String(formData.get('next') ?? '')
+  redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/')
 }
 
 /**

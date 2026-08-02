@@ -1,5 +1,6 @@
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
+import { CartProvider } from '@/components/cart-provider'
 
 /**
  * Shell público + cliente (D-03): Header global no topo, Footer com DPO embaixo.
@@ -13,10 +14,12 @@ import { Footer } from '@/components/footer'
  */
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-full flex-col">
-      <Header />
-      <main className="flex-1">{children}</main>
-      <Footer />
-    </div>
+    <CartProvider>
+      <div className="flex min-h-full flex-col">
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
+      </div>
+    </CartProvider>
   )
 }

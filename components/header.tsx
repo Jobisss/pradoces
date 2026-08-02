@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { headers as nextHeaders } from 'next/headers'
 import { auth } from '@/lib/auth/server'
 import { Button } from '@/components/ui/button'
+import { CartBadge } from '@/components/cart-badge'
 
 /**
  * Header global — RSC que lê a sessão server-side (D-02/D-04, T-01-07-02: sem flicker,
@@ -39,6 +40,8 @@ export async function Header() {
       </Link>
 
       <nav className="flex items-center gap-2">
+        <CartBadge />
+
         {!session && (
           <>
             <Button asChild variant="outline" className="h-11 px-5 text-base">

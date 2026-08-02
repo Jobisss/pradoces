@@ -5,15 +5,10 @@ import { buscarProdutoPublico } from '@/lib/catalogo/produtos'
 import { ALERGENICOS } from '@/lib/validation/produtos'
 import { WhatsappButton } from '@/components/whatsapp-button'
 import { ProdutoGaleria } from '@/components/produto-galeria'
+import { AdicionarCarrinho } from '@/components/adicionar-carrinho'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const rotuloAlergenico = new Map<string, string>(ALERGENICOS.map((a) => [a.value, a.label]))
-
-function rotuloValidade(dias: number): string {
-  if (dias === 0) return 'vence hoje'
-  if (dias === 1) return 'vence amanhã'
-  return `vence em ${dias} dias`
-}
 
 /** CAT-02/03/05 — detalhe de produto público. */
 export default async function ProdutoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -59,6 +54,9 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                 </li>
               ))}
             </ul>
+            <p className="text-sm text-muted-foreground">
+              Kits ainda não dá pra reservar direto pelo site — chama a Luizinha no WhatsApp.
+            </p>
           </div>
         )}
 
@@ -71,13 +69,12 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                 Esgotado no momento — volta em breve.
               </p>
             ) : (
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                {produto.lotes.map((l) => (
-                  <li key={l.id} className="tabular-nums">
-                    {l.qtdeDisponivel} disponíveis · {rotuloValidade(l.diasParaVencer)}
-                  </li>
-                ))}
-              </ul>
+              <AdicionarCarrinho
+                produtoId={produto.id}
+                produtoNome={produto.nome}
+                precoUnitario={produto.precoVenda}
+                lotes={produto.lotes}
+              />
             )}
           </div>
         )}
