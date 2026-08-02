@@ -123,17 +123,24 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 ## Session Continuity
 
 Last session: 2026-08-02T00:00:00.000Z
-Stopped at: Phase 3 primeira fatia implementada e commitada (schema
-`ativo`/`alergenicos`/`ProdutoFoto`; pipeline sharp via Route Handler;
-`lib/catalogo/produtos.ts`; vitrine `/`; detalhe `/produtos/[id]`;
-`/onde-retirar`; WhatsappButton) — testado via Playwright manual
-(upload de foto ponta a ponta, 404 de produto inexistente/desativado,
-esgotado, filtro de categoria) e `next build`/`docker compose build
-app` limpos. NENHUM teste automatizado (vitest) foi adicionado/rodado
-ainda — a usuária tem dado real no dev DB (produto "Pão de Mel
-Simples" recadastrado à mão após o incidente de truncate) e
-`npm test` reseta esse banco (ver [[feedback_test_db_shared_with_dev]]
-em memory) — perguntar antes de rodar a suíte.
-Resume file: nenhum plano formal — Phase 3 não tem `*-PLAN.md` (GSD orchestration abandonada); acompanhar via commits e este STATE.md
-Pendente pra fechar Phase 3: (1) decidir sobre cobertura de teste automatizado do catálogo sem truncar o dev DB; (2) CAT-08 (auditoria Lighthouse mobile real — os componentes já seguem os tokens/touch-targets ≥44px do UI-SPEC, mas não foi auditado com Lighthouse de verdade); (3) dados reais de WHATSAPP_NUMERO/ENDERECO_* no .env (usuária optou por placeholder por enquanto).
-Setup pendente (não bloqueia código): verificar domínio docesvalentina.com.br no Resend (user_setup do Plan 04) para entrega real de email de confirmação/reset.
+Stopped at: **Phase 4 (Reserva + Pontos) — laço funcional completo implementado e testado ponta a ponta**:
+- Schema: Reserva/ReservaItem/PontosTransacao + CHECK `qtde_reservada <= qtde_disponivel` (RES-12, defesa em profundidade além do SELECT FOR UPDATE)
+- Cliente: carrinho (localStorage) -> reserva com soft-hold (SELECT FOR UPDATE, RES-01..05/11/12/15) -> comprovante público `/r/<token>` (RES-10) -> cancelamento com UNDO real de 30s cobrindo PENDENTE e CONFIRMADA (RES-08/09) -> painel `/minha-conta/reservas` + `/minha-conta/pontos` (saldo SUM'ado, extrato, progresso — PT-03/06/07)
+- Admin: `/admin/reservas` com confirmação atômica (decrementa estoque, credita pontos com cap/expiração configuráveis, RES-06/07/PT-01..04), recusar pendente, avançar status, marcar não-retirada, histórico de no-show (RES-13), bloquear/desbloquear cliente via banned/banReason do Better Auth (RES-14)
+- Testado via Playwright com espera real (não mock): fluxo completo criar->confirmar->pontos creditados, e cancelar->undo->cancelar de verdade após 31s — todos os dados de teste limpos do dev DB depois
+
+Bug real encontrado e corrigido no caminho: `validade`/`dataCompra` (`@db.Date`) exibiam 1 dia a menos em TODO admin (lotes, ingredientes) por falta de `timeZone` explícito no `Intl.DateTimeFormat` — `lib/format/date.ts` agora tem dois formatadores (`dataCivilFmtBR`=UTC pra `@db.Date`, `instanteFmtBR`=America/Sao_Paulo pra Timestamptz reais).
+
+Escopo deliberadamente cortado desta fatia (não são bugs, são decisões — revisar se o usuário pedir):
+- Carrinho não cobre KIT (só UNITARIO) — precisaria expandir kit em itens dos componentes
+- `janelaCancelamentoHoras` existe no schema mas não é aplicado — `janelaRetirada` é texto livre, sem horário estruturado pra comparar "X horas antes"
+- NENHUM teste automatizado (vitest) rodado — dev DB tem dado real da usuária (ver [[feedback_test_db_shared_with_dev]])
+
+Resume file: nenhum plano formal — Phase 4 não tem `*-PLAN.md` (GSD orchestration abandonada); acompanhar via commits e este STATE.md.
+Pendente pra fechar Phase 4:
+- **Task #27 (notificações por email)**: BLOQUEADO — precisa do Resend configurado (domínio verificado), pendência antiga do projeto (ver linha "Setup pendente" abaixo)
+- **Task #28 (expiração de pontos + simulador PT-09)**: não bloqueado, não iniciado
+- CAT-08/Phase 3 (auditoria Lighthouse mobile real) ainda pendente de antes
+- Dados reais de WHATSAPP_NUMERO/ENDERECO_* no .env (usuária optou por placeholder)
+
+Setup pendente (não bloqueia código): verificar domínio docesvalentina.com.br no Resend (user_setup do Plan 04) para entrega real de email de confirmação/reset — agora bloqueia também as notificações de reserva (NOTIF-01/02/04/05).
