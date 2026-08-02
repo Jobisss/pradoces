@@ -434,8 +434,9 @@ model Sorteio {
   encerradoEm       DateTime?     @map("encerrado_em") @db.Timestamptz(6)
   criadoEm          DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
 
-  vencedor User?           @relation(fields: [vencedorId], references: [id], onDelete: SetNull)
-  chances  SorteioChance[]
+  vencedor         User?             @relation(fields: [vencedorId], references: [id], onDelete: SetNull)
+  chances          SorteioChance[]
+  pontosTransacoes PontosTransacao[]
 
   @@index([status])
   @@map("sorteios")
@@ -480,12 +481,16 @@ model PontosTransacao {
   valor     Int
   motivo    PontosMotivo
   reservaId String?      @map("reserva_id") @db.Uuid
+  // PT-06 "ref polimórfica" — motivo SORTEIO aponta pra cá (não pra Reserva,
+  // compra de chance não vira reserva nenhuma).
+  sorteioId String?      @map("sorteio_id") @db.Uuid
   // Só em créditos (RESERVA_CONFIRMADA): quando esse crédito expira (PT-05).
   expiraEm  DateTime?    @map("expira_em") @db.Timestamptz(6)
   criadoEm  DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)
 
   cliente User     @relation(fields: [clienteId], references: [id], onDelete: Restrict)
   reserva Reserva? @relation(fields: [reservaId], references: [id], onDelete: SetNull)
+  sorteio Sorteio? @relation(fields: [sorteioId], references: [id], onDelete: SetNull)
 
   @@index([clienteId])
   @@map("pontos_transacoes")

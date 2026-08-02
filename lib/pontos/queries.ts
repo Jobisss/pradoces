@@ -15,6 +15,9 @@ const MOTIVO_LABEL: Record<string, string> = {
   CANCELAMENTO: 'Reserva cancelada',
   EXPIRACAO: 'Pontos expirados',
   AJUSTE_ADMIN: 'Ajuste manual',
+  RESGATE: 'Troca por item',
+  RESGATE_REJEITADO: 'Troca não aceita — pontos devolvidos',
+  SORTEIO: 'Chance de sorteio',
 }
 
 /** PT-06 — extrato completo (data, valor, motivo). */
