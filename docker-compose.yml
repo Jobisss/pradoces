@@ -1,7 +1,9 @@
 # Luizinha Confeitaria — production stack (INFRA-01).
 #
-# app: Next.js standalone, bound to LOOPBACK ONLY (127.0.0.1:3000). The host-level
+# app: Next.js standalone, bound to LOOPBACK ONLY (127.0.0.1:3002). The host-level
 #      nginx reverse-proxies to it; the container port is never exposed to the world.
+#      Host port 3002 (not the container's internal 3000) because 3000/3001 are
+#      already taken by other apps sharing this VPS (futvale_app, muuvi-app).
 # db:  Postgres 16, NO host port mapping — only reachable on the compose network.
 #      TZ/PGTZ + mounted postgresql.conf pin America/Sao_Paulo (INFRA-10).
 #
@@ -15,9 +17,9 @@ services:
       args:
         NEXT_PUBLIC_URL: https://luizinha-confeitaria.com.br
     restart: unless-stopped
-    # Loopback-only: exposed to the internet exclusively via the host Caddy.
+    # Loopback-only: exposed to the internet exclusively via the host nginx.
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3002:3000"
     env_file: .env.production
     environment:
       # .env's DATABASE_URL targets the host-side dev Postgres (localhost).

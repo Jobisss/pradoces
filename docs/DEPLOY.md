@@ -9,7 +9,7 @@ hop entre a internet e o app.
 Internet ── DNS (Hostinger) aponta direto pro IP do VPS
                 │ 80/443 (UFW libera geral, sem CIDR pra restringir)
             nginx (host, Let's Encrypt via certbot, já serve outros domínios)
-                │ reverse_proxy 127.0.0.1:3000
+                │ reverse_proxy 127.0.0.1:3002
             app container (Next standalone, Docker, loopback only)
                 │ compose network
             db container (Postgres 16, no host port)
@@ -53,7 +53,8 @@ docker compose exec app npm run seed:admin          # bootstrap do usuário admi
 
 `.env.production` precisa ter `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`,
 `RESEND_API_KEY`, etc. — gerar secrets com `openssl rand -base64 32`. O app
-publica só `127.0.0.1:3000`; o Postgres não tem porta exposta ao host.
+publica só `127.0.0.1:3002` (3000/3001 já usados por outros apps no host); o
+Postgres não tem porta exposta ao host.
 
 Re-deploy após mudança de código: `docker compose up -d --build` de novo
 (reaplica só a imagem `app`; `db` mantém o volume `pgdata` intacto).
