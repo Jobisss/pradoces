@@ -73,7 +73,7 @@ export function AdminNav({
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:h-16 md:px-8 print:hidden">
         <div className="flex items-center gap-2">
           <Button
