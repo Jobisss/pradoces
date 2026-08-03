@@ -1,0 +1,13 @@
+# Postgres-only override for the PM2 deploy path (docs/DEPLOY-PM2.md).
+#
+# Use with: docker compose -f docker-compose.yml -f docker-compose.pm2-db.yml up -d db
+# (explicit -f so this never silently changes behavior for anyone still using
+# the documented docker-compose.yml + Caddy path from docs/DEPLOY.md).
+#
+# Adds a loopback host port so the PM2-managed Next.js process (running
+# natively on the VPS, not in Docker) can reach Postgres. The `app` service
+# from docker-compose.yml is simply never started in this path.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
