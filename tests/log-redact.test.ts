@@ -25,7 +25,7 @@ describe('pino redact (INFRA-07, T-PII-01)', () => {
     const { log, output } = capture()
     log.info(
       {
-        email: 'mae@luizinhaconfeitaria.com.br',
+        email: 'mae@luizinha-confeitaria.com.br',
         password: 'secret123',
         telefone: '11999999999',
         cpf: '12345678900',
@@ -35,7 +35,7 @@ describe('pino redact (INFRA-07, T-PII-01)', () => {
       'test',
     )
     const out = output()
-    expect(out).not.toContain('mae@luizinhaconfeitaria.com.br')
+    expect(out).not.toContain('mae@luizinha-confeitaria.com.br')
     expect(out).not.toContain('secret123')
     expect(out).not.toContain('11999999999')
     expect(out).not.toContain('12345678900')

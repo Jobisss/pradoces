@@ -95,7 +95,7 @@ export default function PrivacidadePage() {
               /minha-conta/excluir
             </a>
           </li>
-          <li>Corrigir → escreva pra dpo@luizinhaconfeitaria.com.br</li>
+          <li>Corrigir → escreva pra dpo@luizinha-confeitaria.com.br</li>
           <li>
             Reclamar à ANPD →{' '}
             <a
@@ -112,10 +112,10 @@ export default function PrivacidadePage() {
         <h2 className="text-xl font-semibold">DPO (Encarregada de Tratamento)</h2>
         <p className="text-base">
           <a
-            href="mailto:dpo@luizinhaconfeitaria.com.br"
+            href="mailto:dpo@luizinha-confeitaria.com.br"
             className="text-primary underline underline-offset-2"
           >
-            dpo@luizinhaconfeitaria.com.br
+            dpo@luizinha-confeitaria.com.br
           </a>{' '}
           — responde em até 15 dias.
         </p>

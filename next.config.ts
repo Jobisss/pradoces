@@ -12,8 +12,8 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: [
-        'luizinhaconfeitaria.com.br',
-        'www.luizinhaconfeitaria.com.br',
+        'luizinha-confeitaria.com.br',
+        'www.luizinha-confeitaria.com.br',
         'localhost:3000',
         '127.0.0.1:3000',
       ],

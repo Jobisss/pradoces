@@ -13,7 +13,7 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_URL: https://luizinhaconfeitaria.com.br
+        NEXT_PUBLIC_URL: https://luizinha-confeitaria.com.br
     restart: unless-stopped
     # Loopback-only: exposed to the internet exclusively via the host Caddy.
     ports:

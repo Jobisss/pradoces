@@ -22,7 +22,7 @@ desde que nginx seja o ÚNICO proxy na frente (é o caso aqui).
 ## 0. Prerequisites
 
 - VPS (Ubuntu 22.04+), Docker + Docker Compose plugin (para o Postgres), Node.js 20+, nginx, certbot.
-- Domínio `luizinhaconfeitaria.com.br` com DNS gerenciado na Hostinger — dois
+- Domínio `luizinha-confeitaria.com.br` com DNS gerenciado na Hostinger — dois
   registros **A** (raiz + `www`) apontando pro IP público do VPS. Sem proxy,
   sem "nuvem" — é resolução direta.
 - UFW liberando 80/443 pra qualquer origem (sem Cloudflare, não tem CIDR pra
@@ -84,14 +84,14 @@ no shared state to worry about across workers).
 ## 4. nginx
 
 ```bash
-sudo cp nginx/luizinhaconfeitaria.conf /etc/nginx/sites-available/luizinhaconfeitaria.com.br
-sudo ln -s /etc/nginx/sites-available/luizinhaconfeitaria.com.br /etc/nginx/sites-enabled/
+sudo cp nginx/luizinha-confeitaria.conf /etc/nginx/sites-available/luizinha-confeitaria.com.br
+sudo ln -s /etc/nginx/sites-available/luizinha-confeitaria.com.br /etc/nginx/sites-enabled/
 sudo nginx -t                          # validate config
-sudo certbot --nginx -d luizinhaconfeitaria.com.br -d www.luizinhaconfeitaria.com.br
+sudo certbot --nginx -d luizinha-confeitaria.com.br -d www.luizinha-confeitaria.com.br
 sudo systemctl reload nginx
 ```
 
-The checked-in `nginx/luizinhaconfeitaria.conf` is HTTP-only (port 80) ON
+The checked-in `nginx/luizinha-confeitaria.conf` is HTTP-only (port 80) ON
 PURPOSE — no `ssl_certificate` lines, so `nginx -t` passes before a cert
 exists. `certbot --nginx` edits this exact server block in place to add
 `listen 443 ssl`/cert paths, and (say yes to the redirect prompt) adds a
@@ -105,14 +105,14 @@ domains on this host.
 ```bash
 pm2 status                                             # luizinha: online
 pm2 logs luizinha --lines 50                           # no crash loop
-curl -I https://luizinhaconfeitaria.com.br             # 200, HSTS header presente
+curl -I https://luizinha-confeitaria.com.br             # 200, HSTS header presente
 ```
 
 Sem Cloudflare na frente, `scripts/test-origin-hidden.sh` (docs/DEPLOY.md) não
 se aplica — o IP do VPS é diretamente alcançável por design aqui, não é bug.
 
 Em um navegador:
-- [ ] `https://luizinhaconfeitaria.com.br` carrega com cadeado válido.
+- [ ] `https://luizinha-confeitaria.com.br` carrega com cadeado válido.
 - [ ] Resposta traz `Strict-Transport-Security` (HSTS do nginx).
 - [ ] CSP / X-Frame-Options presentes (vêm do `proxy.ts` do app, não do nginx).
 - [ ] `sudo ufw status numbered` mostra só 22 (seu IP) + 80/443 (geral).
@@ -125,7 +125,7 @@ Em um navegador:
 - **PM2 process restarts in a loop:** almost always a missing/invalid env var
   — `lib/env.ts` validates at boot and throws. Check `pm2 logs luizinha`.
 - **certbot falha no HTTP-01 challenge:** confirma que o DNS já propagou
-  (`dig +short luizinhaconfeitaria.com.br` deve devolver o IP do VPS) e que a
+  (`dig +short luizinha-confeitaria.com.br` deve devolver o IP do VPS) e que a
   porta 80 está liberada no UFW.
 - **Reboot survival:** `pm2 startup` must have been run AND the printed
   command executed — `pm2 save` alone does not survive a reboot without it.

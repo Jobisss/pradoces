@@ -6,10 +6,10 @@
 
 {
 	# Automatic Let's Encrypt issuance/renewal.
-	email dpo@luizinhaconfeitaria.com.br
+	email dpo@luizinha-confeitaria.com.br
 }
 
-luizinhaconfeitaria.com.br, www.luizinhaconfeitaria.com.br {
+luizinha-confeitaria.com.br, www.luizinha-confeitaria.com.br {
 	encode gzip zstd
 
 	# Cloudflare is the ONLY trusted proxy, so X-Forwarded-For can be believed

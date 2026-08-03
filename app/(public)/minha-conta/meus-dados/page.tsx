@@ -53,10 +53,10 @@ export default function MeusDadosPage() {
         <p className="border-t border-border pt-6 text-sm text-muted-foreground">
           Dúvidas sobre seus dados? Escreva pra:{' '}
           <a
-            href="mailto:dpo@luizinhaconfeitaria.com.br"
+            href="mailto:dpo@luizinha-confeitaria.com.br"
             className="text-foreground underline underline-offset-4"
           >
-            dpo@luizinhaconfeitaria.com.br
+            dpo@luizinha-confeitaria.com.br
           </a>
         </p>
       </div>

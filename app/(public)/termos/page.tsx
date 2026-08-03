@@ -56,7 +56,7 @@ export default function TermosPage() {
           <a href="/privacidade" className="text-primary underline underline-offset-2">
             política de privacidade
           </a>
-          . Dúvidas? Escreve pra dpo@luizinhaconfeitaria.com.br.
+          . Dúvidas? Escreve pra dpo@luizinha-confeitaria.com.br.
         </p>
       </section>
 

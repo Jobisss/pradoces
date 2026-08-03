@@ -24,7 +24,7 @@ export function Footer() {
           </a>
           <span>
             Dúvidas sobre seus dados?{' '}
-            <a href="mailto:dpo@luizinhaconfeitaria.com.br" className="text-foreground underline underline-offset-2">dpo@luizinhaconfeitaria.com.br</a>
+            <a href="mailto:dpo@luizinha-confeitaria.com.br" className="text-foreground underline underline-offset-2">dpo@luizinha-confeitaria.com.br</a>
           </span>
         </nav>
       </div>
