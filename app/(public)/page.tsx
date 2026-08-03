@@ -31,7 +31,7 @@ export default async function Home({
   return (
     <section className="mx-auto max-w-5xl px-4 py-8 md:px-8">
       <div className="mb-6 space-y-2">
-        <p className="font-display text-3xl font-medium text-primary md:text-4xl">Luizinha Confeitaria</p>
+        <p className="font-display text-3xl font-medium text-foreground md:text-4xl">Luizinha Confeitaria</p>
         <p className="text-base text-muted-foreground">
           Doces caseiros pra reservar e retirar. Confirma tudo com a Luizinha pelo WhatsApp.
         </p>

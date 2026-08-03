@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
@@ -72,7 +73,7 @@ export function AdminNav({
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:h-16 md:px-8 print:hidden">
         <div className="flex items-center gap-2">
           <Button
@@ -83,8 +84,15 @@ export function AdminNav({
           >
             <Menu />
           </Button>
-          <Link href="/admin" className="font-display text-2xl leading-none font-medium text-foreground">
-            Luizinha
+          <Link href="/admin" className="flex shrink-0 items-center">
+            <Image
+              src="/logo/logo-header.png"
+              alt="Luizinha Confeitaria"
+              width={700}
+              height={306}
+              priority
+              className="h-9 w-auto md:h-11"
+            />
           </Link>
         </div>
         <form action={signOut}>
@@ -106,7 +114,7 @@ export function AdminNav({
         </SheetContent>
       </Sheet>
 
-      <div className="flex">
+      <div className="flex flex-1">
         <aside className="hidden w-60 shrink-0 border-r border-border bg-sidebar p-4 md:block print:hidden">
           <NavList pathname={pathname} />
         </aside>
