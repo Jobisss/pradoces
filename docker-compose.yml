@@ -1,12 +1,12 @@
 # Luizinha Confeitaria — production stack (INFRA-01).
 #
 # app: Next.js standalone, bound to LOOPBACK ONLY (127.0.0.1:3000). The host-level
-#      Caddy reverse-proxies to it; the container port is never exposed to the world.
+#      nginx reverse-proxies to it; the container port is never exposed to the world.
 # db:  Postgres 16, NO host port mapping — only reachable on the compose network.
 #      TZ/PGTZ + mounted postgresql.conf pin America/Sao_Paulo (INFRA-10).
 #
-# Caddy + UFW run on the HOST (see Caddyfile, scripts/setup-ufw.sh, docs/DEPLOY.md),
-# not in this compose file.
+# nginx + UFW run on the HOST (see nginx/luizinha-confeitaria.conf, docs/DEPLOY.md),
+# not in this compose file. No Cloudflare — DNS points straight at the VPS (Hostinger).
 
 services:
   app:
@@ -18,7 +18,7 @@ services:
     # Loopback-only: exposed to the internet exclusively via the host Caddy.
     ports:
       - "127.0.0.1:3000:3000"
-    env_file: .env
+    env_file: .env.production
     environment:
       # .env's DATABASE_URL targets the host-side dev Postgres (localhost).
       # Inside the compose network the db is only reachable as "db:5432" —

@@ -28,7 +28,7 @@ This project uses [Get Shit Done](https://github.com/anthropics/get-shit-done-cc
 - Better Auth + argon2id (not Lucia — deprecated; not NextAuth — see SUMMARY.md)
 - Resend + React Email + svix
 - pg-boss for background jobs (no Redis)
-- Docker Compose direct on VPS + Caddy + Cloudflare proxy (not Coolify — 11 CVEs jan/2026)
+- Docker Compose direct on VPS + host nginx reverse proxy (not Coolify — 11 CVEs jan/2026; no Cloudflare/Caddy — direct Hostinger DNS, nginx already serves other domains on this host; no PM2 — app runs as a Docker container, not a native process)
 - Money in `numeric(19,4)`, dates in `timestamptz` with `TZ=America/Sao_Paulo`
 - Custom cost frozen per `ingrediente_compra_id` (event-sourcing parcial)
 

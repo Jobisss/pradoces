@@ -15,7 +15,7 @@ import { clientIp } from '@/lib/net/client-ip'
  *      `auth.api.getSession`.
  *
  * Proxy defaults to the Node.js runtime in Next 16, so `crypto` is available.
- * HSTS is intentionally NOT set here — Caddy owns it (Plan 08) to avoid a
+ * HSTS is intentionally NOT set here — nginx owns it (Plan 08) to avoid a
  * duplicate header.
  */
 export default async function proxy(request: NextRequest) {
@@ -99,7 +99,7 @@ export default async function proxy(request: NextRequest) {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  // Strict-Transport-Security set by Caddy (Plan 08), not here
+  // Strict-Transport-Security set by nginx (Plan 08), not here
   return response
 }
 

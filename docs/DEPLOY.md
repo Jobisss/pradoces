@@ -1,86 +1,98 @@
-# Deploy Runbook — Luizinha Confeitaria (Phase 1: INFRA-01/02/03)
+# Deploy Runbook — Luizinha Confeitaria
 
-Defensável-by-default deploy: Cloudflare proxy (origin hidden) -> host Caddy (TLS +
-trusted CF) -> Docker `app` on loopback -> Postgres on the internal network. UFW lets
-in only Cloudflare (80/443) and the dev IP (SSH).
+Docker Compose (`app` + `db`) na VPS, atrás do nginx que já roda no host servindo
+outros domínios (`futtvale.com.br`, `museuvvi.digital`). Sem Cloudflare, sem
+Caddy, sem PM2 — DNS aponta direto pro IP da VPS (Hostinger), nginx é o único
+hop entre a internet e o app.
 
 ```
-Internet ── Cloudflare (orange cloud, Full Strict)
-                │ 80/443 (only CF CIDRs pass UFW)
-            Caddy (host, Let's Encrypt, trusted_proxies cloudflare, HSTS)
+Internet ── DNS (Hostinger) aponta direto pro IP do VPS
+                │ 80/443 (UFW libera geral, sem CIDR pra restringir)
+            nginx (host, Let's Encrypt via certbot, já serve outros domínios)
                 │ reverse_proxy 127.0.0.1:3000
-            app container (Next standalone, loopback only)
+            app container (Next standalone, Docker, loopback only)
                 │ compose network
             db container (Postgres 16, no host port)
 ```
 
+`lib/net/client-ip.ts` prefere o header `CF-Connecting-IP` mas cai pro
+`X-Forwarded-For` normal quando ele não existe (sempre o caso aqui, sem
+Cloudflare) — o app pega o IP real do cliente correto, desde que nginx seja o
+ÚNICO proxy na frente (é o caso).
+
 ## 0. Prerequisites
 
-- VPS (Ubuntu 22.04+), Docker + Docker Compose plugin installed.
-- Domain `luizinha-confeitaria.com.br` on Cloudflare.
-- Raw VPS public IP (`<VPS_IP>`) and your own public IP (`<DEV_IP>`).
-
-## 1. Cloudflare (dashboard — INFRA-02)
-
-1. **DNS** -> add two **A** records, both **Proxied (orange cloud)**:
-   - `luizinha-confeitaria.com.br` -> `<VPS_IP>`
-   - `www` -> `<VPS_IP>`
-2. **SSL/TLS -> Overview** -> mode **Full (Strict)** (Caddy serves a valid origin cert).
-
-## 2. Firewall (VPS host — INFRA-03)
+- VPS (Ubuntu 22.04+), Docker + Docker Compose plugin, nginx, certbot.
+- Domínio `luizinha-confeitaria.com.br` com DNS gerenciado na Hostinger — dois
+  registros **A** (raiz + `www`) apontando pro IP público do VPS.
+- UFW liberando 80/443 pra qualquer origem (sem Cloudflare, não tem CIDR pra
+  restringir) + 22 só pro seu IP de SSH.
 
 ```bash
-export DEV_IP=<your_public_ip>
-sudo -E bash scripts/setup-ufw.sh
-sudo ufw status numbered   # expect: 22 (DEV_IP) + 80/443 (CF v4 & v6) only
+sudo apt install certbot python3-certbot-nginx   # nginx já instalado no host
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 ```
 
-Add a weekly refresh so Cloudflare CIDR changes are picked up:
+## 1. App + database (Docker)
 
 ```bash
-sudo ln -s /opt/doces/scripts/setup-ufw.sh /etc/cron.weekly/refresh-cf-ips
-```
-
-## 3. Caddy (VPS host)
-
-```bash
-sudo apt install caddy           # Ubuntu 22.04+ ships the caddy-trusted-cloudflare plugin
-sudo cp Caddyfile /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
-
-Caddy auto-obtains the Let's Encrypt cert (needed for Cloudflare Full Strict).
-CSP / X-Frame-Options come from the app (`proxy.ts`) — Caddy only adds HSTS.
-
-## 4. App + database (Docker)
-
-```bash
-cp .env.production.example .env.production   # then fill in real secrets (NOT committed)
+cp .env.production.example .env.production   # depois preenche os secrets reais (NÃO commitado)
 docker compose up -d --build
-docker compose exec app npx prisma migrate deploy   # apply migrations (NOT db push)
-docker compose exec app npm run seed:admin          # bootstrap the admin user
+docker compose exec app npx prisma migrate deploy   # aplica migrations (NÃO db push)
+docker compose exec app npm run seed:admin          # bootstrap do usuário admin
 ```
 
-`.env.production` must set `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`,
-`RESEND_API_KEY`, etc. The app publishes only `127.0.0.1:3000`; Postgres has no host port.
+`.env.production` precisa ter `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`,
+`RESEND_API_KEY`, etc. — gerar secrets com `openssl rand -base64 32`. O app
+publica só `127.0.0.1:3000`; o Postgres não tem porta exposta ao host.
 
-## 5. Verify (INFRA-02 / INFRA-03 acceptance)
+Re-deploy após mudança de código: `docker compose up -d --build` de novo
+(reaplica só a imagem `app`; `db` mantém o volume `pgdata` intacto).
+
+## 2. nginx
 
 ```bash
-# Origin must be hidden: a direct hit to the raw IP must be refused.
-VPS_IP=<VPS_IP> bash scripts/test-origin-hidden.sh     # expect PASS (non-zero curl)
+sudo cp nginx/luizinha-confeitaria.conf /etc/nginx/sites-available/luizinha-confeitaria.com.br
+sudo ln -s /etc/nginx/sites-available/luizinha-confeitaria.com.br /etc/nginx/sites-enabled/
+sudo nginx -t                          # valida a config
+sudo certbot --nginx -d luizinha-confeitaria.com.br -d www.luizinha-confeitaria.com.br
+sudo systemctl reload nginx
 ```
 
-Then in a browser:
+O `nginx/luizinha-confeitaria.conf` já commitado é HTTP-only (porta 80) DE
+PROPÓSITO — sem linhas `ssl_certificate`, então `nginx -t` passa antes do
+certificado existir. `certbot --nginx` edita esse mesmo server block in-place
+pra adicionar `listen 443 ssl`/caminhos do cert, e (aceitando o prompt de
+redirect) adiciona um segundo bloco porta-80 que faz 301 pra https — mesmo
+fluxo interativo já usado pra `futtvale.com.br`/`museuvvi.digital`. Renovação
+automática (`certbot renew` via systemd timer) já vem instalada com o pacote,
+compartilhada entre todos os domínios desse host.
 
-- [ ] `https://luizinha-confeitaria.com.br` loads through Cloudflare.
-- [ ] Response carries `Strict-Transport-Security` (HSTS from Caddy).
-- [ ] CSP / X-Frame-Options present (from the app `proxy.ts`, not duplicated by Caddy).
-- [ ] `ufw status numbered` shows only 22 (DEV_IP) + 80/443 (CF) — INFRA-03 OK.
-- [ ] `scripts/test-origin-hidden.sh` returns PASS — INFRA-02 OK.
+## 3. Verify
+
+```bash
+docker compose ps                                       # app: healthy/running
+docker compose logs app --tail 50                       # sem crash loop
+curl -I https://luizinha-confeitaria.com.br              # 200, header HSTS presente
+```
+
+Em um navegador:
+
+- [ ] `https://luizinha-confeitaria.com.br` carrega com cadeado válido.
+- [ ] Resposta traz `Strict-Transport-Security` (HSTS do nginx).
+- [ ] CSP / X-Frame-Options presentes (vêm do `proxy.ts` do app, não do nginx).
+- [ ] `sudo ufw status numbered` mostra só 22 (seu IP) + 80/443 (geral).
 
 ## Troubleshooting
 
-- **502 from Caddy:** `docker compose ps` — is `app` healthy? It waits on db `service_healthy`.
-- **Direct IP still answers (test FAIL):** UFW not enabled or A records set to "DNS only" (grey cloud) instead of Proxied.
-- **Cloudflare 526 (invalid cert):** Caddy has not finished issuing the LE cert, or port 80 is blocked for the ACME challenge — confirm UFW allows CF on 80.
+- **502 from nginx:** `docker compose ps` — `app` está `healthy`? Ele espera o
+  `db` ficar `service_healthy` antes de subir. `docker compose logs app` pra
+  ver o motivo do crash.
+- **App reinicia em loop:** quase sempre uma env var ausente/inválida —
+  `lib/env.ts` valida no boot e lança erro. Checa `docker compose logs app`.
+  Causa comum: `DATABASE_URL` ainda com host errado — dentro do compose
+  network o `db` é sempre `db:5432`, nunca `127.0.0.1:5432` ou `localhost`.
+- **certbot falha no HTTP-01 challenge:** confirma que o DNS já propagou
+  (`dig +short luizinha-confeitaria.com.br` deve devolver o IP do VPS) e que a
+  porta 80 está liberada no UFW.
