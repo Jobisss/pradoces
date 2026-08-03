@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/admin/produtos', label: 'Produtos' },
   { href: '/admin/lotes', label: 'Lotes' },
   { href: '/admin/estoque', label: 'Estoque' },
+  { href: '/admin/relatorios', label: 'Relatórios' },
   { href: '/admin/auditoria', label: 'Auditoria' },
   { href: '/admin/ajustes', label: 'Ajustes' },
   { href: '/admin/ajuda', label: 'Ajuda' },
