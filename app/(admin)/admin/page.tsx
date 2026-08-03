@@ -1,17 +1,17 @@
 import Link from 'next/link'
 import { TriangleAlert } from 'lucide-react'
-import { margensCorrentesBatch } from '@/lib/custo/corrente'
+import { listarPendencias, resumoDoDia } from '@/lib/admin/home'
+
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 /**
- * Home do painel admin (Phase 2 — substitui o placeholder da Phase 1). Os 2
- * atalhos 1-toque ficam SEMPRE acima da lista "Precisa de atenção" (mãe
- * opera com uma mão, no mercado ou com luva de cozinha). O alerta de margem
- * é computado ON-READ a partir de margensCorrentesBatch — sem tabela nova,
- * sem fila de background (discretion do CONTEXT; embrião do ADM-01 da Phase 7).
+ * Home do painel admin (ADM-01/04) — os 2 atalhos 1-toque ficam SEMPRE acima
+ * da lista "Precisa de atenção" (mãe opera com uma mão, no mercado ou com
+ * luva de cozinha). Tudo computado ON-READ, sem tabela nova nem fila de
+ * background — volume de dados ainda pequeno pra justificar cache.
  */
 export default async function AdminHomePage() {
-  const margens = await margensCorrentesBatch()
-  const precisamAtencao = margens.filter((m) => m.margem !== null && m.margem.lessThan(m.minima))
+  const [pendencias, resumo] = await Promise.all([listarPendencias(), resumoDoDia()])
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-8">
@@ -34,30 +34,40 @@ export default async function AdminHomePage() {
         </Link>
       </div>
 
+      <div className="space-y-2 rounded-lg border border-border p-4">
+        <h2 className="text-lg font-semibold">Resumo de hoje</h2>
+        <p className="tabular-nums text-sm">
+          Faturou {currency.format(resumo.faturamento.toNumber())} · custou{' '}
+          {currency.format(resumo.custoTotal.toNumber())} · sobrou{' '}
+          <span className="font-medium">{currency.format(resumo.lucro.toNumber())}</span>
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {resumo.retiradasPendentes} retirada{resumo.retiradasPendentes === 1 ? '' : 's'} pendente
+          {resumo.retiradasPendentes === 1 ? '' : 's'}
+        </p>
+      </div>
+
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Precisa de atenção</h2>
 
-        {precisamAtencao.length === 0 ? (
+        {pendencias.length === 0 ? (
           <div className="space-y-1">
             <p className="text-base font-medium">Tudo em dia por aqui 🎉</p>
             <p className="text-sm text-muted-foreground">
-              Quando algum doce ficar com margem baixa, a gente te avisa nesta lista.
+              Reserva nova, lote vencendo, ingrediente sumindo do mercado ou margem caindo — a gente
+              te avisa aqui.
             </p>
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {precisamAtencao.map((item) => (
-              <li key={item.produtoId} className="space-y-1 border-l-4 border-destructive py-3 pl-3">
+            {pendencias.map((p, i) => (
+              <li key={i} className="space-y-1 border-l-4 border-destructive py-3 pl-3">
                 <p className="flex items-start gap-1.5 text-sm text-destructive">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  {item.nome}: a margem caiu pra {item.margem!.toFixed(0)}% — o preço de um
-                  ingrediente subiu
+                  {p.texto}
                 </p>
-                <Link
-                  href={`/admin/produtos/${item.produtoId}/editar`}
-                  className="text-sm font-medium underline underline-offset-2"
-                >
-                  Ver produto
+                <Link href={p.href} className="text-sm font-medium underline underline-offset-2">
+                  Ver
                 </Link>
               </li>
             ))}

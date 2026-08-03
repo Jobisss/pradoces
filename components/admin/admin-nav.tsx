@@ -15,6 +15,7 @@ import {
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Início' },
+  { href: '/admin/painel-do-dia', label: 'Painel do dia' },
   { href: '/admin/reservas', label: 'Reservas' },
   { href: '/admin/resgates', label: 'Resgates' },
   { href: '/admin/sorteios', label: 'Sorteios' },
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/admin/receitas', label: 'Receitas' },
   { href: '/admin/produtos', label: 'Produtos' },
   { href: '/admin/lotes', label: 'Lotes' },
+  { href: '/admin/estoque', label: 'Estoque' },
   { href: '/admin/auditoria', label: 'Auditoria' },
   { href: '/admin/ajustes', label: 'Ajustes' },
   { href: '/admin/ajuda', label: 'Ajuda' },
@@ -70,7 +72,7 @@ export function AdminNav({
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:h-16 md:px-8">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:h-16 md:px-8 print:hidden">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -104,7 +106,7 @@ export function AdminNav({
       </Sheet>
 
       <div className="flex">
-        <aside className="hidden w-60 shrink-0 border-r border-border bg-sidebar p-4 md:block">
+        <aside className="hidden w-60 shrink-0 border-r border-border bg-sidebar p-4 md:block print:hidden">
           <NavList pathname={pathname} />
         </aside>
         <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-12">{children}</main>

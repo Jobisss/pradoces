@@ -65,6 +65,11 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                       {r.cliente.email}
                       {r.cliente.telefone ? ` · ${r.cliente.telefone}` : ''}
                     </p>
+                    <p className="text-sm text-muted-foreground">
+                      {r.historicoCliente.totalReservas === 0
+                        ? 'Primeira reserva desse cliente'
+                        : `${r.historicoCliente.totalReservas} reserva(s) anterior(es) · ${currency.format(r.historicoCliente.valorTotal)} no total`}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {r.noShowsDoCliente > 0 && (
