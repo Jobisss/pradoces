@@ -1,13 +1,12 @@
-# Deploy Runbook — PM2 + nginx (alternative to docs/DEPLOY.md)
+# Deploy Runbook — PM2 + nginx, sem Cloudflare (Hostinger direto)
 
-Same trust boundary as the Docker+Caddy path (`docs/DEPLOY.md`), different process
-manager for the app: nginx replaces Caddy, PM2 replaces the Docker `app`
-container. Postgres stays in Docker (reuses `docker-compose.yml`'s `db`
-service unchanged) so nothing about the database setup changes.
+Sem CDN/proxy na frente — DNS aponta direto pro IP do VPS (Hostinger), nginx é
+o único hop entre a internet e o app. PM2 substitui o Docker `app`; Postgres
+continua em Docker (reusa o `db` service do `docker-compose.yml` sem mudança).
 
 ```
-Internet ── Cloudflare (orange cloud, Full Strict)
-                │ 80/443 (only CF CIDRs pass UFW)
+Internet ── DNS (Hostinger) aponta direto pro IP do VPS
+                │ 80/443 (aberto pra internet, UFW libera geral)
             nginx (host, Let's Encrypt via certbot)
                 │ reverse_proxy 127.0.0.1:3000
             PM2 -> node .next/standalone/server.js (loopback only)
@@ -15,15 +14,25 @@ Internet ── Cloudflare (orange cloud, Full Strict)
             db container (Postgres 16, port exposed to loopback only)
 ```
 
+`lib/net/client-ip.ts` prefere o header `CF-Connecting-IP` mas cai pro
+`X-Forwarded-For` normal quando ele não existe — sem Cloudflare, o app
+continua pegando o IP real do cliente correto, sem precisar mudar código,
+desde que nginx seja o ÚNICO proxy na frente (é o caso aqui).
+
 ## 0. Prerequisites
 
-- VPS (Ubuntu 22.04+), Docker + Docker Compose plugin (for Postgres only), Node.js 20+, nginx, certbot.
-- Domain `luizinhaconfeitaria.com.br` on Cloudflare — DNS + SSL/TLS steps are
-  IDENTICAL to `docs/DEPLOY.md` §1 (Cloudflare) and §2 (UFW). Do those first.
+- VPS (Ubuntu 22.04+), Docker + Docker Compose plugin (para o Postgres), Node.js 20+, nginx, certbot.
+- Domínio `luizinhaconfeitaria.com.br` com DNS gerenciado na Hostinger — dois
+  registros **A** (raiz + `www`) apontando pro IP público do VPS. Sem proxy,
+  sem "nuvem" — é resolução direta.
+- UFW liberando 80/443 pra qualquer origem (sem Cloudflare, não tem CIDR pra
+  restringir) + 22 só pro seu IP de SSH.
 
 ```bash
 sudo apt install nginx certbot python3-certbot-nginx
 sudo npm install -g pm2
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 ```
 
 ## 1. Database (Docker, Postgres only)
@@ -91,16 +100,22 @@ for `futtvale.com.br`/`museuvvi.digital`. Auto-renewal (`certbot renew` via
 systemd timer) is already installed with the package, shared across all
 domains on this host.
 
-## 5. Verify (same acceptance criteria as docs/DEPLOY.md §5)
+## 5. Verify
 
 ```bash
-VPS_IP=<VPS_IP> bash scripts/test-origin-hidden.sh     # expect PASS
 pm2 status                                             # luizinha: online
 pm2 logs luizinha --lines 50                           # no crash loop
+curl -I https://luizinhaconfeitaria.com.br             # 200, HSTS header presente
 ```
 
-Then in a browser: same checklist as `docs/DEPLOY.md` §5 (HSTS, CSP from
-`proxy.ts`, UFW only 22+80/443, origin-hidden PASS).
+Sem Cloudflare na frente, `scripts/test-origin-hidden.sh` (docs/DEPLOY.md) não
+se aplica — o IP do VPS é diretamente alcançável por design aqui, não é bug.
+
+Em um navegador:
+- [ ] `https://luizinhaconfeitaria.com.br` carrega com cadeado válido.
+- [ ] Resposta traz `Strict-Transport-Security` (HSTS do nginx).
+- [ ] CSP / X-Frame-Options presentes (vêm do `proxy.ts` do app, não do nginx).
+- [ ] `sudo ufw status numbered` mostra só 22 (seu IP) + 80/443 (geral).
 
 ## Troubleshooting
 
@@ -109,8 +124,8 @@ Then in a browser: same checklist as `docs/DEPLOY.md` §5 (HSTS, CSP from
   `DATABASE_URL` still pointing at `db:5432` instead of `127.0.0.1:5432`.
 - **PM2 process restarts in a loop:** almost always a missing/invalid env var
   — `lib/env.ts` validates at boot and throws. Check `pm2 logs luizinha`.
-- **Cloudflare 526 (invalid cert):** certbot hasn't issued yet, or port 80 is
-  blocked for the HTTP-01 challenge — confirm UFW allows CF on 80 and
-  `/var/www/certbot` exists and matches the `nginx.conf` ACME location.
+- **certbot falha no HTTP-01 challenge:** confirma que o DNS já propagou
+  (`dig +short luizinhaconfeitaria.com.br` deve devolver o IP do VPS) e que a
+  porta 80 está liberada no UFW.
 - **Reboot survival:** `pm2 startup` must have been run AND the printed
   command executed — `pm2 save` alone does not survive a reboot without it.
