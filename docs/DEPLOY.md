@@ -47,9 +47,23 @@ cp .env.production.example .env.production   # depois preenche os secrets reais 
 ln -sf .env.production .env
 
 docker compose up -d --build
-docker compose exec app npx prisma migrate deploy   # aplica migrations (NÃO db push)
-docker compose exec app npm run seed:admin          # bootstrap do usuário admin
+
+# migrate deploy / seed:admin NÃO rodam no container `app` em produção: esse
+# estágio final do Dockerfile (`runner`) é minimalista de propósito e não leva
+# a CLI do prisma, tsx, prisma.config.ts nem scripts/ (só o server.js
+# standalone + o client já gerado). Usa o estágio `builder` (tem tudo isso)
+# como uma imagem descartável, na mesma network do compose (pra resolver o
+# hostname `db`):
+docker build --target builder -t pradoces-migrator .
+docker run --rm --network pradoces_default --env-file .env.production pradoces-migrator npx prisma migrate deploy
+docker run --rm --network pradoces_default --env-file .env.production pradoces-migrator npx tsx scripts/seed-admin.ts
 ```
+
+`npx tsx scripts/seed-admin.ts` (não `npm run seed:admin`) de propósito: o
+script npm usa `tsx --env-file=.env`, e `.env` é excluído da imagem pelo
+`.dockerignore` (nunca commitamos secrets em layers de imagem) — o comando
+direto evita essa flag e usa as variáveis já injetadas pelo `--env-file
+.env.production` do `docker run`.
 
 `.env.production` precisa ter `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`,
 `RESEND_API_KEY`, etc. — gerar secrets com `openssl rand -base64 32`. O app
