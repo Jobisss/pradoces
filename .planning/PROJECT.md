@@ -156,6 +156,7 @@ Sua mãe enxerga o **lucro real** de cada doce vendido (custo de produção rast
 - **LGPD**: termos básicos + política de privacidade no cadastro; coleta de email + telefone + nome + histórico de compras
 - **Backup**: cron diário do Postgres → upload para Cloudflare R2 free tier (10GB grátis) ou similar
 - **Domínio do cliente**: a mãe vai usar isso de verdade — UX precisa ser à prova de usuário não-técnico. Sem opções escondidas atrás de menus, sem jargão, sem confirmações desnecessárias
+- **PRODUCTION MODE (desde 2026-08-03)**: banco de produção na VPS está live com dados reais. Nenhuma alteração pode resetar/apagar o banco — migrations só aditivas via `prisma migrate deploy` (nunca `migrate reset`/`db push --force-reset`), sem `docker compose down -v`, seeds sempre idempotentes (upsert). Ver regra completa em CLAUDE.md.
 
 ## Key Decisions
 

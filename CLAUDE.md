@@ -1,5 +1,15 @@
 @AGENTS.md
 
+# ⚠️ PRODUCTION MODE (a partir de 2026-08-03)
+
+O banco de produção da VPS está **live** com dados reais. A partir de agora:
+
+- **NUNCA** rodar `prisma migrate reset`, `prisma db push --force-reset`, `docker compose down -v` (remove volume `pgdata`), `DROP TABLE`/`TRUNCATE` manual, ou qualquer comando que apague ou recrie dados existentes no banco de produção.
+- Migrations em produção são **sempre aditivas/reversíveis**: `prisma migrate deploy` com migrations revisadas, nunca `migrate dev` direto na VPS.
+- Antes de qualquer alteração de schema, parar e confirmar com o usuário se a migration é segura para dados existentes (não só para o schema vazio).
+- Seed scripts (`seed-admin.ts`, etc.) só devem rodar de forma idempotente (upsert), nunca apagando registros existentes.
+- Se uma tarefa pedir algo que implique reset/perda de dados em produção, PARE e pergunte antes de executar — não assuma que é seguro.
+
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
 
