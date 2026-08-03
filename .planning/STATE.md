@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 6 (Sazonalidade Visual) completa — paleta/banner sazonal automáticos
-last_updated: "2026-08-02T18:45:00.000Z"
-last_activity: 2026-08-02 -- Phases 3, 4, 5 e 6 implementadas direto na mesma sessão (sem orquestração GSD). Phase 6 fecha SAZON-01..04. Só resta Phase 7 (Admin Operacional + Relatórios) no roadmap
+stopped_at: Phase 7 (Admin Operacional + Relatórios) quase completa — só falta FIN-07 (materialized view)
+last_updated: "2026-08-02T19:20:00.000Z"
+last_activity: 2026-08-02 -- Phases 3, 4, 5, 6 e 7 implementadas direto na mesma sessão (sem orquestração GSD). TODAS as 7 fases do roadmap v1 têm código no ar agora
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 7
   total_plans: 22
   completed_plans: 21
-  percent: 92
+  percent: 98
 ---
 
 # Project State
@@ -121,6 +121,41 @@ Items acknowledged and carried forward (consolidados em ROADMAP.md "Deferred for
 | Segurança | Anonimização programada após 5 anos (SEC-03) | Deferido para v1.x | 2026-04-29 (init) |
 
 ## Session Continuity
+
+**2026-08-02 — Phase 7 (Admin Operacional + Relatórios) quase completa (12/13 REQ).**
+Home admin ganhou pendências de verdade (reservas não confirmadas, lotes
+vencendo ≤2 dias, ingrediente sem compra recente — heurística literal do
+requisito, não existe rastreio de estoque restante de ingrediente em lugar
+nenhum do schema — e margem baixa) + resumo do dia. Painel do dia/lista de
+separação é a MESMA tela com `print:hidden` escondendo nav/sidebar — decisão:
+sem PDF gerado em servidor, o "salvar como PDF" do navegador cobre o
+resultado sem puxar `@react-pdf`/puppeteer como dependência nova. Estoque
+agregado por produto. Histórico do cliente (reservas anteriores + valor
+gasto) somado ao no-show count que já existia.
+
+Relatórios financeiros (FIN-01..06): faturamento por período, top produtos
+por receita/margem, histórico mensal (sazonalidade), e análise por marca de
+ingrediente via `$queryRaw` com CTE — soma o lucro de todos os lotes que
+usaram cada (ingrediente,marca); lote com vários ingredientes conta o lucro
+em cada linha (documentado no código — não é rateio exato, seria arbitrário
+tentar dividir). Testado com o dado REAL do usuário (não fixture minha):
+R$16 faturado / R$3,25 custo / R$12,75 lucro batendo em todas as seções.
+
+**FIN-07 (materialized view + seed de 12 meses) ficou de fora** — sem volume
+de dado real pra justificar a infra agora; queries já usam select
+explícito/$queryRaw, então a base está pronta pra virar materialized view
+quando o volume pedir.
+
+Durante essa fase o Turbopack corrompeu de novo (mesmo padrão de antes —
+muitos `taskkill` forçados ao longo da sessão) e `/admin` chegou a dar 500;
+diagnosticado corretamente como ambiental (não bug de código) e resolvido
+com `rm -rf .next` + restart limpo.
+
+`npm run build` limpo com TODAS as rotas das Phases 1-7 depois dessa sessão
+— as 7 fases do roadmap v1 têm código funcionando agora, restando só:
+notificações por email (bloqueado no Resend), revisão jurídica dos sorteios
+antes de lançar pro público, auditoria Lighthouse mobile real (Phase 3), e
+FIN-07.
 
 **2026-08-02 — Phase 6 (Sazonalidade Visual) completa.** 5 campanhas
 hardcoded (Páscoa/Mães/Junina/Crianças/Natal) em `lib/campanhas/definicoes.ts`

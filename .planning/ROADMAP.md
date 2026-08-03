@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Reserva + Pontos** (falta só NOTIF-*, bloqueado no Resend) - Reserva com soft hold (qtde_reservada), confirmação atômica, ledger imutável de pontos, painel cliente, painel do dia da mãe, comprovante público
 - [x] **Phase 5: Engagement** - Catálogo de resgate (XOR produto/custom), troca de pontos, sorteios com random_seed auditado, cron de expiração e de lotes vencidos
 - [x] **Phase 6: Sazonalidade Visual** - Campanhas hardcoded (Páscoa, Mães, Junina, Crianças, Natal) com paleta JSON e CampanhaResolver aplicando banner+CSS vars automaticamente
+- [x] **Phase 7: Admin Operacional + Relatórios** (parcial — falta FIN-07 materialized view, sem volume de dado real pra justificar ainda) - Home admin de ações pendentes, lista de separação PDF, resumo do dia, faturamento/margem/lucro real, análise por marca, sazonalidade no histórico
 - [ ] **Phase 6: Sazonalidade Visual** - Campanhas hardcoded (Páscoa, Mães, Junina, Crianças, Natal) com paleta JSON e CampanhaResolver aplicando banner+CSS vars automaticamente
 - [ ] **Phase 7: Admin Operacional + Relatórios** - Home admin de ações pendentes, lista de separação PDF, resumo do dia, faturamento/margem/lucro real, análise por marca, sazonalidade no histórico
 
@@ -152,7 +153,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Reserva + Pontos | done (menos NOTIF-*) | Quase completo | - |
 | 5. Engagement | 15/15 REQ | Done | 2026-08-02 |
 | 6. Sazonalidade Visual | 4/4 REQ | Done | 2026-08-02 |
-| 7. Admin Operacional + Relatórios | 0/TBD | Not started | - |
+| 7. Admin Operacional + Relatórios | 12/13 REQ (falta FIN-07) | Quase completo | - |
 
 ## Deferred for v1.x (post-launch)
 
