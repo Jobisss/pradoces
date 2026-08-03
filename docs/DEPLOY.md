@@ -38,6 +38,14 @@ sudo ufw allow 443/tcp
 
 ```bash
 cp .env.production.example .env.production   # depois preenche os secrets reais (NÃO commitado)
+
+# docker-compose.yml usa ${POSTGRES_PASSWORD} pra interpolação no próprio YAML
+# (db + DATABASE_URL do app) — isso é resolvido pelo comando `docker compose`
+# lendo `.env` no diretório, NÃO pelo `env_file: .env.production` (esse só
+# injeta variáveis DENTRO do container, é um mecanismo diferente). Sem esse
+# symlink, POSTGRES_PASSWORD fica em branco silenciosamente.
+ln -sf .env.production .env
+
 docker compose up -d --build
 docker compose exec app npx prisma migrate deploy   # aplica migrations (NÃO db push)
 docker compose exec app npm run seed:admin          # bootstrap do usuário admin
