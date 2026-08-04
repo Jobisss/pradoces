@@ -12,6 +12,11 @@ export type SimuladorResultado = {
   totalPontos?: number
   totalReservas?: number
   custoEstimado?: string
+  valorPorPonto?: string
+  baseadoEmCatalogoReal?: boolean
+  cashbackPercent?: string
+  margemMinimaPadrao?: string
+  arriscado?: boolean
 }
 
 export async function simularTaxaPontos(_prev: unknown, formData: FormData): Promise<SimuladorResultado> {
@@ -42,10 +47,36 @@ export async function simularTaxaPontos(_prev: unknown, formData: FormData): Pro
     totalPontos = totalPontos.plus(Decimal.min(pontos, parsed.data.capPorReserva))
   }
 
+  // Valor real de resgate por ponto = média de (preço de venda ÷ custoPontos)
+  // dos itens ativos do catálogo — substitui o antigo placeholder "1 ponto ~
+  // R$1" (só fazia sentido antes do catálogo de resgate existir, Phase 5).
+  // Sem itens de catálogo cadastrados ainda, cai de volta pro placeholder.
+  const [itensCatalogo, config] = await Promise.all([
+    prisma.itemResgatavel.findMany({
+      where: { ativo: true, produtoId: { not: null } },
+      select: { custoPontos: true, produto: { select: { precoVenda: true } } },
+    }),
+    prisma.configuracao.findUnique({ where: { id: 1 } }),
+  ])
+
+  const baseadoEmCatalogoReal = itensCatalogo.length > 0
+  const valorPorPonto = baseadoEmCatalogoReal
+    ? itensCatalogo
+        .reduce((soma, item) => soma.plus(new Decimal(item.produto!.precoVenda).dividedBy(item.custoPontos)), new Decimal(0))
+        .dividedBy(itensCatalogo.length)
+    : new Decimal(1)
+
+  const margemMinimaPadrao = config?.margemMinimaPadrao ?? new Decimal(30)
+  const cashbackPercent = valorPorPonto.times(parsed.data.pontosPorReal).times(100)
+
   return {
     totalPontos: totalPontos.toNumber(),
     totalReservas: reservas.length,
-    // Estimativa: assume 1 ponto ~ R$1 se algum dia virar resgate (ainda não existe catálogo, Phase 5).
-    custoEstimado: totalPontos.toFixed(2),
+    custoEstimado: totalPontos.times(valorPorPonto).toFixed(2),
+    valorPorPonto: valorPorPonto.toFixed(4),
+    baseadoEmCatalogoReal,
+    cashbackPercent: cashbackPercent.toFixed(1),
+    margemMinimaPadrao: margemMinimaPadrao.toFixed(2),
+    arriscado: cashbackPercent.gte(margemMinimaPadrao),
   }
 }

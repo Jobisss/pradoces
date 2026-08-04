@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 
-type Produto = { id: string; nome: string }
+type Produto = { id: string; nome: string; precoVenda: number | null; margem: number | null }
 
 type FormValues = {
   modo: 'produto' | 'custom'
@@ -22,6 +22,7 @@ type FormValues = {
 
 type ItemResgatavelFormProps = {
   produtos: Produto[]
+  pontosPorRealAtual: number
   defaults?: {
     id: string
     produtoId: string | null
@@ -31,8 +32,10 @@ type ItemResgatavelFormProps = {
   }
 }
 
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
 /** RESG-01/02/07 — produto do catálogo OU nome custom, nunca os dois. */
-export function ItemResgatavelForm({ produtos, defaults }: ItemResgatavelFormProps) {
+export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: ItemResgatavelFormProps) {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -46,8 +49,29 @@ export function ItemResgatavelForm({ produtos, defaults }: ItemResgatavelFormPro
       ativo: defaults?.ativo ?? true,
     },
   })
-  const { control, handleSubmit, watch } = form
+  const { control, handleSubmit, watch, setValue } = form
   const modo = watch('modo')
+  const produtoId = watch('produtoId')
+  const custoPontosStr = watch('custoPontos')
+
+  const produtoSelecionado = modo === 'produto' ? produtos.find((p) => p.id === produtoId) : undefined
+  const custoPontosNum = Number(custoPontosStr?.replace(',', '.'))
+
+  let dica: { valorPorPonto: number; cashbackPercent: number; arriscado: boolean; sugestao: number } | null = null
+  if (
+    produtoSelecionado &&
+    produtoSelecionado.precoVenda !== null &&
+    produtoSelecionado.margem !== null &&
+    produtoSelecionado.margem > 0 &&
+    Number.isFinite(custoPontosNum) &&
+    custoPontosNum > 0
+  ) {
+    const valorPorPonto = produtoSelecionado.precoVenda / custoPontosNum
+    const cashbackPercent = valorPorPonto * pontosPorRealAtual * 100
+    // Sugestão: custoPontos que deixa o cashback em metade da margem (folga).
+    const sugestao = Math.ceil((produtoSelecionado.precoVenda * pontosPorRealAtual * 200) / produtoSelecionado.margem)
+    dica = { valorPorPonto, cashbackPercent, arriscado: cashbackPercent >= produtoSelecionado.margem, sugestao }
+  }
 
   function onSubmit(data: FormValues) {
     setServerError(null)
@@ -151,6 +175,39 @@ export function ItemResgatavelForm({ produtos, defaults }: ItemResgatavelFormPro
             </FormItem>
           )}
         />
+
+        {modo === 'produto' && produtoSelecionado && (produtoSelecionado.precoVenda === null || produtoSelecionado.margem === null) && (
+          <p className="text-sm text-muted-foreground">
+            Esse produto ainda não tem custo calculado (falta compra de ingrediente registrada) — sem
+            referência de margem pra sugerir um valor seguro.
+          </p>
+        )}
+
+        {dica && (
+          <div
+            className={`space-y-1 rounded-lg border p-3 text-sm ${
+              dica.arriscado ? 'border-destructive text-destructive' : 'border-border text-muted-foreground'
+            }`}
+          >
+            <p>
+              Isso equivale a ~{currency.format(dica.valorPorPonto)} por ponto — ~{dica.cashbackPercent.toFixed(1)}%
+              de cashback sobre o preço de venda, contra {produtoSelecionado!.margem!.toFixed(1)}% de margem desse
+              produto.
+            </p>
+            <p className={dica.arriscado ? 'font-medium' : ''}>
+              {dica.arriscado
+                ? 'Igual ou acima da margem — resgatar esse item dá prejuízo.'
+                : 'Dentro da margem, com folga pra não sair no prejuízo.'}
+            </p>
+            <button
+              type="button"
+              className="text-primary underline underline-offset-2"
+              onClick={() => setValue('custoPontos', String(dica!.sugestao))}
+            >
+              Usar sugestão com folga: {dica.sugestao} pontos
+            </button>
+          </div>
+        )}
 
         <FormField
           control={control}

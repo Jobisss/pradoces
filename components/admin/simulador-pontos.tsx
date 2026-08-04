@@ -50,9 +50,30 @@ export function SimuladorPontos({ pontosPorRealAtual, capAtual }: { pontosPorRea
             <span className="font-medium tabular-nums">{state.totalPontos} pontos</span>.
           </p>
           <p className="text-muted-foreground">
-            Se cada ponto virar ~{currency.format(1)} em resgate no futuro, isso equivale a cerca de{' '}
-            {currency.format(Number(state.custoEstimado))}.
+            {state.baseadoEmCatalogoReal ? (
+              <>
+                Pela média do seu catálogo de resgate hoje (~{currency.format(Number(state.valorPorPonto))} por
+                ponto), isso equivale a cerca de{' '}
+                <span className="font-medium text-foreground">{currency.format(Number(state.custoEstimado))}</span>{' '}
+                em produto dado de resgate.
+              </>
+            ) : (
+              <>
+                Ainda não tem item ativo no catálogo de resgate pra calcular um valor real — estimativa
+                genérica assumindo 1 ponto ≈ R$1: cerca de{' '}
+                {currency.format(Number(state.custoEstimado))}.
+              </>
+            )}
           </p>
+          {state.baseadoEmCatalogoReal && (
+            <p className={state.arriscado ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+              Isso representa ~{state.cashbackPercent}% de cashback sobre o preço de venda, contra{' '}
+              {state.margemMinimaPadrao}% de margem mínima configurada.{' '}
+              {state.arriscado
+                ? 'Tá igual ou acima da margem — risco de prejuízo nos resgates.'
+                : 'Dentro da margem — folga pra não sair no prejuízo.'}
+            </p>
+          )}
         </div>
       )}
     </div>
