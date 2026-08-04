@@ -24,7 +24,7 @@ export function ProdutoGaleria({ fotos, nome }: { fotos: string[]; nome: string 
   return (
     <div className="mb-4 space-y-2">
       <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
-        <Image src={`/uploads/${fotos[indice]}-grande.webp`} alt={nome} fill sizes="100vw" className="object-cover" priority />
+        <Image src={`/media/${fotos[indice]}-grande.webp`} alt={nome} fill sizes="100vw" className="object-cover" priority />
 
         {fotos.length > 1 && (
           <>

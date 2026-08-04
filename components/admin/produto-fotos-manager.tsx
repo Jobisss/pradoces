@@ -85,7 +85,7 @@ export function ProdutoFotosManager({ produtoId, fotosIniciais }: { produtoId: s
           {fotos.map((foto, index) => (
             <div key={foto.id} className="relative overflow-hidden rounded-lg border border-border">
               <Image
-                src={`/uploads/${foto.path}-medio.webp`}
+                src={`/media/${foto.path}-medio.webp`}
                 alt=""
                 width={768}
                 height={768}

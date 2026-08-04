@@ -22,6 +22,11 @@ import { rateLimitAuth } from '@/lib/ratelimit/memory'
  * só em memória. Arquivos vivem em public/uploads/ (fora do git, volume
  * Docker em prod — ver .gitignore e docker-compose.yml); `ProdutoFoto.path`
  * guarda o prefixo sem sufixo/extensão, os 3 tamanhos derivam dele.
+ *
+ * Servidos por app/media/[...path]/route.ts, NÃO por referência direta a
+ * /uploads/... — no Next 16 standalone o servidor só serve estático de
+ * public/ o que já existia no build; foto nova gravada em runtime aqui
+ * devolveria 404 se lida como arquivo estático. Ver comentário na route.
  */
 
 const GENERIC_SERVER_ERROR = 'Algo não deu certo do nosso lado. Tente de novo em alguns segundos.'

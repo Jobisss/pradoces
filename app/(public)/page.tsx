@@ -97,7 +97,7 @@ export default async function Home({
                 <div className="relative aspect-square bg-muted">
                   {p.capaPath ? (
                     <Image
-                      src={`/uploads/${p.capaPath}-medio.webp`}
+                      src={`/media/${p.capaPath}-medio.webp`}
                       alt=""
                       fill
                       sizes="(max-width: 640px) 50vw, 25vw"
