@@ -343,6 +343,48 @@ export async function apagarReserva(reservaId: string): Promise<ReservaAdminActi
   return { ok: true }
 }
 
+/**
+ * Marca/desmarca "pago" numa reserva — puro checklist manual da mãe (pagamento
+ * combinado fora do sistema, WhatsApp/pix na entrega, nunca cobrança online).
+ * Não bloqueia nem afeta nenhum outro fluxo (confirmar, retirar, estoque,
+ * pontos) — só ajuda a lembrar quem ainda deve.
+ */
+export async function marcarPago(reservaId: string, pago: boolean): Promise<ReservaAdminActionState> {
+  const { ip, ua } = await clientContext()
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let admin: Awaited<ReturnType<typeof requireAdmin>>
+  try {
+    admin = await requireAdmin()
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  try {
+    await prisma.reserva.update({
+      where: { id: reservaId },
+      data: { pago, pagoEm: pago ? new Date() : null },
+    })
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  await logAudit({
+    actorType: 'admin',
+    actorId: admin.id,
+    action: pago ? 'reserva_marcada_paga' : 'reserva_desmarcada_paga',
+    entityType: 'reserva',
+    entityId: reservaId,
+    rawIp: ip,
+    rawUa: ua,
+  })
+
+  revalidatePath('/admin/reservas')
+  revalidatePath('/admin/painel-do-dia')
+  return { ok: true }
+}
+
 /** RES-14 — bloqueia/desbloqueia cliente via o plugin admin do Better Auth (banned/banReason já existiam). */
 export async function bloquearCliente(clienteId: string, motivo: string): Promise<ReservaAdminActionState> {
   const { ip, ua } = await clientContext()

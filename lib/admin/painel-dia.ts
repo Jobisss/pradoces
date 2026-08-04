@@ -18,6 +18,7 @@ export type ReservaDoDia = {
   observacao: string | null
   deliveryMode: string
   enderecoEntrega: string | null
+  pago: boolean
   itens: ItemSeparacao[]
 }
 
@@ -33,6 +34,7 @@ export async function painelDoDia(): Promise<GrupoJanela[]> {
       observacao: true,
       deliveryMode: true,
       enderecoEntrega: true,
+      pago: true,
       cliente: { select: { name: true, telefone: true } },
       itens: { select: { qtde: true, lote: { select: { produto: { select: { nome: true } } } } } },
       itemResgatavel: { select: { nomeCustom: true, produto: { select: { nome: true } } } },
@@ -55,6 +57,7 @@ export async function painelDoDia(): Promise<GrupoJanela[]> {
       observacao: r.observacao,
       deliveryMode: r.deliveryMode,
       enderecoEntrega: r.enderecoEntrega,
+      pago: r.pago,
       itens,
     }
 

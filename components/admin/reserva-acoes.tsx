@@ -11,6 +11,7 @@ import {
   bloquearCliente,
   desbloquearCliente,
   apagarReserva,
+  marcarPago,
 } from '@/lib/actions/reservas-admin'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,11 +39,13 @@ export function ReservaAcoes({
   status,
   clienteId,
   clienteBloqueado,
+  pago,
 }: {
   reservaId: string
   status: string
   clienteId: string
   clienteBloqueado: boolean
+  pago: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -75,6 +78,20 @@ export function ReservaAcoes({
       )}
 
       <div className="flex flex-wrap gap-2">
+        {status !== 'CANCELADA' && (
+          <Button
+            size="sm"
+            variant={pago ? 'outline' : 'secondary'}
+            className="h-9"
+            disabled={pending}
+            onClick={() =>
+              rodar(() => marcarPago(reservaId, !pago), pago ? 'Desmarcado como pago.' : 'Marcado como pago!')
+            }
+          >
+            {pago ? '✓ Pago' : 'Marcar como pago'}
+          </Button>
+        )}
+
         {status === 'PENDENTE' && (
           <>
             <Button

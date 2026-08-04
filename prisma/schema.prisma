@@ -399,6 +399,12 @@ model Reserva {
   taxaEntregaCongelada Decimal?      @map("taxa_entrega_congelada") @db.Decimal(19, 4)
   janelaRetirada       String        @map("janela_retirada")
   observacao           String?
+  // Pagamento é sempre combinado fora do sistema (WhatsApp/pix na entrega) —
+  // v1 nunca teve cobrança online (PROJECT.md, decisão explícita). Isso é só
+  // um checklist manual pra mãe lembrar quem já pagou quando o combinado foi
+  // "pago depois". Não bloqueia nenhum fluxo (confirmar, retirar, etc.).
+  pago                 Boolean       @default(false)
+  pagoEm               DateTime?     @map("pago_em") @db.Timestamptz(6)
   // Só quando tipo=RESGATE (RESG-03) — o que vai ser entregue.
   itemResgatavelId     String?       @map("item_resgatavel_id") @db.Uuid
   // Comprovante público /r/<token> (RES-10) — sem login, token não sequencial.

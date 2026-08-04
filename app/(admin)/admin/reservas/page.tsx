@@ -88,6 +88,17 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                     <span className="rounded-full border border-border px-2 py-0.5 text-xs">
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
+                    {r.status !== 'CANCELADA' && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          r.pago
+                            ? 'bg-primary/20 text-foreground'
+                            : 'border border-destructive text-destructive'
+                        }`}
+                      >
+                        {r.pago ? 'Pago' : 'A pagar'}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -148,6 +159,7 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                   status={r.status}
                   clienteId={r.cliente.id}
                   clienteBloqueado={r.cliente.banned}
+                  pago={r.pago}
                 />
               </li>
             )

@@ -36,6 +36,11 @@ export default async function PainelDoDiaPage() {
                             Entrega
                           </span>
                         )}
+                        {!r.pago && (
+                          <span className="ml-2 rounded-full border border-destructive px-2 py-0.5 text-xs font-normal text-destructive">
+                            A pagar
+                          </span>
+                        )}
                       </p>
                       <span className="rounded-full border border-border px-2 py-0.5 text-xs print:hidden">
                         {STATUS_LABEL[r.status] ?? r.status}
