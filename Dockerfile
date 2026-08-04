@@ -66,6 +66,11 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 # senão o Docker cria o mountpoint como root e o server não consegue escrever.
 RUN mkdir -p ./public/uploads && chown node:node ./public/uploads
 
+# .next/cache não vem no output standalone (COPY acima é root-owned por
+# padrão) — Next tenta criar/escrever nele em runtime (cache de otimização de
+# imagem) e o usuário "node" sem dono do diretório toma EACCES ao dar mkdir.
+RUN mkdir -p ./.next/cache && chown -R node:node ./.next
+
 USER node
 EXPOSE 3000
 # Standalone entrypoint: node server.js
