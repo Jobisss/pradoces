@@ -6,77 +6,31 @@ import { MinusIcon, PlusIcon } from 'lucide-react'
 import { useCart } from '@/components/cart-provider'
 import { Button } from '@/components/ui/button'
 
-type LoteOpcao = { id: string; qtdeDisponivel: number; diasParaVencer: number }
-
-function rotuloValidade(dias: number): string {
-  if (dias === 0) return 'vence hoje'
-  if (dias === 1) return 'vence amanhã'
-  return `vence em ${dias} dias`
-}
-
-/** RES-01 — escolhe o lote (default: o que vence primeiro) e a quantidade, junta no carrinho. */
-export function AdicionarCarrinho({
+/** Kit não tem lote pra escolher — só quantidade, limitada pelo estoque livre dos componentes (kitDisponivel). */
+export function AdicionarKitCarrinho({
   produtoId,
   produtoNome,
   precoUnitario,
-  lotes,
+  kitDisponivel,
 }: {
   produtoId: string
   produtoNome: string
   precoUnitario: string
-  lotes: LoteOpcao[]
+  kitDisponivel: number
 }) {
   const router = useRouter()
   const { adicionar } = useCart()
-  const [loteId, setLoteId] = useState(lotes[0]?.id ?? '')
   const [qtde, setQtde] = useState(1)
   const [adicionado, setAdicionado] = useState(false)
 
-  const lote = lotes.find((l) => l.id === loteId)
-  if (!lote) return null
-
   function handleAdicionar() {
-    adicionar(
-      {
-        tipo: 'UNITARIO',
-        loteId: lote!.id,
-        produtoId,
-        produtoNome,
-        precoUnitario,
-        validade: '',
-        qtdeDisponivelNoLote: lote!.qtdeDisponivel,
-      },
-      qtde,
-    )
+    adicionar({ tipo: 'KIT', produtoId, produtoNome, precoUnitario, kitDisponivel }, qtde)
     setAdicionado(true)
     setTimeout(() => setAdicionado(false), 2000)
   }
 
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
-      {lotes.length > 1 && (
-        <div className="space-y-1.5">
-          <label htmlFor="lote-select" className="text-sm font-medium">
-            Qual lote?
-          </label>
-          <select
-            id="lote-select"
-            value={loteId}
-            onChange={(e) => {
-              setLoteId(e.target.value)
-              setQtde(1)
-            }}
-            className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-sm"
-          >
-            {lotes.map((l) => (
-              <option key={l.id} value={l.id}>
-                {rotuloValidade(l.diasParaVencer)} · {l.qtdeDisponivel} disponíveis
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Quantidade</span>
         <div className="flex items-center gap-3">
@@ -98,8 +52,8 @@ export function AdicionarCarrinho({
             size="icon"
             className="size-11"
             aria-label="Aumentar quantidade"
-            disabled={qtde >= lote.qtdeDisponivel}
-            onClick={() => setQtde((q) => Math.min(lote!.qtdeDisponivel, q + 1))}
+            disabled={qtde >= kitDisponivel}
+            onClick={() => setQtde((q) => Math.min(kitDisponivel, q + 1))}
           >
             <PlusIcon className="size-4" />
           </Button>

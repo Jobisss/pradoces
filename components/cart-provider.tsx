@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 
-export type CartItem = {
+export type CartItemUnitario = {
+  tipo: 'UNITARIO'
   loteId: string
   produtoId: string
   produtoNome: string
@@ -12,11 +13,34 @@ export type CartItem = {
   qtdeDisponivelNoLote: number
 }
 
+/** Kit não tem lote próprio (é montado a partir dos componentes na hora da reserva) — o limite aqui é kitDisponivel, calculado a partir do estoque livre dos componentes. */
+export type CartItemKit = {
+  tipo: 'KIT'
+  produtoId: string
+  produtoNome: string
+  precoUnitario: string
+  qtde: number
+  kitDisponivel: number
+}
+
+export type CartItem = CartItemUnitario | CartItemKit
+/** `Omit<Union, K>` não distribui pelas variantes (perde o discriminante) — união explícita dos Omits individuais. */
+export type NovoCartItem = Omit<CartItemUnitario, 'qtde'> | Omit<CartItemKit, 'qtde'>
+
+/** Chave de identidade no carrinho: lote pro item avulso, produto pro kit (kit não tem lote). */
+function chave(item: Pick<CartItem, 'tipo' | 'produtoId'> & { loteId?: string }): string {
+  return item.tipo === 'KIT' ? `kit:${item.produtoId}` : `lote:${item.loteId}`
+}
+
+function limiteDisponivel(item: CartItem): number {
+  return item.tipo === 'KIT' ? item.kitDisponivel : item.qtdeDisponivelNoLote
+}
+
 type CartContextValue = {
   itens: CartItem[]
-  adicionar: (item: Omit<CartItem, 'qtde'>, qtde: number) => void
-  remover: (loteId: string) => void
-  atualizarQtde: (loteId: string, qtde: number) => void
+  adicionar: (item: NovoCartItem, qtde: number) => void
+  remover: (item: CartItem) => void
+  atualizarQtde: (item: CartItem, qtde: number) => void
   limpar: () => void
 }
 
@@ -50,22 +74,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const adicionar = useCallback((item: Omit<CartItem, 'qtde'>, qtde: number) => {
     setItens((prev) => {
-      const existente = prev.find((i) => i.loteId === item.loteId)
+      const chaveNova = chave(item)
+      const existente = prev.find((i) => chave(i) === chaveNova)
       if (existente) {
-        const novaQtde = Math.min(existente.qtde + qtde, existente.qtdeDisponivelNoLote)
-        return prev.map((i) => (i.loteId === item.loteId ? { ...i, qtde: novaQtde } : i))
+        const novaQtde = Math.min(existente.qtde + qtde, limiteDisponivel(existente))
+        return prev.map((i) => (chave(i) === chaveNova ? { ...i, qtde: novaQtde } : i))
       }
-      return [...prev, { ...item, qtde: Math.min(qtde, item.qtdeDisponivelNoLote) }]
+      return [...prev, { ...item, qtde: Math.min(qtde, limiteDisponivel(item as CartItem)) } as CartItem]
     })
   }, [])
 
-  const remover = useCallback((loteId: string) => {
-    setItens((prev) => prev.filter((i) => i.loteId !== loteId))
+  const remover = useCallback((item: CartItem) => {
+    const alvo = chave(item)
+    setItens((prev) => prev.filter((i) => chave(i) !== alvo))
   }, [])
 
-  const atualizarQtde = useCallback((loteId: string, qtde: number) => {
+  const atualizarQtde = useCallback((item: CartItem, qtde: number) => {
+    const alvo = chave(item)
     setItens((prev) =>
-      prev.map((i) => (i.loteId === loteId ? { ...i, qtde: Math.max(1, Math.min(qtde, i.qtdeDisponivelNoLote)) } : i)),
+      prev.map((i) => (chave(i) === alvo ? { ...i, qtde: Math.max(1, Math.min(qtde, limiteDisponivel(i))) } : i)),
     )
   }, [])
 

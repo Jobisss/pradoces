@@ -1,5 +1,6 @@
 'use server'
 
+import Decimal from 'decimal.js'
 import { headers as nextHeaders } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db/client'
@@ -64,10 +65,19 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
   }
 
-  const loteIds = [...new Set(parsed.data.itens.map((i) => i.loteId))]
-  const qtdePorLote = new Map<string, number>()
-  for (const item of parsed.data.itens) {
-    qtdePorLote.set(item.loteId, (qtdePorLote.get(item.loteId) ?? 0) + item.qtde)
+  const itensUnitario = parsed.data.itens.filter((i) => i.tipo === 'UNITARIO')
+  const itensKit = parsed.data.itens.filter((i) => i.tipo === 'KIT')
+
+  const loteIdsExplicitos = [...new Set(itensUnitario.map((i) => i.loteId))]
+  const qtdePorLoteExplicito = new Map<string, number>()
+  for (const item of itensUnitario) {
+    qtdePorLoteExplicito.set(item.loteId, (qtdePorLoteExplicito.get(item.loteId) ?? 0) + item.qtde)
+  }
+
+  const kitProdutoIds = [...new Set(itensKit.map((i) => i.produtoId))]
+  const qtdePorKitProduto = new Map<string, number>()
+  for (const item of itensKit) {
+    qtdePorKitProduto.set(item.produtoId, (qtdePorKitProduto.get(item.produtoId) ?? 0) + item.qtde)
   }
 
   let resultado: { id: string; token: string }
@@ -80,34 +90,101 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
         taxaEntregaCongelada = config.taxaEntregaPadrao.toFixed(4)
       }
 
-      // ORDER BY id: ordem determinística de lock entre lotes diferentes,
-      // pra duas reservas concorrentes com itens sobrepostos não deadlockarem.
+      const hojeDate = new Date(`${hojeSaoPaulo()}T00:00:00Z`)
+
+      // Kit não escolhe lote no carrinho (não tem lote próprio) — os
+      // componentes dele são resolvidos AQUI, dentro da transação, pra usar
+      // o mesmo soft-hold/lock dos itens avulsos.
+      const kitItensPorKit = new Map<string, { componenteId: string; qtde: number }[]>()
+      const componenteIds = new Set<string>()
+      if (kitProdutoIds.length > 0) {
+        const kitItensRows = await tx.produtoKitItem.findMany({
+          where: { kitId: { in: kitProdutoIds } },
+          select: { kitId: true, componenteId: true, qtde: true },
+        })
+        for (const row of kitItensRows) {
+          if (!kitItensPorKit.has(row.kitId)) kitItensPorKit.set(row.kitId, [])
+          kitItensPorKit.get(row.kitId)!.push({ componenteId: row.componenteId, qtde: row.qtde })
+          componenteIds.add(row.componenteId)
+        }
+      }
+
+      // Uma única query de lock, em ordem determinística por id (mesmo
+      // princípio do lock original) — cobre tanto os lotes escolhidos
+      // diretamente quanto TODOS os lotes vigentes dos componentes de kit
+      // (não dá pra saber de qual lote o FEFO vai tirar antes de travar).
       const lotes = await tx.$queryRaw<LoteLock[]>`
         SELECT id, produto_id, qtde_disponivel, qtde_reservada, validade
-        FROM lotes WHERE id = ANY(${loteIds}::uuid[]) ORDER BY id FOR UPDATE`
+        FROM lotes
+        WHERE id = ANY(${loteIdsExplicitos}::uuid[])
+           OR (produto_id = ANY(${[...componenteIds]}::uuid[]) AND validade >= ${hojeDate})
+        ORDER BY id FOR UPDATE`
 
-      if (lotes.length !== loteIds.length) throw new ReservaError(DADOS_DESATUALIZADOS)
       const loteMap = new Map(lotes.map((l) => [l.id, l]))
+      if (loteIdsExplicitos.some((id) => !loteMap.has(id))) throw new ReservaError(DADOS_DESATUALIZADOS)
 
-      const produtoIds = [...new Set(lotes.map((l) => l.produto_id))]
+      const lotesPorComponente = new Map<string, LoteLock[]>()
+      for (const lote of lotes) {
+        if (!componenteIds.has(lote.produto_id)) continue
+        if (!lotesPorComponente.has(lote.produto_id)) lotesPorComponente.set(lote.produto_id, [])
+        lotesPorComponente.get(lote.produto_id)!.push(lote)
+      }
+      for (const grupo of lotesPorComponente.values()) grupo.sort((a, b) => a.validade.getTime() - b.validade.getTime())
+
+      const produtoIds = [...new Set(lotes.map((l) => l.produto_id)), ...kitProdutoIds]
       const produtos = await tx.produto.findMany({
         where: { id: { in: produtoIds } },
-        select: { id: true, ativo: true, precoVenda: true },
+        select: { id: true, ativo: true, tipo: true, precoVenda: true },
       })
       const produtoMap = new Map(produtos.map((p) => [p.id, p]))
 
-      const hojeDate = new Date(`${hojeSaoPaulo()}T00:00:00Z`)
-      for (const [loteId, qtde] of qtdePorLote) {
-        const lote = loteMap.get(loteId)
-        if (!lote) throw new ReservaError(DADOS_DESATUALIZADOS)
+      // qtde total sendo tirada de cada lote (avulso + kit somados, pra não
+      // dar dupla contagem se o mesmo lote for usado nos dois caminhos).
+      const alocadoPorLote = new Map<string, number>()
+
+      for (const [loteId, qtde] of qtdePorLoteExplicito) {
+        const lote = loteMap.get(loteId)!
         const produto = produtoMap.get(lote.produto_id)
         if (!produto || !produto.ativo) throw new ReservaError(DADOS_DESATUALIZADOS)
         if (lote.validade < hojeDate) throw new ReservaError(DADOS_DESATUALIZADOS)
         const livreParaReserva = lote.qtde_disponivel - lote.qtde_reservada
         if (qtde > livreParaReserva) throw new ReservaError(ESTOQUE_INSUFICIENTE)
+        alocadoPorLote.set(loteId, qtde)
       }
 
-      for (const [loteId, qtde] of qtdePorLote) {
+      const itensKitCriar: { loteId: string; qtde: number; precoUnitarioCongelado: string }[] = []
+      for (const [kitProdutoId, qtdeKits] of qtdePorKitProduto) {
+        const kitProduto = produtoMap.get(kitProdutoId)
+        const kitItens = kitItensPorKit.get(kitProdutoId)
+        if (!kitProduto || !kitProduto.ativo || kitProduto.tipo !== 'KIT' || !kitItens || kitItens.length === 0) {
+          throw new ReservaError(DADOS_DESATUALIZADOS)
+        }
+
+        // Preço do kit rateado igualmente por unidade componente (não é o
+        // preço individual de cada componente) — o cliente pagou o preço do
+        // KIT, não a soma avulsa das peças. Mesma filosofia de "não é rateio
+        // exato" já documentada no relatório de lucro por marca.
+        const totalUnidadesPorKit = kitItens.reduce((soma, k) => soma + k.qtde, 0)
+        const precoPorUnidade = new Decimal(kitProduto.precoVenda).dividedBy(totalUnidadesPorKit).toFixed(4)
+
+        for (const { componenteId, qtde: qtdePorKit } of kitItens) {
+          let restante = qtdePorKit * qtdeKits
+          const lotesDisponiveis = lotesPorComponente.get(componenteId) ?? []
+          for (const lote of lotesDisponiveis) {
+            if (restante <= 0) break
+            const jaAlocado = alocadoPorLote.get(lote.id) ?? 0
+            const livre = lote.qtde_disponivel - lote.qtde_reservada - jaAlocado
+            if (livre <= 0) continue
+            const pega = Math.min(livre, restante)
+            alocadoPorLote.set(lote.id, jaAlocado + pega)
+            itensKitCriar.push({ loteId: lote.id, qtde: pega, precoUnitarioCongelado: precoPorUnidade })
+            restante -= pega
+          }
+          if (restante > 0) throw new ReservaError(ESTOQUE_INSUFICIENTE)
+        }
+      }
+
+      for (const [loteId, qtde] of alocadoPorLote) {
         await tx.lote.update({ where: { id: loteId }, data: { qtdeReservada: { increment: qtde } } })
       }
 
@@ -120,15 +197,18 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
           janelaRetirada: parsed.data.janelaRetirada,
           observacao: parsed.data.observacao,
           itens: {
-            create: parsed.data.itens.map((item) => {
-              const lote = loteMap.get(item.loteId)!
-              const produto = produtoMap.get(lote.produto_id)!
-              return {
-                loteId: item.loteId,
-                qtde: item.qtde,
-                precoUnitarioCongelado: produto.precoVenda,
-              }
-            }),
+            create: [
+              ...itensUnitario.map((item) => {
+                const lote = loteMap.get(item.loteId)!
+                const produto = produtoMap.get(lote.produto_id)!
+                return {
+                  loteId: item.loteId,
+                  qtde: item.qtde,
+                  precoUnitarioCongelado: produto.precoVenda,
+                }
+              }),
+              ...itensKitCriar,
+            ],
           },
         },
         select: { id: true, token: true },

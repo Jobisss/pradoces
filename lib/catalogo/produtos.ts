@@ -35,6 +35,32 @@ async function idsComEstoque(): Promise<Set<string>> {
   return new Set(lotes.map((l) => l.produtoId))
 }
 
+/**
+ * Estoque LIVRE (qtde_disponivel - qtde_reservada, igual ao soft-hold de
+ * criarReserva) somado por produto UNITARIO, só lotes vigentes. Base pra
+ * calcular quantos KITs inteiros dá pra montar com o que sobrou de cada
+ * componente.
+ */
+async function estoqueLivrePorProduto(produtoIds: string[]): Promise<Map<string, number>> {
+  if (produtoIds.length === 0) return new Map()
+  const lotes = await prisma.lote.findMany({
+    where: { produtoId: { in: produtoIds }, validade: { gte: inicioDoDiaSaoPaulo() } },
+    select: { produtoId: true, qtdeDisponivel: true, qtdeReservada: true },
+  })
+  const livre = new Map<string, number>()
+  for (const l of lotes) {
+    const atual = livre.get(l.produtoId) ?? 0
+    livre.set(l.produtoId, atual + Math.max(0, l.qtdeDisponivel - l.qtdeReservada))
+  }
+  return livre
+}
+
+/** Quantos kits inteiros dá pra montar hoje — o gargalo é o componente com menos estoque livre relativo ao que o kit precisa. */
+function kitsMontaveis(kitItens: Array<{ componenteId: string; qtde: number }>, livrePorComponente: Map<string, number>): number {
+  if (kitItens.length === 0) return 0
+  return Math.min(...kitItens.map((k) => Math.floor((livrePorComponente.get(k.componenteId) ?? 0) / k.qtde)))
+}
+
 export async function listarCategoriasAtivas(): Promise<string[]> {
   const rows = await prisma.produto.findMany({
     where: { ativo: true },
@@ -64,13 +90,15 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       tipo: true,
       precoVenda: true,
       fotos: { where: { ordem: 0 }, select: { path: true } },
-      kitItens: { select: { componenteId: true } },
+      kitItens: { select: { componenteId: true, qtde: true } },
       campanhas: { select: { campanhaId: true } },
     },
     orderBy: { nome: 'asc' },
   })
 
   const disponiveis = await idsComEstoque()
+  const componenteIds = [...new Set(produtos.flatMap((p) => p.kitItens.map((k) => k.componenteId)))]
+  const livrePorComponente = await estoqueLivrePorProduto(componenteIds)
 
   return produtos.map((p) => ({
     id: p.id,
@@ -79,10 +107,7 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
     tipo: p.tipo,
     precoVenda: p.precoVenda.toFixed(2),
     capaPath: p.fotos[0]?.path ?? null,
-    disponivel:
-      p.tipo === 'UNITARIO'
-        ? disponiveis.has(p.id)
-        : p.kitItens.length > 0 && p.kitItens.every((k) => disponiveis.has(k.componenteId)),
+    disponivel: p.tipo === 'UNITARIO' ? disponiveis.has(p.id) : kitsMontaveis(p.kitItens, livrePorComponente) > 0,
     emCampanha: p.campanhas.length > 0,
   }))
 }
@@ -100,6 +125,7 @@ export type ProdutoDetalhe = {
   fotos: string[]
   lotes: LoteDisponivel[]
   kitComponentes: Array<{ nome: string; qtde: number }>
+  kitDisponivel: number
 }
 
 /** CAT-05: `null` cobre tanto "não existe" quanto "desativado" — pro cliente é o mesmo 404. */
@@ -116,12 +142,13 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
       alergenicos: true,
       ativo: true,
       fotos: { orderBy: { ordem: 'asc' }, select: { path: true } },
-      kitItens: { select: { qtde: true, componente: { select: { nome: true } } } },
+      kitItens: { select: { qtde: true, componenteId: true, componente: { select: { nome: true } } } },
     },
   })
   if (!produto || !produto.ativo) return null
 
   let lotes: LoteDisponivel[] = []
+  let kitDisponivel = 0
   if (produto.tipo === 'UNITARIO') {
     const hojeDate = inicioDoDiaSaoPaulo()
     const rows = await prisma.lote.findMany({
@@ -135,6 +162,9 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
       qtdeDisponivel: l.qtdeDisponivel,
       diasParaVencer: differenceInCalendarDays(l.validade, hojeDate),
     }))
+  } else {
+    const livrePorComponente = await estoqueLivrePorProduto(produto.kitItens.map((k) => k.componenteId))
+    kitDisponivel = kitsMontaveis(produto.kitItens, livrePorComponente)
   }
 
   return {
@@ -149,5 +179,6 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
     lotes,
     kitComponentes:
       produto.tipo === 'KIT' ? produto.kitItens.map((k) => ({ nome: k.componente.nome, qtde: k.qtde })) : [],
+    kitDisponivel,
   }
 }

@@ -19,7 +19,12 @@ export const ReservaSchema = z
       .optional()
       .or(z.literal('').transform(() => undefined)),
     itens: z
-      .array(z.object({ loteId: z.string().uuid(), qtde: z.coerce.number().int().min(1) }))
+      .array(
+        z.discriminatedUnion('tipo', [
+          z.object({ tipo: z.literal('UNITARIO'), loteId: z.string().uuid(), qtde: z.coerce.number().int().min(1) }),
+          z.object({ tipo: z.literal('KIT'), produtoId: z.string().uuid(), qtde: z.coerce.number().int().min(1) }),
+        ]),
+      )
       .min(1, 'Adiciona pelo menos um item ao carrinho.'),
   })
   .refine((data) => data.deliveryMode !== 'ENTREGA' || !!data.enderecoEntrega, {

@@ -6,6 +6,7 @@ import { ALERGENICOS } from '@/lib/validation/produtos'
 import { WhatsappButton } from '@/components/whatsapp-button'
 import { ProdutoGaleria } from '@/components/produto-galeria'
 import { AdicionarCarrinho } from '@/components/adicionar-carrinho'
+import { AdicionarKitCarrinho } from '@/components/adicionar-kit-carrinho'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const rotuloAlergenico = new Map<string, string>(ALERGENICOS.map((a) => [a.value, a.label]))
@@ -16,7 +17,9 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   const produto = await buscarProdutoPublico(id)
   if (!produto) notFound()
 
-  const esgotado = produto.tipo === 'UNITARIO' && produto.lotes.length === 0
+  const esgotado =
+    (produto.tipo === 'UNITARIO' && produto.lotes.length === 0) ||
+    (produto.tipo === 'KIT' && produto.kitDisponivel === 0)
 
   return (
     <section className="mx-auto max-w-2xl px-4 py-6 md:px-8">
@@ -54,30 +57,32 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                 </li>
               ))}
             </ul>
-            <p className="text-sm text-muted-foreground">
-              Kits ainda não dá pra reservar direto pelo site — chama a Luizinha no WhatsApp.
-            </p>
           </div>
         )}
 
-        {produto.tipo === 'UNITARIO' && (
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">Disponibilidade</p>
-            {esgotado ? (
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <PackageXIcon className="size-4 shrink-0" aria-hidden />
-                Esgotado no momento — volta em breve.
-              </p>
-            ) : (
-              <AdicionarCarrinho
-                produtoId={produto.id}
-                produtoNome={produto.nome}
-                precoUnitario={produto.precoVenda}
-                lotes={produto.lotes}
-              />
-            )}
-          </div>
-        )}
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium">Disponibilidade</p>
+          {esgotado ? (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <PackageXIcon className="size-4 shrink-0" aria-hidden />
+              Esgotado no momento — volta em breve.
+            </p>
+          ) : produto.tipo === 'UNITARIO' ? (
+            <AdicionarCarrinho
+              produtoId={produto.id}
+              produtoNome={produto.nome}
+              precoUnitario={produto.precoVenda}
+              lotes={produto.lotes}
+            />
+          ) : (
+            <AdicionarKitCarrinho
+              produtoId={produto.id}
+              produtoNome={produto.nome}
+              precoUnitario={produto.precoVenda}
+              kitDisponivel={produto.kitDisponivel}
+            />
+          )}
+        </div>
 
         <div className="flex flex-col gap-3 pt-2 sm:flex-row">
           <WhatsappButton

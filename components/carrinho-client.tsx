@@ -65,7 +65,9 @@ export function CarrinhoClient({
         enderecoEntrega: deliveryMode === 'ENTREGA' ? enderecoEntrega : undefined,
         janelaRetirada,
         observacao: observacao || undefined,
-        itens: itens.map((i) => ({ loteId: i.loteId, qtde: i.qtde })),
+        itens: itens.map((i) =>
+          i.tipo === 'KIT' ? { tipo: 'KIT', produtoId: i.produtoId, qtde: i.qtde } : { tipo: 'UNITARIO', loteId: i.loteId, qtde: i.qtde },
+        ),
       })
       if (res.error) {
         setErro(res.error)
@@ -79,51 +81,59 @@ export function CarrinhoClient({
   return (
     <div className="space-y-6">
       <ul className="divide-y divide-border">
-        {itens.map((item) => (
-          <li key={item.loteId} className="flex items-center gap-3 py-3">
-            <div className="flex-1">
-              <p className="text-base font-medium">{item.produtoNome}</p>
-              <p className="tabular-nums text-sm text-muted-foreground">
-                {currency.format(Number(item.precoUnitario))} cada
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+        {itens.map((item) => {
+          const limite = item.tipo === 'KIT' ? item.kitDisponivel : item.qtdeDisponivelNoLote
+          return (
+            <li key={item.tipo === 'KIT' ? `kit:${item.produtoId}` : `lote:${item.loteId}`} className="flex items-center gap-3 py-3">
+              <div className="flex-1">
+                <p className="text-base font-medium">
+                  {item.produtoNome}
+                  {item.tipo === 'KIT' && (
+                    <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-xs font-medium">Kit</span>
+                  )}
+                </p>
+                <p className="tabular-nums text-sm text-muted-foreground">
+                  {currency.format(Number(item.precoUnitario))} cada
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9"
+                  aria-label="Diminuir quantidade"
+                  disabled={item.qtde <= 1}
+                  onClick={() => atualizarQtde(item, item.qtde - 1)}
+                >
+                  <MinusIcon className="size-4" />
+                </Button>
+                <span className="w-5 text-center tabular-nums text-sm">{item.qtde}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9"
+                  aria-label="Aumentar quantidade"
+                  disabled={item.qtde >= limite}
+                  onClick={() => atualizarQtde(item, item.qtde + 1)}
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+              </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 className="size-9"
-                aria-label="Diminuir quantidade"
-                disabled={item.qtde <= 1}
-                onClick={() => atualizarQtde(item.loteId, item.qtde - 1)}
+                aria-label={`Remover ${item.produtoNome} do carrinho`}
+                onClick={() => remover(item)}
               >
-                <MinusIcon className="size-4" />
+                <XIcon className="size-4" />
               </Button>
-              <span className="w-5 text-center tabular-nums text-sm">{item.qtde}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-9"
-                aria-label="Aumentar quantidade"
-                disabled={item.qtde >= item.qtdeDisponivelNoLote}
-                onClick={() => atualizarQtde(item.loteId, item.qtde + 1)}
-              >
-                <PlusIcon className="size-4" />
-              </Button>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-9"
-              aria-label={`Remover ${item.produtoNome} do carrinho`}
-              onClick={() => remover(item.loteId)}
-            >
-              <XIcon className="size-4" />
-            </Button>
-          </li>
-        ))}
+            </li>
+          )
+        })}
       </ul>
 
       {entregaAtiva && (
