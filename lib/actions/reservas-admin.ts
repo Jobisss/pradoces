@@ -255,6 +255,94 @@ export async function marcarNoShow(reservaId: string): Promise<ReservaAdminActio
   return { ok: true }
 }
 
+/**
+ * Apaga a reserva de vez (admin pediu explicitamente uma saída pra lixo/
+ * duplicata/teste — dupla confirmação fica na UI). ReservaItem cai junto
+ * (onDelete: Cascade); PontosTransacao só perde o vínculo (onDelete: SetNull)
+ * — o ledger de pontos NUNCA é apagado, mesmo que a reserva que gerou o
+ * crédito/débito suma, porque ele é o registro financeiro auditável.
+ *
+ * Se ainda tá PENDENTE, o soft-hold em `qtdeReservada`/o débito de pontos do
+ * resgate não têm outro jeito de ser liberados (não há cascade pra counter
+ * nem pra essa lógica) — por isso replica exatamente o estorno que
+ * `rejeitarReserva` já faz, na mesma transação, antes do delete. Reservas já
+ * confirmadas/retiradas representam venda real (estoque já baixado de
+ * verdade); apagar a linha não desfaz a venda, só some com o registro.
+ */
+export async function apagarReserva(reservaId: string): Promise<ReservaAdminActionState> {
+  const { ip, ua } = await clientContext()
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let admin: Awaited<ReturnType<typeof requireAdmin>>
+  try {
+    admin = await requireAdmin()
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  let snapshot: { status: string; tipo: string; clienteId: string } | null = null
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const reserva = await tx.reserva.findUnique({
+        where: { id: reservaId },
+        select: {
+          id: true,
+          status: true,
+          tipo: true,
+          clienteId: true,
+          itens: { select: { loteId: true, qtde: true } },
+        },
+      })
+      if (!reserva) throw new ReservaAdminError(GENERIC_SERVER_ERROR)
+      snapshot = { status: reserva.status, tipo: reserva.tipo, clienteId: reserva.clienteId }
+
+      if (reserva.status === 'PENDENTE') {
+        if (reserva.tipo === 'RESGATE') {
+          const debito = await tx.pontosTransacao.findFirst({
+            where: { reservaId: reserva.id, motivo: 'RESGATE' },
+          })
+          if (debito) {
+            await tx.pontosTransacao.create({
+              data: {
+                clienteId: reserva.clienteId,
+                valor: -debito.valor,
+                motivo: 'RESGATE_REJEITADO',
+                reservaId: reserva.id,
+              },
+            })
+          }
+        } else {
+          for (const item of reserva.itens) {
+            await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
+          }
+        }
+      }
+
+      await tx.reserva.delete({ where: { id: reservaId } })
+    })
+  } catch (e) {
+    if (e instanceof ReservaAdminError) return { error: e.message }
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  await logAudit({
+    actorType: 'admin',
+    actorId: admin.id,
+    action: 'reserva_apagada',
+    entityType: 'reserva',
+    entityId: reservaId,
+    metadata: snapshot ?? undefined,
+    rawIp: ip,
+    rawUa: ua,
+  })
+
+  revalidatePath('/admin/reservas')
+  revalidatePath('/minha-conta/reservas')
+  return { ok: true }
+}
+
 /** RES-14 — bloqueia/desbloqueia cliente via o plugin admin do Better Auth (banned/banReason já existiam). */
 export async function bloquearCliente(clienteId: string, motivo: string): Promise<ReservaAdminActionState> {
   const { ip, ua } = await clientContext()

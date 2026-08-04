@@ -10,6 +10,7 @@ import {
   marcarNoShow,
   bloquearCliente,
   desbloquearCliente,
+  apagarReserva,
 } from '@/lib/actions/reservas-admin'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,6 +23,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+
+const PALAVRA_CONFIRMACAO = 'APAGAR'
 
 const PROXIMO_LABEL: Record<string, string> = {
   CONFIRMADA: 'Marcar como pronta pra retirar',
@@ -44,6 +49,9 @@ export function ReservaAcoes({
   const [error, setError] = useState<string | null>(null)
   const [motivoBloqueio, setMotivoBloqueio] = useState('')
   const [dialogBloqueio, setDialogBloqueio] = useState(false)
+  const [dialogApagar, setDialogApagar] = useState(false)
+  const [confirmoApagar, setConfirmoApagar] = useState(false)
+  const [palavraDigitada, setPalavraDigitada] = useState('')
 
   function rodar(acao: () => Promise<{ error?: string; ok?: boolean }>, sucesso: string) {
     setError(null)
@@ -156,6 +164,71 @@ export function ReservaAcoes({
             </DialogContent>
           </Dialog>
         )}
+
+        <Dialog
+          open={dialogApagar}
+          onOpenChange={(open) => {
+            setDialogApagar(open)
+            if (!open) {
+              setConfirmoApagar(false)
+              setPalavraDigitada('')
+            }
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button size="sm" variant="ghost" className="h-9 text-destructive">
+              Apagar reserva
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Apagar essa reserva pra sempre?</DialogTitle>
+              <DialogDescription>
+                Isso remove o registro do sistema — não dá pra desfazer. Se o pedido já foi confirmado, os
+                itens vendidos e os pontos já creditados/debitados NÃO são revertidos automaticamente, só o
+                registro da reserva some.
+              </DialogDescription>
+            </DialogHeader>
+
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={confirmoApagar} onCheckedChange={(v) => setConfirmoApagar(v === true)} />
+              Tenho certeza, quero apagar essa reserva pra sempre.
+            </label>
+
+            <div className="space-y-1.5">
+              <label htmlFor="confirma-apagar-reserva" className="text-sm text-muted-foreground">
+                Digite <span className="font-semibold text-foreground">{PALAVRA_CONFIRMACAO}</span> pra
+                confirmar
+              </label>
+              <Input
+                id="confirma-apagar-reserva"
+                value={palavraDigitada}
+                onChange={(e) => setPalavraDigitada(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogApagar(false)}>
+                Deixa quieto
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={pending || !confirmoApagar || palavraDigitada !== PALAVRA_CONFIRMACAO}
+                onClick={() =>
+                  rodar(async () => {
+                    const res = await apagarReserva(reservaId)
+                    if (!res.error) setDialogApagar(false)
+                    return res
+                  }, 'Reserva apagada.')
+                }
+              >
+                Apagar pra sempre
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
