@@ -19,7 +19,9 @@ export default async function ComprovantePage({ params }: { params: Promise<{ to
   const reserva = await buscarReservaPorToken(token)
   if (!reserva) notFound()
 
-  const total = reserva.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0)
+  const total =
+    reserva.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0) +
+    (reserva.taxaEntregaCongelada ? Number(reserva.taxaEntregaCongelada) : 0)
 
   return (
     <section className="mx-auto max-w-xl space-y-6 px-4 py-8 md:px-8">
@@ -31,10 +33,23 @@ export default async function ComprovantePage({ params }: { params: Promise<{ to
       </div>
 
       <div className="space-y-3 rounded-lg border border-border p-4">
-        <p className="text-sm">
-          <span className="font-medium">Retirada: </span>
-          {reserva.janelaRetirada}
-        </p>
+        {reserva.deliveryMode === 'ENTREGA' ? (
+          <>
+            <p className="text-sm">
+              <span className="font-medium">Entrega no endereço: </span>
+              {reserva.enderecoEntrega}
+            </p>
+            <p className="text-sm">
+              <span className="font-medium">Quando: </span>
+              {reserva.janelaRetirada}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm">
+            <span className="font-medium">Retirada: </span>
+            {reserva.janelaRetirada}
+          </p>
+        )}
         {reserva.observacao && (
           <p className="text-sm">
             <span className="font-medium">Observação: </span>
@@ -62,6 +77,12 @@ export default async function ComprovantePage({ params }: { params: Promise<{ to
                 </li>
               ))}
             </ul>
+            {reserva.taxaEntregaCongelada !== null && (
+              <p className="flex justify-between text-sm text-muted-foreground">
+                <span>Entrega</span>
+                <span className="tabular-nums">{currency.format(Number(reserva.taxaEntregaCongelada))}</span>
+              </p>
+            )}
             <p className="tabular-nums text-right text-base font-medium">Total: {currency.format(total)}</p>
           </>
         )}

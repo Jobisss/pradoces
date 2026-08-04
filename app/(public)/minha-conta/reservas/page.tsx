@@ -39,7 +39,9 @@ export default async function MinhasReservasPage() {
       ) : (
         <ul className="space-y-4">
           {reservas.map((r) => {
-            const total = r.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0)
+            const total =
+              r.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0) +
+              (r.taxaEntregaCongelada ? Number(r.taxaEntregaCongelada) : 0)
             const cancelavel = r.status === 'PENDENTE' || r.status === 'CONFIRMADA'
             return (
               <li key={r.id} className="space-y-2 rounded-lg border border-border p-4">
@@ -64,7 +66,13 @@ export default async function MinhasReservasPage() {
                     ))}
                   </ul>
                 )}
-                <p className="text-sm text-muted-foreground">Retirada: {r.janelaRetirada}</p>
+                {r.deliveryMode === 'ENTREGA' ? (
+                  <p className="text-sm text-muted-foreground">
+                    Entrega em {r.enderecoEntrega} · {r.janelaRetirada}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Retirada: {r.janelaRetirada}</p>
+                )}
                 {r.tipo === 'RESGATE' ? (
                   <p className="tabular-nums text-sm font-medium">{r.itemResgatavel?.custoPontos} pontos</p>
                 ) : (

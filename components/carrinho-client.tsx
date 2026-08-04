@@ -13,15 +13,26 @@ import { Label } from '@/components/ui/label'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-export function CarrinhoClient({ logado }: { logado: boolean }) {
+export function CarrinhoClient({
+  logado,
+  entregaAtiva,
+  taxaEntrega,
+}: {
+  logado: boolean
+  entregaAtiva: boolean
+  taxaEntrega: number
+}) {
   const router = useRouter()
   const { itens, remover, atualizarQtde, limpar } = useCart()
+  const [deliveryMode, setDeliveryMode] = useState<'PICKUP_ONLY' | 'ENTREGA'>('PICKUP_ONLY')
+  const [enderecoEntrega, setEnderecoEntrega] = useState('')
   const [janelaRetirada, setJanelaRetirada] = useState('')
   const [observacao, setObservacao] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const total = itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitario), 0)
+  const subtotal = itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitario), 0)
+  const total = deliveryMode === 'ENTREGA' ? subtotal + taxaEntrega : subtotal
 
   if (itens.length === 0) {
     return (
@@ -36,12 +47,22 @@ export function CarrinhoClient({ logado }: { logado: boolean }) {
 
   function handleReservar() {
     setErro(null)
+    if (deliveryMode === 'ENTREGA' && !enderecoEntrega.trim()) {
+      setErro('Informa o endereço pra entrega.')
+      return
+    }
     if (!janelaRetirada.trim()) {
-      setErro('Diz pra gente quando prefere retirar (ex.: "amanhã de manhã").')
+      setErro(
+        deliveryMode === 'ENTREGA'
+          ? 'Diz pra gente quando prefere receber (ex.: "amanhã de manhã").'
+          : 'Diz pra gente quando prefere retirar (ex.: "amanhã de manhã").',
+      )
       return
     }
     startTransition(async () => {
       const res = await criarReserva({
+        deliveryMode,
+        enderecoEntrega: deliveryMode === 'ENTREGA' ? enderecoEntrega : undefined,
         janelaRetirada,
         observacao: observacao || undefined,
         itens: itens.map((i) => ({ loteId: i.loteId, qtde: i.qtde })),
@@ -105,10 +126,64 @@ export function CarrinhoClient({ logado }: { logado: boolean }) {
         ))}
       </ul>
 
-      <p className="tabular-nums text-lg font-medium">Total: {currency.format(total)}</p>
+      {entregaAtiva && (
+        <div className="space-y-1.5">
+          <Label>Como você quer receber?</Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={deliveryMode === 'PICKUP_ONLY' ? 'default' : 'outline'}
+              className="h-11 flex-1"
+              onClick={() => setDeliveryMode('PICKUP_ONLY')}
+            >
+              Retirar
+            </Button>
+            <Button
+              type="button"
+              variant={deliveryMode === 'ENTREGA' ? 'default' : 'outline'}
+              className="h-11 flex-1"
+              onClick={() => setDeliveryMode('ENTREGA')}
+            >
+              Receber em casa
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {deliveryMode === 'ENTREGA' && (
+        <div className="space-y-1.5">
+          <Label htmlFor="enderecoEntrega">Endereço pra entrega</Label>
+          <Textarea
+            id="enderecoEntrega"
+            value={enderecoEntrega}
+            onChange={(e) => setEnderecoEntrega(e.target.value)}
+            placeholder="Rua, número, bairro, ponto de referência..."
+            required
+          />
+        </div>
+      )}
+
+      <div className="space-y-1 tabular-nums text-sm">
+        {deliveryMode === 'ENTREGA' && (
+          <>
+            <p className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span>{currency.format(subtotal)}</span>
+            </p>
+            <p className="flex justify-between text-muted-foreground">
+              <span>Entrega</span>
+              <span>{currency.format(taxaEntrega)}</span>
+            </p>
+          </>
+        )}
+        <p className="flex justify-between text-lg font-medium">
+          <span>Total</span>
+          <span>{currency.format(total)}</span>
+        </p>
+      </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="janela">Quando prefere retirar?</Label>
+        <Label htmlFor="janela">{deliveryMode === 'ENTREGA' ? 'Quando prefere receber?' : 'Quando prefere retirar?'}</Label>
         <Input
           id="janela"
           value={janelaRetirada}

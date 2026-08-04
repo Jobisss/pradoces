@@ -29,11 +29,21 @@ export default async function PainelDoDiaPage() {
                 {g.reservas.map((r) => (
                   <li key={r.id} className="space-y-1 rounded-lg border border-border p-3 print:break-inside-avoid">
                     <div className="flex items-center justify-between">
-                      <p className="font-medium">{r.clienteNome}</p>
+                      <p className="font-medium">
+                        {r.clienteNome}
+                        {r.deliveryMode === 'ENTREGA' && (
+                          <span className="ml-2 rounded-full bg-primary/20 px-2 py-0.5 text-xs font-normal">
+                            Entrega
+                          </span>
+                        )}
+                      </p>
                       <span className="rounded-full border border-border px-2 py-0.5 text-xs print:hidden">
                         {STATUS_LABEL[r.status] ?? r.status}
                       </span>
                     </div>
+                    {r.deliveryMode === 'ENTREGA' && r.enderecoEntrega && (
+                      <p className="text-sm font-medium">{r.enderecoEntrega}</p>
+                    )}
                     {r.clienteTelefone && <p className="text-sm text-muted-foreground">{r.clienteTelefone}</p>}
                     <ul className="text-sm">
                       {r.itens.map((item, i) => (

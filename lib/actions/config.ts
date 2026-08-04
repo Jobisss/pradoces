@@ -41,6 +41,10 @@ export async function salvarMargemGlobal(
     pontosCapPorReserva: String(formData.get('pontosCapPorReserva') ?? ''),
     pontosExpiracaoMeses: String(formData.get('pontosExpiracaoMeses') ?? ''),
     janelaCancelamentoHoras: String(formData.get('janelaCancelamentoHoras') ?? ''),
+    taxaEntregaPadrao: String(formData.get('taxaEntregaPadrao') ?? ''),
+    // Checkbox desmarcado não manda a chave no FormData (mesmo padrão do
+    // consentimento LGPD do cadastro — ver 01-08 em STATE.md).
+    entregaAtiva: formData.get('entregaAtiva') === 'on',
   })
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
@@ -52,6 +56,8 @@ export async function salvarMargemGlobal(
     pontosCapPorReserva: parsed.data.pontosCapPorReserva,
     pontosExpiracaoMeses: parsed.data.pontosExpiracaoMeses,
     janelaCancelamentoHoras: parsed.data.janelaCancelamentoHoras,
+    taxaEntregaPadrao: parsed.data.taxaEntregaPadrao.toFixed(2),
+    entregaAtiva: parsed.data.entregaAtiva,
   }
 
   try {

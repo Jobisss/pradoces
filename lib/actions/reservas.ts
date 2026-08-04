@@ -23,6 +23,7 @@ const RATE_LIMIT_COPY = 'Muitas tentativas seguidas. Espera um minutinho e tenta
 const GENERIC_SERVER_ERROR = 'Algo não deu certo do nosso lado. Tente de novo em alguns segundos.'
 const DADOS_DESATUALIZADOS = 'Os dados mudaram — recarrega a página e confere o carrinho de novo.'
 const ESTOQUE_INSUFICIENTE = 'Um dos itens não tem mais essa quantidade disponível. Ajusta o carrinho e tenta de novo.'
+const ENTREGA_INDISPONIVEL = 'Entrega não está disponível no momento — escolhe retirada.'
 
 class ReservaError extends Error {}
 
@@ -72,6 +73,13 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
   let resultado: { id: string; token: string }
   try {
     resultado = await prisma.$transaction(async (tx) => {
+      let taxaEntregaCongelada: string | undefined
+      if (parsed.data.deliveryMode === 'ENTREGA') {
+        const config = await tx.configuracao.findUnique({ where: { id: 1 } })
+        if (!config?.entregaAtiva) throw new ReservaError(ENTREGA_INDISPONIVEL)
+        taxaEntregaCongelada = config.taxaEntregaPadrao.toFixed(4)
+      }
+
       // ORDER BY id: ordem determinística de lock entre lotes diferentes,
       // pra duas reservas concorrentes com itens sobrepostos não deadlockarem.
       const lotes = await tx.$queryRaw<LoteLock[]>`
@@ -106,6 +114,9 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
       return tx.reserva.create({
         data: {
           clienteId: cliente.id,
+          deliveryMode: parsed.data.deliveryMode,
+          enderecoEntrega: parsed.data.deliveryMode === 'ENTREGA' ? parsed.data.enderecoEntrega : undefined,
+          taxaEntregaCongelada,
           janelaRetirada: parsed.data.janelaRetirada,
           observacao: parsed.data.observacao,
           itens: {

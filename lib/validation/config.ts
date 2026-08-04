@@ -7,6 +7,8 @@ export const ConfigSchema = z.object({
   pontosCapPorReserva: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
   pontosExpiracaoMeses: z.coerce.number().int().min(1, 'Pelo menos 1 mês.'),
   janelaCancelamentoHoras: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
+  taxaEntregaPadrao: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
+  entregaAtiva: z.boolean(),
 })
 
 export type ConfigInput = z.infer<typeof ConfigSchema>

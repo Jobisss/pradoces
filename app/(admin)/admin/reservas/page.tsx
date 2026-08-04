@@ -55,7 +55,9 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
       ) : (
         <ul className="space-y-4">
           {reservas.map((r) => {
-            const total = r.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0)
+            const total =
+              r.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0) +
+              (r.taxaEntregaCongelada ? Number(r.taxaEntregaCongelada) : 0)
             return (
               <li key={r.id} className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -105,10 +107,30 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                   </ul>
                 )}
 
-                <p className="text-sm">
-                  <span className="font-medium">Retirada: </span>
-                  {r.janelaRetirada}
-                </p>
+                {r.deliveryMode === 'ENTREGA' ? (
+                  <p className="text-sm">
+                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium">Entrega</span>{' '}
+                    <span className="font-medium">Endereço: </span>
+                    {r.enderecoEntrega}
+                    {r.taxaEntregaCongelada !== null && (
+                      <span className="tabular-nums text-muted-foreground">
+                        {' '}
+                        (taxa {currency.format(Number(r.taxaEntregaCongelada))})
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm">
+                    <span className="font-medium">Retirada: </span>
+                    {r.janelaRetirada}
+                  </p>
+                )}
+                {r.deliveryMode === 'ENTREGA' && (
+                  <p className="text-sm">
+                    <span className="font-medium">Quando: </span>
+                    {r.janelaRetirada}
+                  </p>
+                )}
                 {r.observacao && (
                   <p className="text-sm">
                     <span className="font-medium">Observação: </span>

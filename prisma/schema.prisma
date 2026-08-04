@@ -357,10 +357,13 @@ enum ReservaStatus {
   NO_SHOW
 }
 
-// v1 é só retirada (PROJECT.md, decisão explícita) — coluna existe desde já
-// pra entrega futura não exigir migration de novo, mas a UI esconde a opção.
+// v1 era só retirada (PICKUP_ONLY, PROJECT.md decisão original) — ENTREGA
+// adicionada depois, restrita a tipo=PADRAO (resgate continua só retirada,
+// fora de escopo). Nome do enum ficou de PICKUP_ONLY por não valer a pena o
+// risco de renomear um valor com dado real em produção (PRODUCTION MODE).
 enum DeliveryMode {
   PICKUP_ONLY
+  ENTREGA
 }
 
 enum PontosMotivo {
@@ -383,21 +386,27 @@ enum TipoReserva {
 }
 
 model Reserva {
-  id               String        @id @default(uuid()) @db.Uuid
-  clienteId        String        @map("cliente_id") @db.Uuid
-  tipo             TipoReserva   @default(PADRAO)
-  status           ReservaStatus @default(PENDENTE)
-  deliveryMode     DeliveryMode  @default(PICKUP_ONLY) @map("delivery_mode")
-  janelaRetirada   String        @map("janela_retirada")
-  observacao       String?
+  id                   String        @id @default(uuid()) @db.Uuid
+  clienteId            String        @map("cliente_id") @db.Uuid
+  tipo                 TipoReserva   @default(PADRAO)
+  status               ReservaStatus @default(PENDENTE)
+  deliveryMode         DeliveryMode  @default(PICKUP_ONLY) @map("delivery_mode")
+  // Só preenchidos quando deliveryMode=ENTREGA (CHECK no banco garante).
+  // taxaEntregaCongelada segue o mesmo padrão de custo histórico imutável já
+  // usado em lote/receita: se a mãe mudar a taxa padrão depois, reservas
+  // antigas continuam mostrando o valor que foi cobrado de verdade.
+  enderecoEntrega      String?       @map("endereco_entrega")
+  taxaEntregaCongelada Decimal?      @map("taxa_entrega_congelada") @db.Decimal(19, 4)
+  janelaRetirada       String        @map("janela_retirada")
+  observacao           String?
   // Só quando tipo=RESGATE (RESG-03) — o que vai ser entregue.
-  itemResgatavelId String?       @map("item_resgatavel_id") @db.Uuid
+  itemResgatavelId     String?       @map("item_resgatavel_id") @db.Uuid
   // Comprovante público /r/<token> (RES-10) — sem login, token não sequencial.
-  token            String        @unique @default(uuid())
-  criadoEm         DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
-  confirmadaEm     DateTime?     @map("confirmada_em") @db.Timestamptz(6)
-  canceladaEm      DateTime?     @map("cancelada_em") @db.Timestamptz(6)
-  retiradaEm       DateTime?     @map("retirada_em") @db.Timestamptz(6)
+  token                String        @unique @default(uuid())
+  criadoEm             DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)
+  confirmadaEm         DateTime?     @map("confirmada_em") @db.Timestamptz(6)
+  canceladaEm          DateTime?     @map("cancelada_em") @db.Timestamptz(6)
+  retiradaEm           DateTime?     @map("retirada_em") @db.Timestamptz(6)
 
   cliente          User              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
   itemResgatavel   ItemResgatavel?   @relation(fields: [itemResgatavelId], references: [id], onDelete: Restrict)
@@ -541,6 +550,11 @@ model Configuracao {
   pontosExpiracaoMeses    Int     @default(12) @map("pontos_expiracao_meses")
   // RES-08: cliente só cancela sozinho até X horas antes da retirada.
   janelaCancelamentoHoras Int     @default(24) @map("janela_cancelamento_horas")
+  // Entrega: taxa fixa única pra cidade toda (cidade pequena, sem zonas).
+  // entregaAtiva começa desligada de propósito — só liga depois que a mãe
+  // configurar a taxa explicitamente em Ajustes.
+  taxaEntregaPadrao       Decimal @default(0) @map("taxa_entrega_padrao") @db.Decimal(19, 4)
+  entregaAtiva            Boolean @default(false) @map("entrega_ativa")
 
   @@map("configuracoes")
 }

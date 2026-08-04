@@ -9,6 +9,8 @@ export default async function AjustesPage() {
   const pontosCapAtual = String(config?.pontosCapPorReserva ?? 500)
   const pontosExpiracaoAtual = String(config?.pontosExpiracaoMeses ?? 12)
   const janelaCancelamentoAtual = String(config?.janelaCancelamentoHoras ?? 24)
+  const taxaEntregaAtual = config ? config.taxaEntregaPadrao.toFixed(2) : '0.00'
+  const entregaAtivaAtual = config?.entregaAtiva ?? false
 
   return (
     <div className="space-y-8">
@@ -19,6 +21,8 @@ export default async function AjustesPage() {
         pontosCapAtual={pontosCapAtual}
         pontosExpiracaoAtual={pontosExpiracaoAtual}
         janelaCancelamentoAtual={janelaCancelamentoAtual}
+        taxaEntregaAtual={taxaEntregaAtual}
+        entregaAtivaAtual={entregaAtivaAtual}
       />
       <SimuladorPontos pontosPorRealAtual={pontosPorRealAtual} capAtual={pontosCapAtual} />
     </div>
