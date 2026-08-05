@@ -4,7 +4,7 @@ import Decimal from 'decimal.js'
 import { headers as nextHeaders } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db/client'
-import { requireCliente } from '@/lib/auth/require-cliente'
+import { requireCliente, getClienteOpcional } from '@/lib/auth/require-cliente'
 import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
@@ -20,6 +20,7 @@ import { ReservaSchema } from '@/lib/validation/reservas'
  * algum bug de app pule essa checagem.
  */
 
+const OBRIGATORIO = 'Esse campo é obrigatório.'
 const RATE_LIMIT_COPY = 'Muitas tentativas seguidas. Espera um minutinho e tenta de novo.'
 const GENERIC_SERVER_ERROR = 'Algo não deu certo do nosso lado. Tente de novo em alguns segundos.'
 const DADOS_DESATUALIZADOS = 'Os dados mudaram — recarrega a página e confere o carrinho de novo.'
@@ -50,9 +51,9 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
   const rl = await rateLimitAuth.consume(ip).catch(() => null)
   if (rl === null) return { error: RATE_LIMIT_COPY }
 
-  let cliente: Awaited<ReturnType<typeof requireCliente>>
+  let cliente: Awaited<ReturnType<typeof getClienteOpcional>>
   try {
-    cliente = await requireCliente()
+    cliente = await getClienteOpcional()
   } catch (e) {
     if (e instanceof Error && e.message === 'BLOQUEADO') {
       return { error: 'Sua conta não pode fazer reservas no momento. Fala com a Luizinha pelo WhatsApp.' }
@@ -63,6 +64,20 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
   const parsed = ReservaSchema.safeParse(input)
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
+  }
+
+  // Reserva de convidado (sem login): nome/telefone/email não são obrigatórios
+  // no Zod (o schema não sabe se há sessão), então a obrigatoriedade
+  // condicional é checada aqui, já com a sessão real resolvida — nunca confia
+  // no client pra dizer se está logado.
+  if (!cliente) {
+    const fieldErrors: Record<string, string[]> = {}
+    if (!parsed.data.nomeConvidado) fieldErrors.nomeConvidado = [OBRIGATORIO]
+    if (!parsed.data.telefoneConvidado) fieldErrors.telefoneConvidado = [OBRIGATORIO]
+    if (!parsed.data.emailConvidado) fieldErrors.emailConvidado = [OBRIGATORIO]
+    if (Object.keys(fieldErrors).length > 0) {
+      return { error: 'Confere os campos abaixo.', fieldErrors }
+    }
   }
 
   const itensUnitario = parsed.data.itens.filter((i) => i.tipo === 'UNITARIO')
@@ -190,7 +205,10 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
 
       return tx.reserva.create({
         data: {
-          clienteId: cliente.id,
+          clienteId: cliente?.id,
+          nomeConvidado: cliente ? undefined : parsed.data.nomeConvidado,
+          telefoneConvidado: cliente ? undefined : parsed.data.telefoneConvidado,
+          emailConvidado: cliente ? undefined : parsed.data.emailConvidado,
           deliveryMode: parsed.data.deliveryMode,
           enderecoEntrega: parsed.data.deliveryMode === 'ENTREGA' ? parsed.data.enderecoEntrega : undefined,
           taxaEntregaCongelada,
@@ -221,10 +239,11 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
 
   await logAudit({
     actorType: 'customer',
-    actorId: cliente.id,
+    actorId: cliente?.id ?? null,
     action: 'reserva_criada',
     entityType: 'reserva',
     entityId: resultado.id,
+    metadata: { convidado: !cliente },
     rawIp: ip,
   })
 
@@ -326,6 +345,67 @@ export async function cancelarReserva(reservaId: string): Promise<ReservaActionS
 
   revalidatePath('/minha-conta/reservas')
   revalidatePath('/minha-conta/pontos')
+  revalidatePath('/admin/reservas')
+  return { ok: true }
+}
+
+/**
+ * Cancelamento de reserva de convidado (sem login) — o token do comprovante
+ * público (/r/[token]) é a única prova de posse disponível, mesmo modelo de
+ * confiança já usado pra exibir o comprovante em si. Só funciona enquanto a
+ * reserva continuar sem dono: se ela já foi vinculada a uma conta (ver
+ * afterEmailVerification em lib/auth/server.ts), o link antigo do comprovante
+ * deixa de servir pra cancelar — a pessoa precisa entrar na conta.
+ *
+ * Reserva de convidado nunca é RESGATE nem tem PontosTransacao (decisão de
+ * produto: pontos só contam depois da conta vinculada), então só cobre a
+ * devolução de estoque — sem o branch de estorno de pontos/resgate.
+ */
+export async function cancelarReservaConvidado(token: string): Promise<ReservaActionState> {
+  const h = await nextHeaders()
+  const ip = clientIp(h)
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let reservaId!: string
+  try {
+    await prisma.$transaction(async (tx) => {
+      const reserva = await tx.reserva.findUnique({
+        where: { token },
+        select: { id: true, clienteId: true, status: true, itens: { select: { loteId: true, qtde: true } } },
+      })
+      if (!reserva || reserva.clienteId !== null) throw new ReservaError(GENERIC_SERVER_ERROR)
+      if (reserva.status !== 'PENDENTE' && reserva.status !== 'CONFIRMADA') {
+        throw new ReservaError('Essa reserva não pode mais ser cancelada.')
+      }
+
+      for (const item of reserva.itens) {
+        await tx.lote.update({
+          where: { id: item.loteId },
+          data:
+            reserva.status === 'PENDENTE'
+              ? { qtdeReservada: { decrement: item.qtde } }
+              : { qtdeDisponivel: { increment: item.qtde } },
+        })
+      }
+
+      await tx.reserva.update({ where: { id: reserva.id }, data: { status: 'CANCELADA', canceladaEm: new Date() } })
+      reservaId = reserva.id
+    })
+  } catch (e) {
+    if (e instanceof ReservaError) return { error: e.message }
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  await logAudit({
+    actorType: 'customer',
+    actorId: null,
+    action: 'reserva_cancelada_convidado',
+    entityType: 'reserva',
+    entityId: reservaId,
+    rawIp: ip,
+  })
+
   revalidatePath('/admin/reservas')
   return { ok: true }
 }

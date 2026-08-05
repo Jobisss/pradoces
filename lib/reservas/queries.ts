@@ -26,14 +26,17 @@ export async function listarReservasAdmin(filtro: FiltroReserva) {
     orderBy: { criadoEm: filtro === 'pendentes' ? 'asc' : 'desc' },
   })
 
-  const clienteIds = [...new Set(reservas.map((r) => r.clienteId))]
+  // Reserva de convidado (sem login) não tem clienteId — não entra no
+  // histórico/no-show por cliente (não existe identidade pra agrupar).
+  const clienteIds = [...new Set(reservas.map((r) => r.clienteId).filter((id): id is string => id !== null))]
 
   const noShows = await prisma.reserva.groupBy({
     by: ['clienteId'],
     where: { clienteId: { in: clienteIds }, status: 'NO_SHOW' },
     _count: { _all: true },
   })
-  const noShowPorCliente = new Map(noShows.map((n) => [n.clienteId, n._count._all]))
+  // clienteId nunca é null aqui — o where acima já filtra por clienteIds (não-nulos).
+  const noShowPorCliente = new Map(noShows.map((n) => [n.clienteId!, n._count._all]))
 
   // Valor total não dá pra vir de groupBy (soma qtde*precoCongelado do item,
   // não uma coluna direta de Reserva) — volume pequeno, reduz em JS mesmo.
@@ -47,10 +50,12 @@ export async function listarReservasAdmin(filtro: FiltroReserva) {
   })
   const historicoPorCliente = new Map<string, HistoricoCliente>()
   for (const r of anteriores) {
-    const atual = historicoPorCliente.get(r.clienteId) ?? { totalReservas: 0, valorTotal: 0, noShows: 0 }
+    // clienteId nunca é null aqui — o where acima já filtra por clienteIds (não-nulos).
+    const clienteId = r.clienteId!
+    const atual = historicoPorCliente.get(clienteId) ?? { totalReservas: 0, valorTotal: 0, noShows: 0 }
     atual.totalReservas += 1
     atual.valorTotal += r.itens.reduce((soma, i) => soma + i.qtde * Number(i.precoUnitarioCongelado), 0)
-    historicoPorCliente.set(r.clienteId, atual)
+    historicoPorCliente.set(clienteId, atual)
   }
   for (const [clienteId, count] of noShowPorCliente) {
     const atual = historicoPorCliente.get(clienteId) ?? { totalReservas: 0, valorTotal: 0, noShows: 0 }
@@ -60,8 +65,12 @@ export async function listarReservasAdmin(filtro: FiltroReserva) {
 
   return reservas.map((r) => ({
     ...r,
-    noShowsDoCliente: noShowPorCliente.get(r.clienteId) ?? 0,
-    historicoCliente: historicoPorCliente.get(r.clienteId) ?? { totalReservas: 0, valorTotal: 0, noShows: 0 },
+    noShowsDoCliente: (r.clienteId ? noShowPorCliente.get(r.clienteId) : undefined) ?? 0,
+    historicoCliente: (r.clienteId ? historicoPorCliente.get(r.clienteId) : undefined) ?? {
+      totalReservas: 0,
+      valorTotal: 0,
+      noShows: 0,
+    },
   }))
 }
 
@@ -99,6 +108,10 @@ export async function buscarReservaPorToken(token: string) {
     where: { token },
     select: {
       id: true,
+      clienteId: true,
+      nomeConvidado: true,
+      telefoneConvidado: true,
+      emailConvidado: true,
       tipo: true,
       status: true,
       deliveryMode: true,

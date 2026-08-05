@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState, useTransition } from 'react'
+import { Suspense, useActionState, useEffect, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { checkEmailExists, signupCustomer, type AuthActionState } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
@@ -36,12 +37,41 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   )
 }
 
+/**
+ * Reserva de convidado -> "quero acompanhar" (app/(public)/r/[token]/page.tsx)
+ * chega aqui com nome/telefone/email/fromReserva na URL. Quando fromReserva
+ * está presente, pula direto pro passo de senha (o email já é conhecido —
+ * checkEmailExists não roda porque o link só existe pra email sem conta).
+ */
+function PrefillDeReserva({
+  onPrefill,
+}: {
+  onPrefill: (data: { nome: string; telefone: string; email: string; fromReserva: string }) => void
+}) {
+  const params = useSearchParams()
+  const fromReserva = params.get('fromReserva')
+  useEffect(() => {
+    if (!fromReserva) return
+    onPrefill({
+      nome: params.get('nome') ?? '',
+      telefone: params.get('telefone') ?? '',
+      email: params.get('email') ?? '',
+      fromReserva,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromReserva])
+  return null
+}
+
 export default function CadastroPage() {
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
   const [checking, startCheck] = useTransition()
   const [state, formAction, submitting] = useActionState(signupCustomer, initialState)
+  const [prefillNome, setPrefillNome] = useState('')
+  const [prefillTelefone, setPrefillTelefone] = useState('')
+  const [fromReserva, setFromReserva] = useState('')
 
   function handleEmailContinue(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -61,6 +91,18 @@ export default function CadastroPage() {
 
   return (
     <div className="mx-auto w-full max-w-md px-6 py-12">
+      <Suspense fallback={null}>
+        <PrefillDeReserva
+          onPrefill={({ nome, telefone, email: emailPrefill, fromReserva: token }) => {
+            setEmail(emailPrefill)
+            setPrefillNome(nome)
+            setPrefillTelefone(telefone)
+            setFromReserva(token)
+            setStep('details')
+          }}
+        />
+      </Suspense>
+
       {step === 'email' && (
         <form onSubmit={handleEmailContinue} className="space-y-6" noValidate>
           <header className="space-y-2">
@@ -126,7 +168,9 @@ export default function CadastroPage() {
       {step === 'details' && (
         <form action={formAction} className="space-y-6 pb-24 md:pb-0" noValidate>
           <header className="space-y-2">
-            <h1 className="text-2xl font-semibold md:text-3xl">Faltam só alguns dados</h1>
+            <h1 className="text-2xl font-semibold md:text-3xl">
+              {fromReserva ? 'Só falta a senha' : 'Faltam só alguns dados'}
+            </h1>
           </header>
 
           {state.error && !state.fieldErrors && (
@@ -137,6 +181,8 @@ export default function CadastroPage() {
 
           {/* email confirmed in step 1 — carried forward as a hidden field */}
           <input type="hidden" name="email" value={email} />
+          {/* rastreabilidade — a vinculação em si roda por email (ver afterEmailVerification) */}
+          {fromReserva && <input type="hidden" name="fromReserva" value={fromReserva} />}
 
           <div className="space-y-1.5">
             <Label htmlFor="password">Senha</Label>
@@ -167,6 +213,7 @@ export default function CadastroPage() {
               type="text"
               autoComplete="name"
               required
+              defaultValue={prefillNome}
               aria-describedby={fieldErrors.nome ? 'nome-error' : undefined}
               aria-invalid={fieldErrors.nome ? true : undefined}
             />
@@ -182,6 +229,7 @@ export default function CadastroPage() {
               autoComplete="tel"
               inputMode="tel"
               required
+              defaultValue={prefillTelefone}
               aria-describedby={fieldErrors.telefone ? 'telefone-error' : 'telefone-help'}
               aria-invalid={fieldErrors.telefone ? true : undefined}
             />

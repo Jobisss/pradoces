@@ -43,7 +43,7 @@ export function ReservaAcoes({
 }: {
   reservaId: string
   status: string
-  clienteId: string
+  clienteId: string | null
   clienteBloqueado: boolean
   pago: boolean
 }) {
@@ -136,51 +136,53 @@ export function ReservaAcoes({
           </>
         )}
 
-        {clienteBloqueado ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9"
-            disabled={pending}
-            onClick={() => rodar(() => desbloquearCliente(clienteId), 'Cliente desbloqueado.')}
-          >
-            Desbloquear cliente
-          </Button>
-        ) : (
-          <Dialog open={dialogBloqueio} onOpenChange={setDialogBloqueio}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-9 text-destructive">
-                Bloquear cliente
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Bloquear esse cliente?</DialogTitle>
-                <DialogDescription>Ele não vai conseguir fazer novas reservas até você desbloquear.</DialogDescription>
-              </DialogHeader>
-              <Textarea
-                value={motivoBloqueio}
-                onChange={(e) => setMotivoBloqueio(e.target.value)}
-                placeholder="Motivo (ex.: faltou 3 vezes sem avisar)"
-              />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogBloqueio(false)}>
-                  Deixa quieto
+        {/* Reserva de convidado não tem User pra bloquear — só cliente com conta. */}
+        {clienteId &&
+          (clienteBloqueado ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9"
+              disabled={pending}
+              onClick={() => rodar(() => desbloquearCliente(clienteId), 'Cliente desbloqueado.')}
+            >
+              Desbloquear cliente
+            </Button>
+          ) : (
+            <Dialog open={dialogBloqueio} onOpenChange={setDialogBloqueio}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-9 text-destructive">
+                  Bloquear cliente
                 </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={pending}
-                  onClick={() =>
-                    rodar(() => bloquearCliente(clienteId, motivoBloqueio), 'Cliente bloqueado.')
-                  }
-                >
-                  Bloquear
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Bloquear esse cliente?</DialogTitle>
+                  <DialogDescription>
+                    Ele não vai conseguir fazer novas reservas até você desbloquear.
+                  </DialogDescription>
+                </DialogHeader>
+                <Textarea
+                  value={motivoBloqueio}
+                  onChange={(e) => setMotivoBloqueio(e.target.value)}
+                  placeholder="Motivo (ex.: faltou 3 vezes sem avisar)"
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setDialogBloqueio(false)}>
+                    Deixa quieto
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={pending}
+                    onClick={() => rodar(() => bloquearCliente(clienteId, motivoBloqueio), 'Cliente bloqueado.')}
+                  >
+                    Bloquear
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ))}
 
         <Dialog
           open={dialogApagar}

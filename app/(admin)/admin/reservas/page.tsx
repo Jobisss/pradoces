@@ -62,16 +62,25 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
               <li key={r.id} className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-base font-medium">{r.cliente.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {r.cliente.email}
-                      {r.cliente.telefone ? ` · ${r.cliente.telefone}` : ''}
+                    <p className="flex items-center gap-2 text-base font-medium">
+                      {r.cliente?.name ?? r.nomeConvidado ?? '—'}
+                      {!r.cliente && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                          Convidado
+                        </span>
+                      )}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {r.historicoCliente.totalReservas === 0
-                        ? 'Primeira reserva desse cliente'
-                        : `${r.historicoCliente.totalReservas} reserva(s) anterior(es) · ${currency.format(r.historicoCliente.valorTotal)} no total`}
+                      {r.cliente?.email ?? r.emailConvidado}
+                      {(r.cliente?.telefone ?? r.telefoneConvidado) ? ` · ${r.cliente?.telefone ?? r.telefoneConvidado}` : ''}
                     </p>
+                    {r.cliente && (
+                      <p className="text-sm text-muted-foreground">
+                        {r.historicoCliente.totalReservas === 0
+                          ? 'Primeira reserva desse cliente'
+                          : `${r.historicoCliente.totalReservas} reserva(s) anterior(es) · ${currency.format(r.historicoCliente.valorTotal)} no total`}
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {r.noShowsDoCliente > 0 && (
@@ -80,7 +89,7 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                         {r.noShowsDoCliente} não retirada(s) antes
                       </span>
                     )}
-                    {r.cliente.banned && (
+                    {r.cliente?.banned && (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                         Bloqueado{r.cliente.banReason ? `: ${r.cliente.banReason}` : ''}
                       </span>
@@ -157,8 +166,8 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                 <ReservaAcoes
                   reservaId={r.id}
                   status={r.status}
-                  clienteId={r.cliente.id}
-                  clienteBloqueado={r.cliente.banned}
+                  clienteId={r.cliente?.id ?? null}
+                  clienteBloqueado={r.cliente?.banned ?? false}
                   pago={r.pago}
                 />
               </li>

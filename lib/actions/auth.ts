@@ -104,10 +104,16 @@ export async function signupCustomer(
     },
   })
 
+  // fromReserva: rastreabilidade de quem veio do CTA "quero acompanhar" de uma
+  // reserva de convidado (app/(public)/r/[token]/page.tsx) — a vinculação em
+  // si roda por email em afterEmailVerification (lib/auth/server.ts), não aqui.
+  const fromReserva = String(formData.get('fromReserva') ?? '') || undefined
+
   await logAudit({
     actorType: 'customer',
     actorId: user.id,
     action: 'customer_signup',
+    metadata: fromReserva ? { fromReserva } : undefined,
     rawIp: ip,
     rawUa: ua,
   })

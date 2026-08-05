@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 const OBRIGATORIO = 'Esse campo é obrigatório.'
+const EMAIL_INVALID = 'Esse email não parece certo. Confere o `@` e o `.com`.'
 
 export const ReservaSchema = z
   .object({
@@ -16,6 +17,28 @@ export const ReservaSchema = z
       .string()
       .trim()
       .max(500, 'Máximo 500 caracteres.')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    // Reserva de convidado (sem login) — sempre opcionais aqui, a
+    // obrigatoriedade condicional (só quando não há sessão) é checada
+    // imperativamente em criarReserva, depois de resolver a sessão real.
+    nomeConvidado: z
+      .string()
+      .trim()
+      .max(120, 'Máximo 120 caracteres.')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    telefoneConvidado: z
+      .string()
+      .trim()
+      .max(30, 'Máximo 30 caracteres.')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    emailConvidado: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email(EMAIL_INVALID)
       .optional()
       .or(z.literal('').transform(() => undefined)),
     itens: z

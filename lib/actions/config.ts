@@ -45,6 +45,11 @@ export async function salvarMargemGlobal(
     // Checkbox desmarcado não manda a chave no FormData (mesmo padrão do
     // consentimento LGPD do cadastro — ver 01-08 em STATE.md).
     entregaAtiva: formData.get('entregaAtiva') === 'on',
+    pixAtivo: formData.get('pixAtivo') === 'on',
+    pixTipoChave: String(formData.get('pixTipoChave') ?? '') || undefined,
+    pixChave: String(formData.get('pixChave') ?? ''),
+    pixNomeBeneficiario: String(formData.get('pixNomeBeneficiario') ?? ''),
+    pixCidade: String(formData.get('pixCidade') ?? ''),
   })
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
@@ -58,6 +63,15 @@ export async function salvarMargemGlobal(
     janelaCancelamentoHoras: parsed.data.janelaCancelamentoHoras,
     taxaEntregaPadrao: parsed.data.taxaEntregaPadrao.toFixed(2),
     entregaAtiva: parsed.data.entregaAtiva,
+    pixAtivo: parsed.data.pixAtivo,
+    // `?? null` (nunca undefined) — o mesmo objeto `data` serve pro create e
+    // pro update do upsert; undefined faria o Prisma ignorar a chave no
+    // update, deixando um valor antigo "preso" mesmo depois de a mãe apagar
+    // o campo na tela.
+    pixTipoChave: parsed.data.pixTipoChave ?? null,
+    pixChave: parsed.data.pixChave ?? null,
+    pixNomeBeneficiario: parsed.data.pixNomeBeneficiario ?? null,
+    pixCidade: parsed.data.pixCidade ?? null,
   }
 
   try {

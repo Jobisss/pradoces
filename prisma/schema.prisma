@@ -387,7 +387,15 @@ enum TipoReserva {
 
 model Reserva {
   id                   String        @id @default(uuid()) @db.Uuid
-  clienteId            String        @map("cliente_id") @db.Uuid
+  // Nullable pra permitir reserva de convidado (sem cadastro) — nesse caso os
+  // 3 campos de convidado abaixo são obrigatórios (CHECK reservas_cliente_ou_convidado
+  // no banco). Se a pessoa depois criar conta, clienteId é preenchido por
+  // vinculação (lib/auth/server.ts, afterEmailVerification), mas os campos de
+  // convidado NÃO são apagados — ficam como registro histórico.
+  clienteId            String?       @map("cliente_id") @db.Uuid
+  nomeConvidado        String?       @map("nome_convidado")
+  telefoneConvidado    String?       @map("telefone_convidado")
+  emailConvidado       String?       @map("email_convidado")
   tipo                 TipoReserva   @default(PADRAO)
   status               ReservaStatus @default(PENDENTE)
   deliveryMode         DeliveryMode  @default(PICKUP_ONLY) @map("delivery_mode")
@@ -414,7 +422,7 @@ model Reserva {
   canceladaEm          DateTime?     @map("cancelada_em") @db.Timestamptz(6)
   retiradaEm           DateTime?     @map("retirada_em") @db.Timestamptz(6)
 
-  cliente          User              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  cliente          User?             @relation(fields: [clienteId], references: [id], onDelete: Restrict)
   itemResgatavel   ItemResgatavel?   @relation(fields: [itemResgatavelId], references: [id], onDelete: Restrict)
   itens            ReservaItem[]
   pontosTransacoes PontosTransacao[]
@@ -562,5 +570,23 @@ model Configuracao {
   taxaEntregaPadrao       Decimal @default(0) @map("taxa_entrega_padrao") @db.Decimal(19, 4)
   entregaAtiva            Boolean @default(false) @map("entrega_ativa")
 
+  // Pix estático com valor embutido por reserva (exibido em /r/<token>) — só
+  // facilidade visual, sem gateway/webhook. Confirmação de pagamento continua
+  // manual (Reserva.pago). pixAtivo começa desligado até a mãe configurar a
+  // chave explicitamente em Ajustes.
+  pixAtivo            Boolean       @default(false) @map("pix_ativo")
+  pixTipoChave        PixTipoChave? @map("pix_tipo_chave")
+  pixChave            String?       @map("pix_chave")
+  pixNomeBeneficiario String?       @map("pix_nome_beneficiario")
+  pixCidade           String?       @map("pix_cidade")
+
   @@map("configuracoes")
+}
+
+enum PixTipoChave {
+  CPF
+  CNPJ
+  EMAIL
+  TELEFONE
+  ALEATORIA
 }

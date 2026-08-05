@@ -85,6 +85,23 @@ export const auth = betterAuth({
       // Fire-and-forget (T-01-04-04). Phase 4 moves this onto pg-boss.
       void sendVerificationEmail({ to: user.email, url })
     },
+    // Vincula reservas de convidado (sem cadastro) à conta recém-verificada —
+    // roda só APÓS a verificação (nunca no signup em si) pra não deixar
+    // alguém herdar a reserva de outra pessoa só por digitar o email dela
+    // sem provar que é dono daquele email. Único chokepoint, independente de
+    // como a verificação aconteceu (mesmo padrão de sendResetPassword acima).
+    // Idempotente: um updateMany que já não encontra linhas na 2ª chamada.
+    afterEmailVerification: async (user) => {
+      try {
+        await prisma.reserva.updateMany({
+          where: { clienteId: null, emailConvidado: user.email },
+          data: { clienteId: user.id },
+        })
+        await logAudit({ actorType: 'customer', actorId: user.id, action: 'reservas_convidado_vinculadas' })
+      } catch {
+        // Nunca bloquear a verificação de email por causa da vinculação.
+      }
+    },
   },
   user: {
     additionalFields: {

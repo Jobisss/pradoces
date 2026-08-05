@@ -93,7 +93,10 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
       const expiraEm = new Date(confirmadaEm)
       expiraEm.setMonth(expiraEm.getMonth() + expiracaoMeses)
 
-      if (pontos > 0) {
+      // Reserva de convidado (sem cadastro) não credita pontos — só passa a
+      // contar depois que a conta for vinculada (lib/auth/server.ts,
+      // afterEmailVerification), e só pra confirmações feitas DEPOIS disso.
+      if (reserva.clienteId && pontos > 0) {
         await tx.pontosTransacao.create({
           data: {
             clienteId: reserva.clienteId,
@@ -162,12 +165,12 @@ export async function rejeitarReserva(reservaId: string): Promise<ReservaAdminAc
       if (reserva.status !== 'PENDENTE') throw new ReservaAdminError(JA_PROCESSADA)
 
       if (reserva.tipo === 'RESGATE') {
-        // RESG-05 — estorna os pontos debitados no resgate, com um crédito
-        // compensatório (nunca edita o débito original).
-        const debito = await tx.pontosTransacao.findFirst({
-          where: { reservaId: reserva.id, motivo: 'RESGATE' },
-        })
-        if (debito) {
+        // Resgate só existe pra cliente logado (lib/actions/resgate.ts sempre
+        // exige requireCliente()) — reserva de convidado nunca é RESGATE.
+        const debito = reserva.clienteId
+          ? await tx.pontosTransacao.findFirst({ where: { reservaId: reserva.id, motivo: 'RESGATE' } })
+          : null
+        if (debito && reserva.clienteId) {
           await tx.pontosTransacao.create({
             data: {
               clienteId: reserva.clienteId,
@@ -281,7 +284,7 @@ export async function apagarReserva(reservaId: string): Promise<ReservaAdminActi
     return { error: GENERIC_SERVER_ERROR }
   }
 
-  let snapshot: { status: string; tipo: string; clienteId: string } | null = null
+  let snapshot: { status: string; tipo: string; clienteId: string | null } | null = null
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -300,10 +303,11 @@ export async function apagarReserva(reservaId: string): Promise<ReservaAdminActi
 
       if (reserva.status === 'PENDENTE') {
         if (reserva.tipo === 'RESGATE') {
-          const debito = await tx.pontosTransacao.findFirst({
-            where: { reservaId: reserva.id, motivo: 'RESGATE' },
-          })
-          if (debito) {
+          // Resgate só existe pra cliente logado — reserva de convidado nunca é RESGATE.
+          const debito = reserva.clienteId
+            ? await tx.pontosTransacao.findFirst({ where: { reservaId: reserva.id, motivo: 'RESGATE' } })
+            : null
+          if (debito && reserva.clienteId) {
             await tx.pontosTransacao.create({
               data: {
                 clienteId: reserva.clienteId,

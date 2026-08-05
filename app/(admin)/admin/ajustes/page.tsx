@@ -11,6 +11,11 @@ export default async function AjustesPage() {
   const janelaCancelamentoAtual = String(config?.janelaCancelamentoHoras ?? 24)
   const taxaEntregaAtual = config ? config.taxaEntregaPadrao.toFixed(2) : '0.00'
   const entregaAtivaAtual = config?.entregaAtiva ?? false
+  const pixAtivoAtual = config?.pixAtivo ?? false
+  const pixTipoChaveAtual = config?.pixTipoChave ?? ''
+  const pixChaveAtual = config?.pixChave ?? ''
+  const pixNomeBeneficiarioAtual = config?.pixNomeBeneficiario ?? ''
+  const pixCidadeAtual = config?.pixCidade ?? ''
 
   return (
     <div className="space-y-8">
@@ -23,6 +28,11 @@ export default async function AjustesPage() {
         janelaCancelamentoAtual={janelaCancelamentoAtual}
         taxaEntregaAtual={taxaEntregaAtual}
         entregaAtivaAtual={entregaAtivaAtual}
+        pixAtivoAtual={pixAtivoAtual}
+        pixTipoChaveAtual={pixTipoChaveAtual}
+        pixChaveAtual={pixChaveAtual}
+        pixNomeBeneficiarioAtual={pixNomeBeneficiarioAtual}
+        pixCidadeAtual={pixCidadeAtual}
       />
       <SimuladorPontos pontosPorRealAtual={pontosPorRealAtual} capAtual={pontosCapAtual} />
     </div>
