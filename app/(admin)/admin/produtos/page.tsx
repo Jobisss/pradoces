@@ -31,7 +31,7 @@ export default async function ProdutosPage() {
             const abaixoDoMinimo = item.margem !== null && item.margem.lessThan(item.minima)
             return (
               <li
-                key={item.produtoId}
+                key={item.variacaoId ?? item.produtoId}
                 className={`space-y-1 py-4 pl-3 ${abaixoDoMinimo ? 'border-l-4 border-destructive' : ''}`}
               >
                 <div className="flex items-center gap-2">

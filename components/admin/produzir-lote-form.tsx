@@ -4,12 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Decimal from 'decimal.js'
 import { toast } from 'sonner'
-import { dadosProducao, comprasDoIngrediente, produzirLote, type DadosProducao } from '@/lib/actions/lotes'
+import { dadosProducao, comprasDoIngrediente, produzirLotes, type DadosProducao } from '@/lib/actions/lotes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
 import { dataCivilFmtBR as dateFmt } from '@/lib/format/date'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -29,9 +28,7 @@ function dataPorExtenso(iso: string): string {
   return dateFmt.format(new Date(`${iso}T00:00:00Z`))
 }
 
-const MULTIPLICADORES = ['1', '1.5', '2']
-
-type ReceitaOpcao = { receitaId: string; produtoId: string; nome: string }
+type ProdutoOpcao = { produtoId: string; nome: string }
 type OpcaoCompra = { id: string; marca: string; dataCompra: string; custoPorUnidadeBase: string }
 
 type LinhaState = {
@@ -39,79 +36,82 @@ type LinhaState = {
   nome: string
   unidadeBase: string
   qtdeBase: string
-  origem: 'base' | 'recheio'
   compra: OpcaoCompra | null
   trocandoCompra: boolean
   opcoesCompra: OpcaoCompra[]
 }
 
-/**
- * D-12: base escala pelo multiplicador EFETIVO (quantas receitas — D-07 —
- * já ajustado pra fração da fornada que foi pra ESTE produto, quando a
- * fornada foi dividida entre vários produtos/recheios diferentes); recheio
- * escala por (gramasUsadas ÷ peso total da receita de recheio) × unidades
- * reais que saíram — a receita de recheio é tratada como um LOTE (regra de
- * 3), não como "por unidade final" — ver lib/actions/lotes.ts.
- */
-function escalarQtde(
-  linha: LinhaState,
-  multEfetivo: Decimal,
-  fracaoRecheio: Decimal,
-  rendimentoReal: string,
-): Decimal {
-  if (linha.origem === 'base') return new Decimal(linha.qtdeBase).times(multEfetivo)
-  const rendimento = toDecimal(rendimentoReal) ?? new Decimal(0)
-  return new Decimal(linha.qtdeBase).times(fracaoRecheio).times(rendimento)
+type VariacaoState = {
+  id: string
+  nome: string
+  rendimentoReal: string
+  recheio: {
+    id: string
+    nome: string
+    gramasUsadas: string
+    pesoTotalG: string
+    custoGas: string | null
+    linhas: LinhaState[]
+  } | null
+}
+
+function toLinhaState(l: {
+  ingredienteId: string
+  nome: string
+  unidadeBase: string
+  qtdeBase: string
+  compraSelecionada: OpcaoCompra | null
+}): LinhaState {
+  return {
+    ingredienteId: l.ingredienteId,
+    nome: l.nome,
+    unidadeBase: l.unidadeBase,
+    qtdeBase: l.qtdeBase,
+    compra: l.compraSelecionada,
+    trocandoCompra: false,
+    opcoesCompra: [],
+  }
 }
 
 /**
- * Fluxo "Produzi hoje" (D-05/06/07/08) — o form mais importante do motor
- * financeiro, onde o custo é congelado. Tudo aqui é PREVIEW (decimal.js no
- * client); quem recomputa e congela de verdade é produzirLote server-side
- * dentro de uma transação (02-07, provado por LOTE-08). O payload enviado
- * carrega só IDs e quantidades — nunca um valor de custo.
+ * Fluxo "Produzi hoje" (D-05..08/13) — produto-cêntrico: escolhe o produto,
+ * os ingredientes da BASE aparecem uma vez, e cada variação ativa ganha um
+ * campo de quantidade (0/vazio = não fez essa hoje, sem criar lote pra ela).
+ * O multiplicador da base é DERIVADO da soma das quantidades (não pedido
+ * separado) — "fiz 5 desse, 3 desse" é tudo que a mãe precisa digitar.
+ * Tudo aqui é PREVIEW (decimal.js no client); quem recomputa e congela de
+ * verdade é produzirLotes server-side dentro de uma transação (02-07/D-13).
  */
-export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
+export function ProduzirLoteForm({ produtos }: { produtos: ProdutoOpcao[] }) {
   const router = useRouter()
-  const [receitaId, setReceitaId] = useState('')
+  const [produtoId, setProdutoId] = useState('')
   const [dados, setDados] = useState<DadosProducao | null>(null)
-  const [linhas, setLinhas] = useState<LinhaState[]>([])
-  const [multiplicador, setMultiplicador] = useState('1')
-  const [rendimentoReal, setRendimentoReal] = useState('')
-  const [dividida, setDividida] = useState(false)
-  const [rendimentoTotalFornada, setRendimentoTotalFornada] = useState('')
+  const [linhasBase, setLinhasBase] = useState<LinhaState[]>([])
+  const [variacoes, setVariacoes] = useState<VariacaoState[]>([])
   const [validade, setValidade] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-  const [, startCarregarReceita] = useTransition()
+  const [, startCarregarProduto] = useTransition()
 
-  const produtoSelecionado = receitas.find((r) => r.receitaId === receitaId)
-
-  function selecionarReceita(id: string) {
-    setReceitaId(id)
+  function selecionarProduto(id: string) {
+    setProdutoId(id)
     setErro(null)
-    const produto = receitas.find((r) => r.receitaId === id)
-    if (!produto) return
-    startCarregarReceita(async () => {
-      const result = await dadosProducao(produto.produtoId)
+    startCarregarProduto(async () => {
+      const result = await dadosProducao(id)
       if (!result) {
-        setErro('Não consegui carregar essa receita.')
+        setErro('Não consegui carregar esse produto.')
         return
       }
       setDados(result)
-      setLinhas(
-        result.linhas.map((l) => ({
-          ingredienteId: l.ingredienteId,
-          nome: l.nome,
-          unidadeBase: l.unidadeBase,
-          qtdeBase: l.qtdeBase,
-          origem: l.origem,
-          compra: l.compraSelecionada,
-          trocandoCompra: false,
-          opcoesCompra: [],
+      setLinhasBase(result.linhasBase.map(toLinhaState))
+      setVariacoes(
+        result.variacoes.map((v) => ({
+          id: v.id,
+          nome: v.nome,
+          rendimentoReal: '',
+          recheio: v.recheio ? { ...v.recheio, linhas: v.recheio.linhas.map(toLinhaState) } : null,
         })),
       )
-      setRendimentoReal(String(result.receita.rendimentoPadrao))
       if (result.receita.validadeDias) {
         const d = new Date()
         d.setDate(d.getDate() + result.receita.validadeDias)
@@ -122,103 +122,212 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
     })
   }
 
-  async function abrirTrocaCompra(index: number) {
-    const linha = linhas[index]
+  async function abrirTrocaCompraBase(index: number) {
+    const linha = linhasBase[index]
     const opcoes = await comprasDoIngrediente(linha.ingredienteId)
-    setLinhas((prev) =>
+    setLinhasBase((prev) =>
       prev.map((l, i) => (i === index ? { ...l, trocandoCompra: true, opcoesCompra: opcoes } : l)),
     )
   }
-
-  function escolherCompra(index: number, compra: OpcaoCompra) {
-    setLinhas((prev) => prev.map((l, i) => (i === index ? { ...l, compra, trocandoCompra: false } : l)))
+  function escolherCompraBase(index: number, compra: OpcaoCompra) {
+    setLinhasBase((prev) => prev.map((l, i) => (i === index ? { ...l, compra, trocandoCompra: false } : l)))
   }
 
-  const mult = toDecimal(multiplicador) ?? new Decimal(1)
-  const rendimentoSugerido = dados
-    ? new Decimal(dados.receita.rendimentoPadrao).times(mult).toFixed(0)
-    : ''
+  async function abrirTrocaCompraRecheio(variacaoIndex: number, index: number) {
+    const linha = variacoes[variacaoIndex].recheio!.linhas[index]
+    const opcoes = await comprasDoIngrediente(linha.ingredienteId)
+    setVariacoes((prev) =>
+      prev.map((v, vi) =>
+        vi !== variacaoIndex || !v.recheio
+          ? v
+          : {
+              ...v,
+              recheio: {
+                ...v.recheio,
+                linhas: v.recheio.linhas.map((l, i) =>
+                  i === index ? { ...l, trocandoCompra: true, opcoesCompra: opcoes } : l,
+                ),
+              },
+            },
+      ),
+    )
+  }
+  function escolherCompraRecheio(variacaoIndex: number, index: number, compra: OpcaoCompra) {
+    setVariacoes((prev) =>
+      prev.map((v, vi) =>
+        vi !== variacaoIndex || !v.recheio
+          ? v
+          : {
+              ...v,
+              recheio: {
+                ...v.recheio,
+                linhas: v.recheio.linhas.map((l, i) => (i === index ? { ...l, compra, trocandoCompra: false } : l)),
+              },
+            },
+      ),
+    )
+  }
 
-  // Fornada dividida entre produtos (recheios diferentes da mesma massa): o
-  // multiplicador só se refere à fração da fornada que foi pra ESTE produto,
-  // não a "quantas vezes fiz a receita inteira" — regra de 3 sobre o
-  // rendimento total da fornada. Sem divisão, rendimentoTotalFornadaEfetivo
-  // === rendimentoReal e multEfetivo === mult (comportamento de sempre).
-  const rendimentoRealDecimal = toDecimal(rendimentoReal) ?? new Decimal(0)
-  const rendimentoTotalFornadaEfetivo = dividida
-    ? (toDecimal(rendimentoTotalFornada) ?? new Decimal(0))
-    : rendimentoRealDecimal
-  const multEfetivo = rendimentoTotalFornadaEfetivo.isZero()
-    ? new Decimal(0)
-    : new Decimal(
-        mult.times(rendimentoRealDecimal).dividedBy(rendimentoTotalFornadaEfetivo).toFixed(3),
-      )
+  function setRendimentoReal(variacaoIndex: number, value: string) {
+    setVariacoes((prev) => prev.map((v, i) => (i === variacaoIndex ? { ...v, rendimentoReal: value } : v)))
+  }
 
-  // Regra de 3 do recheio (D-12): fração da receita de recheio (tratada como
-  // um lote inteiro, ex. uma receita de brigadeiro) que 1 unidade final leva.
-  const pesoTotalRecheio = dados?.recheio ? new Decimal(dados.recheio.pesoTotalG) : new Decimal(0)
-  const gramasRecheio = dados?.recheio ? new Decimal(dados.recheio.gramasUsadas) : new Decimal(0)
-  const fracaoRecheio = pesoTotalRecheio.isZero() ? new Decimal(0) : gramasRecheio.dividedBy(pesoTotalRecheio)
+  const somaRendimento = variacoes.reduce((soma, v) => soma + (Number(v.rendimentoReal) || 0), 0)
+  const multEfetivo =
+    dados && somaRendimento > 0
+      ? new Decimal(somaRendimento).dividedBy(dados.receita.rendimentoPadrao)
+      : new Decimal(0)
 
-  let custoPreview: { total: Decimal; porUnidade: Decimal } | null = null
-  if (dados && rendimentoReal && Number(rendimentoReal) > 0 && linhas.length > 0 && linhas.every((l) => l.compra)) {
-    let total = new Decimal(0)
-    for (const linha of linhas) {
-      const qtdeEscalada = escalarQtde(linha, multEfetivo, fracaoRecheio, rendimentoReal)
-      total = total.plus(qtdeEscalada.times(new Decimal(linha.compra!.custoPorUnidadeBase)))
+  function escalarBase(linha: LinhaState): Decimal {
+    return new Decimal(linha.qtdeBase).times(multEfetivo)
+  }
+  function fracaoRecheioDe(v: VariacaoState): Decimal {
+    if (!v.recheio) return new Decimal(0)
+    const pesoTotalG = new Decimal(v.recheio.pesoTotalG)
+    return pesoTotalG.isZero() ? new Decimal(0) : new Decimal(v.recheio.gramasUsadas).dividedBy(pesoTotalG)
+  }
+  function escalarRecheio(v: VariacaoState, linha: LinhaState): Decimal {
+    const rendimento = toDecimal(v.rendimentoReal) ?? new Decimal(0)
+    return new Decimal(linha.qtdeBase).times(fracaoRecheioDe(v)).times(rendimento)
+  }
+
+  /** Mesma conta do server: fatia da base (rendimentoReal_i ÷ soma) + recheio inteiro dessa variação. */
+  function custoPreviewDe(v: VariacaoState): { total: Decimal; porUnidade: Decimal } | null {
+    const rendimento = Number(v.rendimentoReal) || 0
+    if (rendimento <= 0 || !dados) return null
+    if (linhasBase.length === 0 || linhasBase.some((l) => !l.compra)) return null
+    if (v.recheio && v.recheio.linhas.some((l) => !l.compra)) return null
+
+    const fracao = somaRendimento > 0 ? new Decimal(rendimento).dividedBy(somaRendimento) : new Decimal(0)
+    let totalBase = new Decimal(0)
+    for (const linha of linhasBase) {
+      totalBase = totalBase.plus(escalarBase(linha).times(new Decimal(linha.compra!.custoPorUnidadeBase)))
     }
-    if (dados.receita.custoGas) total = total.plus(new Decimal(dados.receita.custoGas))
-    custoPreview = { total, porUnidade: total.dividedBy(Number(rendimentoReal)) }
+    if (dados.receita.custoGas) totalBase = totalBase.plus(new Decimal(dados.receita.custoGas))
+    const fatiaBase = totalBase.times(fracao)
+
+    let totalRecheio = new Decimal(0)
+    if (v.recheio) {
+      for (const linha of v.recheio.linhas) {
+        totalRecheio = totalRecheio.plus(escalarRecheio(v, linha).times(new Decimal(linha.compra!.custoPorUnidadeBase)))
+      }
+      if (v.recheio.custoGas) totalRecheio = totalRecheio.plus(new Decimal(v.recheio.custoGas))
+    }
+
+    const total = fatiaBase.plus(totalRecheio)
+    return { total, porUnidade: total.dividedBy(rendimento) }
   }
 
   function confirmar() {
     setErro(null)
-    if (!produtoSelecionado || !dados) {
-      setErro('Escolhe a receita.')
+    if (!dados) {
+      setErro('Escolhe o produto.')
       return
     }
-    if (linhas.some((l) => !l.compra)) {
-      setErro('Falta escolher a compra de algum ingrediente.')
+    if (linhasBase.some((l) => !l.compra)) {
+      setErro('Falta escolher a compra de algum ingrediente da base.')
       return
     }
-    if (!rendimentoReal || Number(rendimentoReal) < 1) {
-      setErro(dividida ? 'Informa quantas unidades foram pra esse produto.' : 'Informa quantas unidades saíram.')
+    const ativas = variacoes.filter((v) => (Number(v.rendimentoReal) || 0) > 0)
+    if (ativas.length === 0) {
+      setErro('Informa quantas unidades saíram de pelo menos uma variação.')
       return
     }
-    if (dividida && (!rendimentoTotalFornada || Number(rendimentoTotalFornada) < Number(rendimentoReal))) {
-      setErro('Informa quantas unidades a fornada toda rendeu (tem que ser ≥ o que foi pra esse produto).')
-      return
-    }
-    if (dados.recheio && fracaoRecheio.isZero()) {
-      setErro('Esse produto tem recheio mas falta configurar quantas gramas — edita o produto antes.')
-      return
+    for (const v of ativas) {
+      if (v.recheio && v.recheio.linhas.some((l) => !l.compra)) {
+        setErro(`Falta escolher a compra de algum ingrediente do recheio de "${v.nome}".`)
+        return
+      }
+      if (v.recheio && new Decimal(v.recheio.pesoTotalG).isZero()) {
+        setErro(`"${v.nome}" tem recheio mas ele não tem peso configurado — edita o produto antes.`)
+        return
+      }
     }
     if (!validade) {
       setErro('Informa a validade.')
       return
     }
 
+    const multiplicadorGlobal = new Decimal(somaRendimento).dividedBy(dados.receita.rendimentoPadrao).toDecimalPlaces(3)
+
     const payload = {
-      produtoId: produtoSelecionado.produtoId,
-      receitaId: produtoSelecionado.receitaId,
-      multiplicador: multEfetivo.toFixed(3),
-      rendimentoReal: Number(rendimentoReal),
+      produtoId,
+      receitaId: dados.receita.id,
+      multiplicador: multiplicadorGlobal.toFixed(3),
       validade,
-      linhas: linhas.map((l) => ({
+      linhasBase: linhasBase.map((l) => ({
         ingredienteCompraId: l.compra!.id,
-        qtde: escalarQtde(l, multEfetivo, fracaoRecheio, rendimentoReal).toFixed(3),
+        qtde: new Decimal(l.qtdeBase).times(multiplicadorGlobal).toFixed(3),
       })),
+      variacoes: ativas.map((v) => {
+        const rendimentoReal = Number(v.rendimentoReal)
+        const fracaoRecheio = fracaoRecheioDe(v)
+        return {
+          variacaoId: v.id,
+          rendimentoReal,
+          linhasRecheio: v.recheio
+            ? v.recheio.linhas.map((l) => ({
+                ingredienteCompraId: l.compra!.id,
+                qtde: new Decimal(l.qtdeBase).times(fracaoRecheio).times(rendimentoReal).toFixed(3),
+              }))
+            : [],
+        }
+      }),
     }
 
     startTransition(async () => {
-      const result = await produzirLote(payload)
+      const result = await produzirLotes(payload)
       if (result.error) {
         setErro(result.error)
         return
       }
-      toast('Lote registrado! O custo ficou guardado do jeitinho que foi hoje.')
+      toast(`${result.lotes?.length ?? 0} lote(s) registrado(s)! O custo ficou guardado do jeitinho que foi hoje.`)
       router.push('/admin/lotes')
     })
+  }
+
+  function linhaIngrediente(
+    linha: LinhaState,
+    qtdeEscalada: Decimal,
+    onAbrirTroca: () => void,
+    onEscolherCompra: (compra: OpcaoCompra) => void,
+  ) {
+    return (
+      <div key={linha.ingredienteId} className="space-y-2 rounded-lg border border-border p-3">
+        {linha.compra ? (
+          <p className="tabular-nums text-sm">
+            {linha.nome} · {qtdeEscalada.toFixed(0)}
+            {linha.unidadeBase} — {linha.compra.marca}, compra de {dataPorExtenso(linha.compra.dataCompra)} (
+            {currency4.format(Number(linha.compra.custoPorUnidadeBase))}/{linha.unidadeBase})
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">{linha.nome} ainda não tem compra registrada</p>
+        )}
+
+        {linha.trocandoCompra ? (
+          <Select onValueChange={(id) => {
+            const c = linha.opcoesCompra.find((o) => o.id === id)
+            if (c) onEscolherCompra(c)
+          }}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Qual compra você usou?" />
+            </SelectTrigger>
+            <SelectContent>
+              {linha.opcoesCompra.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.marca} — {dataPorExtenso(o.dataCompra)} ({currency4.format(Number(o.custoPorUnidadeBase))}/
+                  {linha.unidadeBase})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={onAbrirTroca}>
+            Trocar compra
+          </button>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -230,15 +339,15 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="receita">Qual receita você fez</Label>
-        <Select value={receitaId} onValueChange={selecionarReceita}>
-          <SelectTrigger id="receita" className="w-full">
-            <SelectValue placeholder="Escolhe a receita" />
+        <Label htmlFor="produto">Qual produto você fez</Label>
+        <Select value={produtoId} onValueChange={selecionarProduto}>
+          <SelectTrigger id="produto" className="w-full">
+            <SelectValue placeholder="Escolhe o produto" />
           </SelectTrigger>
           <SelectContent>
-            {receitas.map((r) => (
-              <SelectItem key={r.receitaId} value={r.receitaId}>
-                {r.nome}
+            {produtos.map((p) => (
+              <SelectItem key={p.produtoId} value={p.produtoId}>
+                {p.nome}
               </SelectItem>
             ))}
           </SelectContent>
@@ -247,164 +356,70 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
 
       {dados && (
         <>
-          <div className="space-y-1.5">
-            <Label>Quantas receitas</Label>
-            <div className="flex flex-wrap gap-2">
-              {MULTIPLICADORES.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`flex h-11 items-center rounded-lg px-4 text-sm font-medium ${
-                    multiplicador === m
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-border text-foreground'
-                  }`}
-                  onClick={() => setMultiplicador(m)}
-                >
-                  {m.replace('.', ',')}×
-                </button>
-              ))}
-              <Input
-                inputMode="decimal"
-                value={multiplicador}
-                onChange={(e) => setMultiplicador(e.target.value)}
-                className="h-11 w-24"
-              />
-            </div>
-            {dividida && (
-              <p className="text-sm text-muted-foreground">
-                quantas vezes você fez a receita da fornada inteira — o quanto disso vai pra ESTE
-                produto é calculado abaixo
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5 rounded-lg border border-border p-3">
-            <label className="group/field flex items-center gap-2 text-sm font-medium">
-              <Checkbox
-                checked={dividida}
-                onCheckedChange={(checked) => {
-                  const v = checked === true
-                  setDividida(v)
-                  if (v && !rendimentoTotalFornada) setRendimentoTotalFornada(rendimentoSugerido)
-                }}
-              />
-              Fiz uma fornada só e vou dividir entre produtos diferentes (recheios diferentes)?
-            </label>
-            {dividida && (
-              <div className="space-y-1.5 pt-2">
-                <Label htmlFor="rendimentoTotalFornada">Quantas unidades a fornada toda rendeu</Label>
-                <Input
-                  id="rendimentoTotalFornada"
-                  inputMode="numeric"
-                  value={rendimentoTotalFornada}
-                  onChange={(e) => setRendimentoTotalFornada(e.target.value)}
-                  placeholder={rendimentoSugerido}
-                />
-                {rendimentoReal && rendimentoTotalFornada && (
-                  <p className="tabular-nums text-sm text-muted-foreground">
-                    Esse lote usa {multEfetivo.toFixed(3).replace('.', ',')}× da receita base ({rendimentoReal}{' '}
-                    de {rendimentoTotalFornada} unidades da fornada).
-                  </p>
-                )}
-              </div>
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Ingredientes da massa (base)</h2>
+            {linhasBase.map((linha, index) =>
+              linhaIngrediente(
+                linha,
+                escalarBase(linha),
+                () => abrirTrocaCompraBase(index),
+                (compra) => escolherCompraBase(index, compra),
+              ),
             )}
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Ingredientes que você usou</h2>
-            {linhas.map((linha, index) => {
-              const qtdeEscalada = escalarQtde(linha, multEfetivo, fracaoRecheio, rendimentoReal)
-              const primeiraDoRecheio =
-                linha.origem === 'recheio' && (index === 0 || linhas[index - 1].origem === 'base')
+            <h2 className="text-lg font-semibold">Quantas unidades de cada variação</h2>
+            {variacoes.map((v, index) => {
+              const custoPreview = custoPreviewDe(v)
+              const rendimento = Number(v.rendimentoReal) || 0
               return (
-                <div key={`${linha.origem}-${linha.ingredienteId}`} className="space-y-2">
-                  {primeiraDoRecheio && dados.recheio && (
-                    <h3 className="pt-2 text-sm font-semibold text-muted-foreground">
-                      Recheio: {dados.recheio.nome}
-                    </h3>
-                  )}
-                  <div className="space-y-2 rounded-lg border border-border p-3">
-                  {linha.compra ? (
-                    <p className="tabular-nums text-sm">
-                      {linha.nome} · {qtdeEscalada.toFixed(0)}
-                      {linha.unidadeBase} — {linha.compra.marca}, compra de{' '}
-                      {dataPorExtenso(linha.compra.dataCompra)} (
-                      {currency4.format(Number(linha.compra.custoPorUnidadeBase))}/{linha.unidadeBase})
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {linha.nome} ainda não tem compra registrada
-                    </p>
+                <div key={v.id} className="space-y-3 rounded-lg border border-border p-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`rendimento-${v.id}`}>{v.nome}</Label>
+                    <Input
+                      id={`rendimento-${v.id}`}
+                      inputMode="numeric"
+                      value={v.rendimentoReal}
+                      onChange={(e) => setRendimentoReal(index, e.target.value)}
+                      placeholder="0"
+                    />
+                    <p className="text-sm text-muted-foreground">Deixa em branco (ou 0) se não fez essa hoje.</p>
+                  </div>
+
+                  {v.recheio && rendimento > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold text-muted-foreground">Recheio: {v.recheio.nome}</h3>
+                      {v.recheio.linhas.map((linha, li) =>
+                        linhaIngrediente(
+                          linha,
+                          escalarRecheio(v, linha),
+                          () => abrirTrocaCompraRecheio(index, li),
+                          (compra) => escolherCompraRecheio(index, li, compra),
+                        ),
+                      )}
+                    </div>
                   )}
 
-                  {linha.trocandoCompra ? (
-                    <Select
-                      onValueChange={(id) => {
-                        const c = linha.opcoesCompra.find((o) => o.id === id)
-                        if (c) escolherCompra(index, c)
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Qual compra você usou?" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {linha.opcoesCompra.map((o) => (
-                          <SelectItem key={o.id} value={o.id}>
-                            {o.marca} — {dataPorExtenso(o.dataCompra)} (
-                            {currency4.format(Number(o.custoPorUnidadeBase))}/{linha.unidadeBase})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <button
-                      type="button"
-                      className="text-sm font-medium underline underline-offset-2"
-                      onClick={() => abrirTrocaCompra(index)}
-                    >
-                      Trocar compra
-                    </button>
+                  {custoPreview && (
+                    <p className="tabular-nums text-sm">
+                      Custou {currency.format(custoPreview.total.toNumber())} — {currency.format(custoPreview.porUnidade.toNumber())} por unidade.
+                    </p>
                   )}
-                  </div>
                 </div>
               )
             })}
+            {somaRendimento > 0 && (
+              <p className="tabular-nums text-sm text-muted-foreground">
+                Isso equivale a {multEfetivo.toFixed(3).replace('.', ',')}× a receita base ({somaRendimento} unidades
+                no total).
+              </p>
+            )}
           </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="rendimentoReal">
-              {dividida ? 'Quantas unidades foram pra ESTE produto' : 'Quantas unidades saíram de verdade'}
-            </Label>
-            <Input
-              id="rendimentoReal"
-              inputMode="numeric"
-              value={rendimentoReal}
-              onChange={(e) => setRendimentoReal(e.target.value)}
-              placeholder={rendimentoSugerido}
-            />
-            <p className="text-sm text-muted-foreground">
-              {dividida
-                ? 'as outras unidades da fornada viram lotes separados, um pra cada recheio'
-                : `a receita diz ${rendimentoSugerido}, mas vale o que saiu`}
-            </p>
-          </div>
-
-          {dados.recheio && fracaoRecheio.isZero() && (
-            <p role="alert" className="text-sm text-muted-foreground">
-              Esse produto tem recheio ({dados.recheio.nome}) mas não tem gramas configuradas — edita o
-              produto e informa quantas gramas de recheio entram em cada unidade antes de produzir.
-            </p>
-          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="validade">Vence em</Label>
-            <Input
-              id="validade"
-              type="date"
-              value={validade}
-              onChange={(e) => setValidade(e.target.value)}
-            />
+            <Input id="validade" type="date" value={validade} onChange={(e) => setValidade(e.target.value)} />
             {validade && (
               <p className="text-sm text-muted-foreground">
                 vence {dataPorExtenso(validade)} — confere com a etiqueta que você cola no doce
@@ -412,20 +427,13 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
             )}
           </div>
 
-          {custoPreview && (
-            <p className="tabular-nums text-base">
-              Esse lote custou {currency.format(custoPreview.total.toNumber())} —{' '}
-              {currency.format(custoPreview.porUnidade.toNumber())} por unidade.
-            </p>
-          )}
-
           <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
             <div className="mx-auto w-full max-w-md">
               <Button
                 type="button"
                 size="lg"
                 className="w-full"
-                disabled={pending || linhas.some((l) => !l.compra) || (!!dados.recheio && fracaoRecheio.isZero())}
+                disabled={pending || linhasBase.some((l) => !l.compra)}
                 onClick={confirmar}
               >
                 {pending ? 'Registrando...' : 'Registrar produção'}

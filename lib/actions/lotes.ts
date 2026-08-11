@@ -10,7 +10,7 @@ import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { ultimasCompras, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { computeLoteSnapshot } from '@/lib/custo/congelado'
-import { ProduzirLoteSchema } from '@/lib/validation/lotes'
+import { ProduzirLotesSchema } from '@/lib/validation/lotes'
 
 /**
  * Produção de lote (LOTE-01..04), admin-only — o coração da fase. O custo é
@@ -19,27 +19,28 @@ import { ProduzirLoteSchema } from '@/lib/validation/lotes'
  * qtde do client é só conferida por igualdade contra o requerido (nunca
  * usada pra calcular).
  *
- * D-12 (recheio): quando o produto tem `recheioReceitaId`, os ingredientes
- * da receita de recheio entram na MESMA transação/snapshot que a base, mas
- * escalam por um eixo DIFERENTE — base escala pelo multiplicador (D-07,
- * quantas receitas foram feitas), recheio escala por
- * (recheioGramasUsadas ÷ peso total em gramas da receita de recheio) ×
- * rendimentoReal — a receita de recheio é tratada como um LOTE (ex.: uma
- * receita inteira de brigadeiro), rateada por regra de 3 pra dose que cada
- * unidade final leva (ver lib/custo/corrente.ts:custoCorrenteRecheio).
+ * D-13 (variação): uma fornada da receita base pode virar lotes de VÁRIAS
+ * variações numa transação só ("fiz 5 desse, 3 desse"). Os ingredientes da
+ * BASE são comprados uma vez pra fornada inteira, então o custo deles é
+ * FATIADO proporcionalmente entre os lotes por
+ * `rendimentoReal_i / Σ rendimentoReal` — é a única divisão que não distorce
+ * o custo real de cada lote. O recheio de cada variação (quando houver)
+ * continua tratado como um LOTE inteiro rateado por regra de 3
+ * (recheioGramasUsadas ÷ peso total da receita de recheio) × rendimentoReal
+ * daquela variação — sem fatiar entre lotes, porque já é per-variação.
  */
 
 const RATE_LIMIT_COPY = 'Muitas tentativas seguidas. Espera um minutinho e tenta de novo.'
 const GENERIC_SERVER_ERROR = 'Algo não deu certo do nosso lado. Tente de novo em alguns segundos.'
 const DADOS_DESATUALIZADOS = 'Os dados mudaram — recarrega a página e tenta de novo.'
+const RECHEIO_SEM_CONFIG_COPY =
+  'Uma das variações tem recheio mas falta configurar quantas gramas — edita o produto antes.'
 
-export type LoteActionState = {
+export type LotesActionState = {
   error?: string
   fieldErrors?: Record<string, string[] | undefined>
   ok?: boolean
-  id?: string
-  custoTotal?: string
-  custoPorUnidade?: string
+  lotes?: Array<{ id: string; variacaoId: string; custoTotal: string; custoPorUnidade: string }>
 }
 
 async function clientContext() {
@@ -49,7 +50,9 @@ async function clientContext() {
   return { ip, ua }
 }
 
-export async function produzirLote(input: unknown): Promise<LoteActionState> {
+type LinhaCompra = { compra: { id: string; marca: string; custoPorUnidadeBase: Decimal }; qtdeUsada: Decimal }
+
+export async function produzirLotes(input: unknown): Promise<LotesActionState> {
   const { ip, ua } = await clientContext()
   const rl = await rateLimitAuth.consume(ip).catch(() => null)
   if (rl === null) return { error: RATE_LIMIT_COPY }
@@ -61,148 +64,173 @@ export async function produzirLote(input: unknown): Promise<LoteActionState> {
     return { error: GENERIC_SERVER_ERROR }
   }
 
-  const parsed = ProduzirLoteSchema.safeParse(input)
+  const parsed = ProduzirLotesSchema.safeParse(input)
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
   }
   const data = parsed.data
 
-  type TxResult = {
-    loteId: string
-    custoTotalCongelado: string
-    custoPorUnidadeCongelado: string
-  }
+  type LoteResult = { loteId: string; variacaoId: string; custoTotalCongelado: string; custoPorUnidadeCongelado: string }
 
-  let result: TxResult
+  let resultados: LoteResult[]
   try {
-    result = await prisma.$transaction(async (tx) => {
-      const produto = await tx.produto.findUniqueOrThrow({ where: { id: data.produtoId } })
-      const receita = await tx.receita.findUniqueOrThrow({
-        where: { id: data.receitaId },
-        include: { itens: true },
-      })
-      const recheioReceita = produto.recheioReceitaId
-        ? await tx.receita.findUniqueOrThrow({
-            where: { id: produto.recheioReceitaId },
-            include: { itens: { include: { ingrediente: true } } },
-          })
-        : null
+    resultados = await prisma.$transaction(async (tx) => {
+      const receita = await tx.receita.findUniqueOrThrow({ where: { id: data.receitaId }, include: { itens: true } })
 
-      // Regra de 3: fração da receita de recheio (tratada como um LOTE, ex.:
-      // uma receita inteira de brigadeiro) que 1 unidade final consome.
-      let fracaoRecheio = new Decimal(0)
-      if (recheioReceita) {
-        if (!produto.recheioGramasUsadas) throw new Error('RECHEIO_SEM_CONFIG')
-        const { pesoTotalG } = pesoTotalGramasReceita(recheioReceita.itens)
-        if (pesoTotalG.isZero()) throw new Error('RECHEIO_SEM_CONFIG')
-        fracaoRecheio = new Decimal(produto.recheioGramasUsadas).dividedBy(pesoTotalG)
+      const variacoes = await tx.variacao.findMany({
+        where: { id: { in: data.variacoes.map((v) => v.variacaoId) } },
+        include: { receitaRecheio: { include: { itens: { include: { ingrediente: true } } } } },
+      })
+      const variacaoPorId = new Map(variacoes.map((v) => [v.id, v]))
+      if (variacoes.length !== new Set(data.variacoes.map((v) => v.variacaoId)).size) {
+        throw new Error('DADOS_DESATUALIZADOS')
       }
 
-      const compras = await tx.ingredienteCompra.findMany({
-        where: { id: { in: data.linhas.map((l) => l.ingredienteCompraId) } },
+      // Base da fornada inteira — mesma checagem exata de sempre (qtde do
+      // client tem que bater com item.qtde × multiplicador).
+      const comprasBase = await tx.ingredienteCompra.findMany({
+        where: { id: { in: data.linhasBase.map((l) => l.ingredienteCompraId) } },
       })
-      const compraPorIngrediente = new Map(compras.map((c) => [c.ingredienteId, c]))
+      const compraBasePorIngrediente = new Map(comprasBase.map((c) => [c.ingredienteId, c]))
+      const linhasBaseDisponiveis = [...data.linhasBase]
 
-      type Requerido = { ingredienteId: string; qtdeBase: Decimal; escalaPor: 'multiplicador' | 'rendimentoReal' }
-      const requeridos: Requerido[] = [
-        ...receita.itens.map((item) => ({
-          ingredienteId: item.ingredienteId,
-          qtdeBase: new Decimal(item.qtde),
-          escalaPor: 'multiplicador' as const,
-        })),
-        ...(recheioReceita?.itens.map((item) => ({
-          ingredienteId: item.ingredienteId,
-          qtdeBase: new Decimal(item.qtde).times(fracaoRecheio),
-          escalaPor: 'rendimentoReal' as const,
-        })) ?? []),
-      ]
-
-      // Pool de linhas do client — cada item requerido CONSOME uma linha (por
-      // compra id + qtde exata), nunca reaproveita a mesma pra dois itens.
-      // Isso permite base e recheio precisarem do MESMO ingrediente sem que
-      // um "roube" a linha do outro (ex.: os dois usam açúcar).
-      const linhasDisponiveis = [...data.linhas]
-
-      const linhasSnapshot = requeridos.map((req) => {
-        const compra = compraPorIngrediente.get(req.ingredienteId)
+      const basePorIngrediente = new Map<string, LinhaCompra>()
+      for (const item of receita.itens) {
+        const compra = compraBasePorIngrediente.get(item.ingredienteId)
         if (!compra) throw new Error('DADOS_DESATUALIZADOS')
-        const qtdeUsadaServer =
-          req.escalaPor === 'multiplicador'
-            ? req.qtdeBase.times(data.multiplicador)
-            : req.qtdeBase.times(data.rendimentoReal)
-        const idx = linhasDisponiveis.findIndex(
+        const qtdeUsadaServer = new Decimal(item.qtde).times(data.multiplicador)
+        const idx = linhasBaseDisponiveis.findIndex(
           (l) => l.ingredienteCompraId === compra.id && l.qtde.toFixed(3) === qtdeUsadaServer.toFixed(3),
         )
         if (idx === -1) throw new Error('DADOS_DESATUALIZADOS')
-        linhasDisponiveis.splice(idx, 1)
-        return {
-          compra: {
-            id: compra.id,
-            marca: compra.marca,
-            custoPorUnidadeBase: new Decimal(compra.custoPorUnidadeBase),
-          },
+        linhasBaseDisponiveis.splice(idx, 1)
+        basePorIngrediente.set(item.ingredienteId, {
+          compra: { id: compra.id, marca: compra.marca, custoPorUnidadeBase: new Decimal(compra.custoPorUnidadeBase) },
           qtdeUsada: qtdeUsadaServer,
+        })
+      }
+      if (linhasBaseDisponiveis.length > 0) throw new Error('DADOS_DESATUALIZADOS')
+
+      const somaRendimento = data.variacoes.reduce((soma, v) => soma + v.rendimentoReal, 0)
+      const custoGasBase = receita.custoGas ? new Decimal(receita.custoGas) : new Decimal(0)
+
+      const resultados: LoteResult[] = []
+      for (const item of data.variacoes) {
+        const variacao = variacaoPorId.get(item.variacaoId)
+        if (!variacao) throw new Error('DADOS_DESATUALIZADOS')
+        const fracao = new Decimal(item.rendimentoReal).dividedBy(somaRendimento)
+
+        // Fatia da base pra ESSE lote — os ingredientes da massa foram
+        // comprados uma vez pra fornada inteira, cada lote leva sua parte
+        // proporcional ao que rendeu.
+        const linhasBaseFatia: LinhaCompra[] = [...basePorIngrediente.values()].map((b) => ({
+          compra: b.compra,
+          qtdeUsada: b.qtdeUsada.times(fracao),
+        }))
+
+        // Recheio dessa variação (se houver) — regra de 3, INTEIRO nesse
+        // lote (já é per-variação, não precisa fatiar de novo).
+        let linhasRecheio: LinhaCompra[] = []
+        let custoGasRecheio = new Decimal(0)
+        if (variacao.receitaRecheio) {
+          if (!variacao.recheioGramasUsadas) throw new Error('RECHEIO_SEM_CONFIG')
+          const { pesoTotalG } = pesoTotalGramasReceita(variacao.receitaRecheio.itens)
+          if (pesoTotalG.isZero()) throw new Error('RECHEIO_SEM_CONFIG')
+          const fracaoRecheio = new Decimal(variacao.recheioGramasUsadas).dividedBy(pesoTotalG)
+
+          const comprasRecheio = await tx.ingredienteCompra.findMany({
+            where: { id: { in: item.linhasRecheio.map((l) => l.ingredienteCompraId) } },
+          })
+          const compraRecheioPorIngrediente = new Map(comprasRecheio.map((c) => [c.ingredienteId, c]))
+          const linhasRecheioDisponiveis = [...item.linhasRecheio]
+
+          linhasRecheio = variacao.receitaRecheio.itens.map((ri) => {
+            const compra = compraRecheioPorIngrediente.get(ri.ingredienteId)
+            if (!compra) throw new Error('DADOS_DESATUALIZADOS')
+            const qtdeUsadaServer = new Decimal(ri.qtde).times(fracaoRecheio).times(item.rendimentoReal)
+            const idx = linhasRecheioDisponiveis.findIndex(
+              (l) => l.ingredienteCompraId === compra.id && l.qtde.toFixed(3) === qtdeUsadaServer.toFixed(3),
+            )
+            if (idx === -1) throw new Error('DADOS_DESATUALIZADOS')
+            linhasRecheioDisponiveis.splice(idx, 1)
+            return {
+              compra: { id: compra.id, marca: compra.marca, custoPorUnidadeBase: new Decimal(compra.custoPorUnidadeBase) },
+              qtdeUsada: qtdeUsadaServer,
+            }
+          })
+          if (linhasRecheioDisponiveis.length > 0) throw new Error('DADOS_DESATUALIZADOS')
+          custoGasRecheio = variacao.receitaRecheio.custoGas ? new Decimal(variacao.receitaRecheio.custoGas) : new Decimal(0)
+        } else if (item.linhasRecheio.length > 0) {
+          throw new Error('DADOS_DESATUALIZADOS')
         }
-      })
 
-      const custoGasTotal = (receita.custoGas ? new Decimal(receita.custoGas) : new Decimal(0)).plus(
-        recheioReceita?.custoGas ? new Decimal(recheioReceita.custoGas) : new Decimal(0),
-      )
+        const custoGasLote = custoGasBase.times(fracao).plus(custoGasRecheio)
 
-      const snapshot = computeLoteSnapshot({
-        linhas: linhasSnapshot,
-        custoGas: custoGasTotal,
-        rendimentoReal: data.rendimentoReal,
-      })
+        const snapshot = computeLoteSnapshot({
+          linhas: [...linhasBaseFatia, ...linhasRecheio],
+          custoGas: custoGasLote,
+          rendimentoReal: item.rendimentoReal,
+        })
 
-      const lote = await tx.lote.create({
-        data: {
-          produtoId: data.produtoId,
-          receitaId: data.receitaId,
-          multiplicador: data.multiplicador.toFixed(2),
-          rendimentoReal: data.rendimentoReal,
-          validade: new Date(`${data.validade}T00:00:00Z`),
-          qtdeDisponivel: data.rendimentoReal,
-          qtdeReservada: 0,
-          custoGasCongelado: snapshot.custoGasCongelado,
+        const lote = await tx.lote.create({
+          data: {
+            produtoId: data.produtoId,
+            variacaoId: variacao.id,
+            receitaId: data.receitaId,
+            multiplicador: data.multiplicador.times(fracao).toFixed(2),
+            rendimentoReal: item.rendimentoReal,
+            validade: new Date(`${data.validade}T00:00:00Z`),
+            qtdeDisponivel: item.rendimentoReal,
+            qtdeReservada: 0,
+            custoGasCongelado: snapshot.custoGasCongelado,
+            custoTotalCongelado: snapshot.custoTotalCongelado,
+            custoPorUnidadeCongelado: snapshot.custoPorUnidadeCongelado,
+            usos: { create: snapshot.usos },
+          },
+        })
+
+        resultados.push({
+          loteId: lote.id,
+          variacaoId: variacao.id,
           custoTotalCongelado: snapshot.custoTotalCongelado,
           custoPorUnidadeCongelado: snapshot.custoPorUnidadeCongelado,
-          usos: { create: snapshot.usos },
-        },
-      })
-
-      return {
-        loteId: lote.id,
-        custoTotalCongelado: snapshot.custoTotalCongelado,
-        custoPorUnidadeCongelado: snapshot.custoPorUnidadeCongelado,
+        })
       }
+
+      return resultados
     })
   } catch (err) {
     if (err instanceof Error && err.message === 'DADOS_DESATUALIZADOS') {
       return { error: DADOS_DESATUALIZADOS }
     }
     if (err instanceof Error && err.message === 'RECHEIO_SEM_CONFIG') {
-      return { error: 'Esse produto tem recheio mas falta configurar quantas gramas — edita o produto antes.' }
+      return { error: RECHEIO_SEM_CONFIG_COPY }
     }
     return { error: GENERIC_SERVER_ERROR }
   }
 
-  await logAudit({
-    actorType: 'admin',
-    actorId: admin.id,
-    action: 'lote_criado',
-    entityType: 'lote',
-    entityId: result.loteId,
-    rawIp: ip,
-    rawUa: ua,
-  })
+  for (const r of resultados) {
+    await logAudit({
+      actorType: 'admin',
+      actorId: admin.id,
+      action: 'lote_criado',
+      entityType: 'lote',
+      entityId: r.loteId,
+      metadata: { variacaoId: r.variacaoId },
+      rawIp: ip,
+      rawUa: ua,
+    })
+  }
 
   revalidatePath('/admin/lotes')
   return {
     ok: true,
-    id: result.loteId,
-    custoTotal: result.custoTotalCongelado,
-    custoPorUnidade: result.custoPorUnidadeCongelado,
+    lotes: resultados.map((r) => ({
+      id: r.loteId,
+      variacaoId: r.variacaoId,
+      custoTotal: r.custoTotalCongelado,
+      custoPorUnidade: r.custoPorUnidadeCongelado,
+    })),
   }
 }
 
@@ -214,21 +242,39 @@ export type DadosProducao = {
     validadeDias: number | null
     custoGas: string | null
   }
-  recheio: { id: string; nome: string; gramasUsadas: string; pesoTotalG: string } | null
-  linhas: Array<{
+  linhasBase: Array<{
     ingredienteId: string
     nome: string
     unidadeBase: string
     qtdeBase: string
-    origem: 'base' | 'recheio'
     compraSelecionada: { id: string; marca: string; dataCompra: string; custoPorUnidadeBase: string } | null
+  }>
+  variacoes: Array<{
+    id: string
+    nome: string
+    recheio: {
+      id: string
+      nome: string
+      gramasUsadas: string
+      pesoTotalG: string
+      custoGas: string | null
+      linhas: Array<{
+        ingredienteId: string
+        nome: string
+        unidadeBase: string
+        qtdeBase: string
+        compraSelecionada: { id: string; marca: string; dataCompra: string; custoPorUnidadeBase: string } | null
+      }>
+    } | null
   }>
 }
 
 /**
- * D-05 — dados pra montar o form de produção, com a última compra
- * pré-selecionada por ingrediente. Recebe o PRODUTO (não a receita direto)
- * porque precisa saber se ele tem recheio anexo (D-12).
+ * D-13 — dados pra montar o form de produção, produto-cêntrico: a base
+ * aparece uma vez, e cada Variação ATIVA do produto vem com seu próprio
+ * bloco de recheio (quando tiver). Expõe `custoGas` do recheio também
+ * (antes só o server somava certo na produção real — o preview do client
+ * subestimava o custo quando o recheio tinha gás próprio).
  */
 export async function dadosProducao(produtoId: string): Promise<DadosProducao | null> {
   try {
@@ -237,7 +283,10 @@ export async function dadosProducao(produtoId: string): Promise<DadosProducao | 
     return null
   }
   try {
-    const produto = await prisma.produto.findUnique({ where: { id: produtoId } })
+    const produto = await prisma.produto.findUnique({
+      where: { id: produtoId },
+      include: { variacoes: { where: { ativo: true }, orderBy: { nome: 'asc' } } },
+    })
     if (!produto?.receitaId) return null
 
     const receita = await prisma.receita.findUnique({
@@ -246,30 +295,34 @@ export async function dadosProducao(produtoId: string): Promise<DadosProducao | 
     })
     if (!receita) return null
 
-    const recheioReceita = produto.recheioReceitaId
-      ? await prisma.receita.findUnique({
-          where: { id: produto.recheioReceitaId },
+    const recheioReceitaIds = [
+      ...new Set(produto.variacoes.flatMap((v) => (v.recheioReceitaId ? [v.recheioReceitaId] : []))),
+    ]
+    const recheioReceitas = recheioReceitaIds.length
+      ? await prisma.receita.findMany({
+          where: { id: { in: recheioReceitaIds } },
           include: { itens: { include: { ingrediente: true } } },
         })
-      : null
+      : []
+    const recheioReceitaPorId = new Map(recheioReceitas.map((r) => [r.id, r]))
 
     const todosIngredienteIds = [
       ...receita.itens.map((item) => item.ingredienteId),
-      ...(recheioReceita?.itens.map((item) => item.ingredienteId) ?? []),
+      ...recheioReceitas.flatMap((r) => r.itens.map((item) => item.ingredienteId)),
     ]
     const ultimas = await ultimasCompras(todosIngredienteIds)
 
-    function serializarLinha(
-      item: { ingredienteId: string; qtde: Decimal; ingrediente: { nome: string; unidadeBase: string } },
-      origem: 'base' | 'recheio',
-    ) {
+    function serializarLinha(item: {
+      ingredienteId: string
+      qtde: Decimal
+      ingrediente: { nome: string; unidadeBase: string }
+    }) {
       const ultima = ultimas.get(item.ingredienteId)
       return {
         ingredienteId: item.ingredienteId,
         nome: item.ingrediente.nome,
         unidadeBase: item.ingrediente.unidadeBase,
         qtdeBase: item.qtde.toFixed(3),
-        origem,
         compraSelecionada: ultima
           ? {
               id: ultima.id,
@@ -289,18 +342,24 @@ export async function dadosProducao(produtoId: string): Promise<DadosProducao | 
         validadeDias: receita.validadeDias,
         custoGas: receita.custoGas ? receita.custoGas.toFixed(4) : null,
       },
-      recheio: recheioReceita
-        ? {
-            id: recheioReceita.id,
-            nome: recheioReceita.nome,
-            gramasUsadas: produto.recheioGramasUsadas ? produto.recheioGramasUsadas.toFixed(3) : '0',
-            pesoTotalG: pesoTotalGramasReceita(recheioReceita.itens).pesoTotalG.toFixed(3),
-          }
-        : null,
-      linhas: [
-        ...receita.itens.map((item) => serializarLinha(item, 'base')),
-        ...(recheioReceita?.itens.map((item) => serializarLinha(item, 'recheio')) ?? []),
-      ],
+      linhasBase: receita.itens.map(serializarLinha),
+      variacoes: produto.variacoes.map((v) => {
+        const recheioReceita = v.recheioReceitaId ? recheioReceitaPorId.get(v.recheioReceitaId) : undefined
+        return {
+          id: v.id,
+          nome: v.nome,
+          recheio: recheioReceita
+            ? {
+                id: recheioReceita.id,
+                nome: recheioReceita.nome,
+                gramasUsadas: v.recheioGramasUsadas ? v.recheioGramasUsadas.toFixed(3) : '0',
+                pesoTotalG: pesoTotalGramasReceita(recheioReceita.itens).pesoTotalG.toFixed(3),
+                custoGas: recheioReceita.custoGas ? recheioReceita.custoGas.toFixed(4) : null,
+                linhas: recheioReceita.itens.map(serializarLinha),
+              }
+            : null,
+        }
+      }),
     }
   } catch {
     return null

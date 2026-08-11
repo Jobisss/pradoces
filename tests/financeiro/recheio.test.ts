@@ -11,9 +11,9 @@ vi.mock('next/headers', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { custoCorrenteProduto, margensCorrentesBatch } from '@/lib/custo/corrente'
+import { custoCorrenteVariacao, margensCorrentesBatch } from '@/lib/custo/corrente'
 import { criarProduto as criarProdutoAction } from '@/lib/actions/produtos'
-import { produzirLote } from '@/lib/actions/lotes'
+import { produzirLotes } from '@/lib/actions/lotes'
 
 async function asAdmin() {
   const admin = await createTestUser({ role: 'admin' })
@@ -22,13 +22,13 @@ async function asAdmin() {
   return admin
 }
 
-/** Gramas de recheio usadas em cada unidade do produto, nos cenários abaixo. */
+/** Gramas de recheio usadas em cada unidade, nos cenários abaixo. */
 const GRAMAS_USADAS = '3'
 
 /**
  * Base "massa" (custo/un conhecido) + recheio "nutella" tratado como um LOTE
- * (D-12 revisado): a receita de recheio é o pote inteiro (300g), não a dose
- * de 1 unidade — o rateio por grama é feito via Produto.recheioGramasUsadas
+ * (D-12/D-13): a receita de recheio é o pote inteiro (300g), não a dose de 1
+ * unidade — o rateio por grama é feito via Variacao.recheioGramasUsadas
  * (regra de 3: custo total ÷ peso total × gramas usadas), não mais pelo
  * rendimentoPadrao da receita de recheio.
  */
@@ -50,56 +50,58 @@ async function montarCenarioComRecheio() {
   return { ingredienteBase, receitaBase, nutella, receitaRecheio }
 }
 
-describe('custo do produto com recheio (D-12)', () => {
+describe('custo da variação com recheio (D-12/D-13)', () => {
   beforeEach(async () => {
     await truncateAll()
     ctx.ip = `198.51.100.${Math.floor(Math.random() * 250) + 1}`
     ctx.cookie = ''
   })
 
-  it('custoCorrenteProduto soma base + recheio', async () => {
+  it('custoCorrenteVariacao soma base + recheio', async () => {
     await asAdmin()
     const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
     const produto = await criarProduto({
       tipo: 'UNITARIO',
       receitaId: receitaBase.id,
       precoVenda: 5,
-    })
-    await prisma.produto.update({
-      where: { id: produto.id },
-      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+      recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: GRAMAS_USADAS,
     })
 
-    const { custo } = await custoCorrenteProduto(produto.id)
+    const { custo } = await custoCorrenteVariacao(produto.variacao!.id)
     expect(custo.toFixed(2)).toBe('1.30') // 1.00 (base) + 0.30 (recheio)
   })
 
   it('margensCorrentesBatch também soma base + recheio', async () => {
     await asAdmin()
     const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
-    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
-    await prisma.produto.update({
-      where: { id: produto.id },
-      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    const produto = await criarProduto({
+      tipo: 'UNITARIO',
+      receitaId: receitaBase.id,
+      precoVenda: 5,
+      recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: GRAMAS_USADAS,
     })
 
     const margens = await margensCorrentesBatch()
-    const item = margens.find((m) => m.produtoId === produto.id)!
+    const item = margens.find((m) => m.variacaoId === produto.variacao!.id)!
     expect(item.custo!.toFixed(2)).toBe('1.30')
   })
 
   it('custo do recheio é proporcional às gramas usadas (regra de 3)', async () => {
     await asAdmin()
     const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
-    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 20 })
     // 30g (10× as 3g do outro teste) — custo do recheio tem que escalar junto,
     // não ficar preso ao rendimentoPadrao=1 da receita (bug original).
-    await prisma.produto.update({
-      where: { id: produto.id },
-      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: '30' },
+    const produto = await criarProduto({
+      tipo: 'UNITARIO',
+      receitaId: receitaBase.id,
+      precoVenda: 20,
+      recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: '30',
     })
 
-    const { custo } = await custoCorrenteProduto(produto.id)
+    const { custo } = await custoCorrenteVariacao(produto.variacao!.id)
     // 1.00 (base) + 30g × 0.10/g (300g a 30.00 total) = 1.00 + 3.00 = 4.00
     expect(custo.toFixed(2)).toBe('4.00')
   })
@@ -109,9 +111,12 @@ describe('custo do produto com recheio (D-12)', () => {
     const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
     // recheioReceitaId setado, mas SEM recheioGramasUsadas (config incompleta).
-    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+    await prisma.variacao.update({
+      where: { id: produto.variacao!.id },
+      data: { recheioReceitaId: receitaRecheio.id },
+    })
 
-    const { custo } = await custoCorrenteProduto(produto.id)
+    const { custo } = await custoCorrenteVariacao(produto.variacao!.id)
     expect(custo.toFixed(2)).toBe('1.00')
   })
 
@@ -125,10 +130,10 @@ describe('custo do produto com recheio (D-12)', () => {
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '1,20',
       receitaId: receitaBase.id,
-      recheioReceitaId: receitaRecheio.id,
-      recheioGramasUsadas: GRAMAS_USADAS,
+      variacoes: [
+        { nome: 'Ovomaltine', precoVenda: '1,20', recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+      ],
     })
     expect(bloqueado.error).toMatch(/abaixo do custo/)
 
@@ -137,16 +142,16 @@ describe('custo do produto com recheio (D-12)', () => {
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '3,00',
       receitaId: receitaBase.id,
-      recheioReceitaId: receitaRecheio.id,
-      recheioGramasUsadas: GRAMAS_USADAS,
+      variacoes: [
+        { nome: 'Ovomaltine', precoVenda: '3,00', recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+      ],
     })
     expect(permitido.ok).toBe(true)
   })
 })
 
-describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
+describe('produzirLotes com recheio — escalas diferentes (D-12/D-13)', () => {
   beforeEach(async () => {
     await truncateAll()
     ctx.ip = `198.51.100.${Math.floor(Math.random() * 250) + 1}`
@@ -156,10 +161,12 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
   it('base escala pelo multiplicador, recheio escala pelo rendimento real', async () => {
     await asAdmin()
     const { ingredienteBase, receitaBase, nutella, receitaRecheio } = await montarCenarioComRecheio()
-    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
-    await prisma.produto.update({
-      where: { id: produto.id },
-      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    const produto = await criarProduto({
+      tipo: 'UNITARIO',
+      receitaId: receitaBase.id,
+      precoVenda: 5,
+      recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: GRAMAS_USADAS,
     })
 
     const compraBase = await prisma.ingredienteCompra.findFirstOrThrow({
@@ -170,20 +177,24 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
     })
 
     // multiplicador 2x (base: 100g -> 200g); rendimento real 25 unidades (recheio: 3g * 25 = 75g)
-    const result = await produzirLote({
+    const result = await produzirLotes({
       produtoId: produto.id,
       receitaId: receitaBase.id,
       multiplicador: '2',
-      rendimentoReal: 25,
       validade: '2026-12-31',
-      linhas: [
-        { ingredienteCompraId: compraBase.id, qtde: '200' },
-        { ingredienteCompraId: compraRecheio.id, qtde: '75' },
+      linhasBase: [{ ingredienteCompraId: compraBase.id, qtde: '200' }],
+      variacoes: [
+        {
+          variacaoId: produto.variacao!.id,
+          rendimentoReal: 25,
+          linhasRecheio: [{ ingredienteCompraId: compraRecheio.id, qtde: '75' }],
+        },
       ],
     })
 
     expect(result.ok).toBe(true)
-    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.id } })
+    const loteId = result.lotes![0].id
+    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId } })
     expect(usos).toHaveLength(2)
 
     const usoBase = usos.find((u) => u.ingredienteCompraId === compraBase.id)!
@@ -192,17 +203,19 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
     expect(usoRecheio.qtdeUsada.toFixed(3)).toBe('75.000')
 
     // custo total: base 200g*0.10=20.00 + recheio 75g*0.10=7.50 = 27.50; /25 un = 1.10/un
-    expect(result.custoTotal).toBe('27.5000')
-    expect(result.custoPorUnidade).toBe('1.100000')
+    expect(result.lotes![0].custoTotal).toBe('27.5000')
+    expect(result.lotes![0].custoPorUnidade).toBe('1.100000')
   })
 
   it('rejeita quando a qtde do recheio não bate com rendimentoReal × qtde base (dados desatualizados)', async () => {
     await asAdmin()
     const { ingredienteBase, receitaBase, nutella, receitaRecheio } = await montarCenarioComRecheio()
-    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
-    await prisma.produto.update({
-      where: { id: produto.id },
-      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    const produto = await criarProduto({
+      tipo: 'UNITARIO',
+      receitaId: receitaBase.id,
+      precoVenda: 5,
+      recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: GRAMAS_USADAS,
     })
 
     const compraBase = await prisma.ingredienteCompra.findFirstOrThrow({
@@ -212,16 +225,19 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
       where: { ingredienteId: nutella.id },
     })
 
-    const result = await produzirLote({
+    const result = await produzirLotes({
       produtoId: produto.id,
       receitaId: receitaBase.id,
       multiplicador: '1',
-      rendimentoReal: 25,
       validade: '2026-12-31',
-      linhas: [
-        { ingredienteCompraId: compraBase.id, qtde: '100' },
-        // devia ser 25*3=75, mandando escalado pelo multiplicador (errado) pra provar a rejeição
-        { ingredienteCompraId: compraRecheio.id, qtde: '3' },
+      linhasBase: [{ ingredienteCompraId: compraBase.id, qtde: '100' }],
+      variacoes: [
+        {
+          variacaoId: produto.variacao!.id,
+          rendimentoReal: 25,
+          // devia ser 25*3=75, mandando errado de propósito pra provar a rejeição
+          linhasRecheio: [{ ingredienteCompraId: compraRecheio.id, qtde: '3' }],
+        },
       ],
     })
 
@@ -233,19 +249,22 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
     const { ingredienteBase, receitaBase, receitaRecheio } = await montarCenarioComRecheio()
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
     // recheioReceitaId setado, mas SEM recheioGramasUsadas.
-    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+    await prisma.variacao.update({
+      where: { id: produto.variacao!.id },
+      data: { recheioReceitaId: receitaRecheio.id },
+    })
 
     const compraBase = await prisma.ingredienteCompra.findFirstOrThrow({
       where: { ingredienteId: ingredienteBase.id },
     })
 
-    const result = await produzirLote({
+    const result = await produzirLotes({
       produtoId: produto.id,
       receitaId: receitaBase.id,
       multiplicador: '1',
-      rendimentoReal: 10,
       validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compraBase.id, qtde: '100' }],
+      linhasBase: [{ ingredienteCompraId: compraBase.id, qtde: '100' }],
+      variacoes: [{ variacaoId: produto.variacao!.id, rendimentoReal: 10, linhasRecheio: [] }],
     })
 
     expect(result.error).toMatch(/falta configurar/)

@@ -5,6 +5,7 @@ import {
   criarIngrediente,
   registrarCompra as fixtureRegistrarCompra,
   criarReceita,
+  criarProduto,
   produzirLote,
 } from './fixtures'
 
@@ -171,16 +172,7 @@ describe('compras Server Actions', () => {
       rendimentoPadrao: 12,
       itens: [{ ingredienteId: ing.id, qtde: 12 }],
     })
-    const produto = await prisma.produto.create({
-      data: {
-        nome: 'Bolo ING07',
-        descricao: 'd',
-        categoria: 'c',
-        tipo: 'UNITARIO',
-        precoVenda: '10',
-        receitaId: receita.id,
-      },
-    })
+    const produto = await criarProduto({ nome: 'Bolo ING07', receitaId: receita.id, precoVenda: 10 })
     await produzirLote({ receitaId: receita.id, produtoId: produto.id, rendimentoReal: 12 })
 
     const corrigida = await corrigirCompra(

@@ -1,4 +1,5 @@
 import 'server-only'
+import Decimal from 'decimal.js'
 import { differenceInCalendarDays } from 'date-fns'
 import { prisma } from '@/lib/db/client'
 import { hojeSaoPaulo } from '@/lib/lotes/queries'
@@ -8,6 +9,10 @@ import { hojeSaoPaulo } from '@/lib/lotes/queries'
  * de admin: `select` explícito que NUNCA inclui custo/margem (custoTotalCongelado,
  * custoPorUnidadeCongelado, custoGasCongelado, tudo em Ingrediente/Compra) —
  * esse dado é só da mãe, vazar aqui seria expor markup pro cliente final.
+ *
+ * D-13: UNITARIO não tem mais 1 preço/estoque só — cada Variação (sabor) tem
+ * o seu. "Disponível"/preço de vitrine passam a agregar por variação ATIVA;
+ * kit (que aponta pra uma Variação específica de cada componente) também.
  */
 
 export type ProdutoCard = {
@@ -16,6 +21,7 @@ export type ProdutoCard = {
   categoria: string
   tipo: 'UNITARIO' | 'KIT'
   precoVenda: string
+  precoAPartir: boolean
   capaPath: string | null
   disponivel: boolean
   emCampanha: boolean
@@ -25,10 +31,10 @@ function inicioDoDiaSaoPaulo(): Date {
   return new Date(`${hojeSaoPaulo()}T00:00:00Z`)
 }
 
-/** produtoIds de UNITARIO com pelo menos 1 lote vigente com qtde disponível. */
+/** produtoIds de UNITARIO com pelo menos 1 lote vigente, de uma variação ATIVA, com qtde disponível. */
 async function idsComEstoque(): Promise<Set<string>> {
   const lotes = await prisma.lote.findMany({
-    where: { validade: { gte: inicioDoDiaSaoPaulo() }, qtdeDisponivel: { gt: 0 } },
+    where: { validade: { gte: inicioDoDiaSaoPaulo() }, qtdeDisponivel: { gt: 0 }, variacao: { ativo: true } },
     select: { produtoId: true },
     distinct: ['produtoId'],
   })
@@ -37,28 +43,34 @@ async function idsComEstoque(): Promise<Set<string>> {
 
 /**
  * Estoque LIVRE (qtde_disponivel - qtde_reservada, igual ao soft-hold de
- * criarReserva) somado por produto UNITARIO, só lotes vigentes. Base pra
- * calcular quantos KITs inteiros dá pra montar com o que sobrou de cada
- * componente.
+ * criarReserva) somado por VARIAÇÃO, só lotes vigentes. Base pra calcular
+ * quantos KITs inteiros dá pra montar com o que sobrou de cada componente
+ * (cada item de kit aponta pra uma variação específica, D-13).
  */
-async function estoqueLivrePorProduto(produtoIds: string[]): Promise<Map<string, number>> {
-  if (produtoIds.length === 0) return new Map()
+async function estoqueLivrePorVariacao(variacaoIds: string[]): Promise<Map<string, number>> {
+  if (variacaoIds.length === 0) return new Map()
   const lotes = await prisma.lote.findMany({
-    where: { produtoId: { in: produtoIds }, validade: { gte: inicioDoDiaSaoPaulo() } },
-    select: { produtoId: true, qtdeDisponivel: true, qtdeReservada: true },
+    where: { variacaoId: { in: variacaoIds }, validade: { gte: inicioDoDiaSaoPaulo() } },
+    select: { variacaoId: true, qtdeDisponivel: true, qtdeReservada: true },
   })
   const livre = new Map<string, number>()
   for (const l of lotes) {
-    const atual = livre.get(l.produtoId) ?? 0
-    livre.set(l.produtoId, atual + Math.max(0, l.qtdeDisponivel - l.qtdeReservada))
+    if (!l.variacaoId) continue
+    const atual = livre.get(l.variacaoId) ?? 0
+    livre.set(l.variacaoId, atual + Math.max(0, l.qtdeDisponivel - l.qtdeReservada))
   }
   return livre
 }
 
-/** Quantos kits inteiros dá pra montar hoje — o gargalo é o componente com menos estoque livre relativo ao que o kit precisa. */
-function kitsMontaveis(kitItens: Array<{ componenteId: string; qtde: number }>, livrePorComponente: Map<string, number>): number {
+/** Quantos kits inteiros dá pra montar hoje — o gargalo é o componente (variação específica) com menos estoque livre relativo ao que o kit precisa. */
+function kitsMontaveis(
+  kitItens: Array<{ componenteVariacaoId: string | null; qtde: number }>,
+  livrePorVariacao: Map<string, number>,
+): number {
   if (kitItens.length === 0) return 0
-  return Math.min(...kitItens.map((k) => Math.floor((livrePorComponente.get(k.componenteId) ?? 0) / k.qtde)))
+  return Math.min(
+    ...kitItens.map((k) => Math.floor((k.componenteVariacaoId ? (livrePorVariacao.get(k.componenteVariacaoId) ?? 0) : 0) / k.qtde)),
+  )
 }
 
 export async function listarCategoriasAtivas(): Promise<string[]> {
@@ -90,29 +102,48 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       tipo: true,
       precoVenda: true,
       fotos: { where: { ordem: 0 }, select: { path: true } },
-      kitItens: { select: { componenteId: true, qtde: true } },
+      variacoes: { where: { ativo: true }, select: { precoVenda: true } },
+      kitItens: { select: { componenteVariacaoId: true, qtde: true } },
       campanhas: { select: { campanhaId: true } },
     },
     orderBy: { nome: 'asc' },
   })
 
   const disponiveis = await idsComEstoque()
-  const componenteIds = [...new Set(produtos.flatMap((p) => p.kitItens.map((k) => k.componenteId)))]
-  const livrePorComponente = await estoqueLivrePorProduto(componenteIds)
+  const componenteVariacaoIds = [
+    ...new Set(
+      produtos.flatMap((p) => p.kitItens.map((k) => k.componenteVariacaoId).filter((v): v is string => !!v)),
+    ),
+  ]
+  const livrePorVariacao = await estoqueLivrePorVariacao(componenteVariacaoIds)
 
-  return produtos.map((p) => ({
-    id: p.id,
-    nome: p.nome,
-    categoria: p.categoria,
-    tipo: p.tipo,
-    precoVenda: p.precoVenda.toFixed(2),
-    capaPath: p.fotos[0]?.path ?? null,
-    disponivel: p.tipo === 'UNITARIO' ? disponiveis.has(p.id) : kitsMontaveis(p.kitItens, livrePorComponente) > 0,
-    emCampanha: p.campanhas.length > 0,
-  }))
+  return produtos.map((p) => {
+    let precoVenda = p.precoVenda
+    let precoAPartir = false
+    if (p.tipo === 'UNITARIO') {
+      const menor = p.variacoes.reduce<Decimal | null>(
+        (min, v) => (min === null || v.precoVenda.lessThan(min) ? v.precoVenda : min),
+        null,
+      )
+      precoVenda = menor
+      precoAPartir = p.variacoes.length > 1
+    }
+    return {
+      id: p.id,
+      nome: p.nome,
+      categoria: p.categoria,
+      tipo: p.tipo,
+      precoVenda: precoVenda ? precoVenda.toFixed(2) : '0.00',
+      precoAPartir,
+      capaPath: p.fotos[0]?.path ?? null,
+      disponivel: p.tipo === 'UNITARIO' ? disponiveis.has(p.id) : kitsMontaveis(p.kitItens, livrePorVariacao) > 0,
+      emCampanha: p.campanhas.length > 0,
+    }
+  })
 }
 
 export type LoteDisponivel = { id: string; validade: string; qtdeDisponivel: number; diasParaVencer: number }
+export type VariacaoDisponivel = { id: string; nome: string; precoVenda: string; lotes: LoteDisponivel[] }
 
 export type ProdutoDetalhe = {
   id: string
@@ -121,10 +152,11 @@ export type ProdutoDetalhe = {
   categoria: string
   tipo: 'UNITARIO' | 'KIT'
   precoVenda: string
+  precoAPartir: boolean
   alergenicos: string[]
   fotos: string[]
-  lotes: LoteDisponivel[]
-  kitComponentes: Array<{ nome: string; qtde: number }>
+  variacoes: VariacaoDisponivel[]
+  kitComponentes: Array<{ nome: string; variacaoNome: string | null; qtde: number }>
   kitDisponivel: number
 }
 
@@ -142,30 +174,62 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
       alergenicos: true,
       ativo: true,
       fotos: { orderBy: { ordem: 'asc' }, select: { path: true } },
-      kitItens: { select: { qtde: true, componenteId: true, componente: { select: { nome: true } } } },
+      variacoes: { where: { ativo: true }, select: { id: true, nome: true, precoVenda: true }, orderBy: { nome: 'asc' } },
+      kitItens: {
+        select: {
+          qtde: true,
+          componenteVariacaoId: true,
+          componente: { select: { nome: true } },
+          componenteVariacao: { select: { nome: true } },
+        },
+      },
     },
   })
   if (!produto || !produto.ativo) return null
 
-  let lotes: LoteDisponivel[] = []
+  let variacoes: VariacaoDisponivel[] = []
   let kitDisponivel = 0
   if (produto.tipo === 'UNITARIO') {
     const hojeDate = inicioDoDiaSaoPaulo()
-    const rows = await prisma.lote.findMany({
-      where: { produtoId: id, validade: { gte: hojeDate }, qtdeDisponivel: { gt: 0 } },
-      select: { id: true, validade: true, qtdeDisponivel: true },
-      orderBy: { validade: 'asc' },
-    })
-    lotes = rows.map((l) => ({
-      id: l.id,
-      validade: l.validade.toISOString(),
-      qtdeDisponivel: l.qtdeDisponivel,
-      diasParaVencer: differenceInCalendarDays(l.validade, hojeDate),
+    const variacaoIds = produto.variacoes.map((v) => v.id)
+    const rows = variacaoIds.length
+      ? await prisma.lote.findMany({
+          where: { variacaoId: { in: variacaoIds }, validade: { gte: hojeDate }, qtdeDisponivel: { gt: 0 } },
+          select: { id: true, variacaoId: true, validade: true, qtdeDisponivel: true },
+          orderBy: { validade: 'asc' },
+        })
+      : []
+    const lotesPorVariacao = new Map<string, LoteDisponivel[]>()
+    for (const l of rows) {
+      if (!l.variacaoId) continue
+      const arr = lotesPorVariacao.get(l.variacaoId) ?? []
+      arr.push({
+        id: l.id,
+        validade: l.validade.toISOString(),
+        qtdeDisponivel: l.qtdeDisponivel,
+        diasParaVencer: differenceInCalendarDays(l.validade, hojeDate),
+      })
+      lotesPorVariacao.set(l.variacaoId, arr)
+    }
+    variacoes = produto.variacoes.map((v) => ({
+      id: v.id,
+      nome: v.nome,
+      precoVenda: v.precoVenda.toFixed(2),
+      lotes: lotesPorVariacao.get(v.id) ?? [],
     }))
   } else {
-    const livrePorComponente = await estoqueLivrePorProduto(produto.kitItens.map((k) => k.componenteId))
-    kitDisponivel = kitsMontaveis(produto.kitItens, livrePorComponente)
+    const componenteVariacaoIds = produto.kitItens.map((k) => k.componenteVariacaoId).filter((v): v is string => !!v)
+    const livrePorVariacao = await estoqueLivrePorVariacao(componenteVariacaoIds)
+    kitDisponivel = kitsMontaveis(produto.kitItens, livrePorVariacao)
   }
+
+  const menorPreco =
+    produto.tipo === 'UNITARIO'
+      ? variacoes.reduce<Decimal | null>(
+          (min, v) => (min === null || new Decimal(v.precoVenda).lessThan(min) ? new Decimal(v.precoVenda) : min),
+          null,
+        )
+      : produto.precoVenda
 
   return {
     id: produto.id,
@@ -173,12 +237,19 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
     descricao: produto.descricao,
     categoria: produto.categoria,
     tipo: produto.tipo,
-    precoVenda: produto.precoVenda.toFixed(2),
+    precoVenda: menorPreco ? menorPreco.toFixed(2) : '0.00',
+    precoAPartir: produto.tipo === 'UNITARIO' && variacoes.length > 1,
     alergenicos: produto.alergenicos,
     fotos: produto.fotos.map((f) => f.path),
-    lotes,
+    variacoes,
     kitComponentes:
-      produto.tipo === 'KIT' ? produto.kitItens.map((k) => ({ nome: k.componente.nome, qtde: k.qtde })) : [],
+      produto.tipo === 'KIT'
+        ? produto.kitItens.map((k) => ({
+            nome: k.componente.nome,
+            variacaoNome: k.componenteVariacao?.nome ?? null,
+            qtde: k.qtde,
+          }))
+        : [],
     kitDisponivel,
   }
 }

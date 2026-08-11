@@ -10,22 +10,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 
-type Produto = { id: string; nome: string; precoVenda: number | null; margem: number | null }
+type VariacaoOpcao = { id: string; nome: string; precoVenda: number | null; margem: number | null }
+type ProdutoOpcao = { id: string; nome: string; variacoes: VariacaoOpcao[] }
 
 type FormValues = {
   modo: 'produto' | 'custom'
   produtoId: string
+  variacaoId: string
   nomeCustom: string
   custoPontos: string
   ativo: boolean
 }
 
 type ItemResgatavelFormProps = {
-  produtos: Produto[]
+  produtos: ProdutoOpcao[]
   pontosPorRealAtual: number
   defaults?: {
     id: string
     produtoId: string | null
+    variacaoId: string | null
     nomeCustom: string | null
     custoPontos: number
     ativo: boolean
@@ -34,7 +37,7 @@ type ItemResgatavelFormProps = {
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-/** RESG-01/02/07 — produto do catálogo OU nome custom, nunca os dois. */
+/** RESG-01/02/07 — produto do catálogo OU nome custom, nunca os dois. D-13: quando é produto, a variação (sabor) é obrigatória. */
 export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: ItemResgatavelFormProps) {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
@@ -44,6 +47,7 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
     defaultValues: {
       modo: defaults?.nomeCustom ? 'custom' : 'produto',
       produtoId: defaults?.produtoId ?? '',
+      variacaoId: defaults?.variacaoId ?? '',
       nomeCustom: defaults?.nomeCustom ?? '',
       custoPontos: defaults ? String(defaults.custoPontos) : '',
       ativo: defaults?.ativo ?? true,
@@ -52,31 +56,36 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
   const { control, handleSubmit, watch, setValue } = form
   const modo = watch('modo')
   const produtoId = watch('produtoId')
+  const variacaoId = watch('variacaoId')
   const custoPontosStr = watch('custoPontos')
 
   const produtoSelecionado = modo === 'produto' ? produtos.find((p) => p.id === produtoId) : undefined
+  const variacaoSelecionada = produtoSelecionado?.variacoes.find((v) => v.id === variacaoId)
   const custoPontosNum = Number(custoPontosStr?.replace(',', '.'))
 
   let dica: { valorPorPonto: number; cashbackPercent: number; arriscado: boolean; sugestao: number } | null = null
   if (
-    produtoSelecionado &&
-    produtoSelecionado.precoVenda !== null &&
-    produtoSelecionado.margem !== null &&
-    produtoSelecionado.margem > 0 &&
+    variacaoSelecionada &&
+    variacaoSelecionada.precoVenda !== null &&
+    variacaoSelecionada.margem !== null &&
+    variacaoSelecionada.margem > 0 &&
     Number.isFinite(custoPontosNum) &&
     custoPontosNum > 0
   ) {
-    const valorPorPonto = produtoSelecionado.precoVenda / custoPontosNum
+    const valorPorPonto = variacaoSelecionada.precoVenda / custoPontosNum
     const cashbackPercent = valorPorPonto * pontosPorRealAtual * 100
     // Sugestão: custoPontos que deixa o cashback em metade da margem (folga).
-    const sugestao = Math.ceil((produtoSelecionado.precoVenda * pontosPorRealAtual * 200) / produtoSelecionado.margem)
-    dica = { valorPorPonto, cashbackPercent, arriscado: cashbackPercent >= produtoSelecionado.margem, sugestao }
+    const sugestao = Math.ceil(
+      (variacaoSelecionada.precoVenda * pontosPorRealAtual * 200) / variacaoSelecionada.margem,
+    )
+    dica = { valorPorPonto, cashbackPercent, arriscado: cashbackPercent >= variacaoSelecionada.margem, sugestao }
   }
 
   function onSubmit(data: FormValues) {
     setServerError(null)
     const payload = {
       produtoId: data.modo === 'produto' ? data.produtoId : undefined,
+      variacaoId: data.modo === 'produto' ? data.variacaoId : undefined,
       nomeCustom: data.modo === 'custom' ? data.nomeCustom : undefined,
       custoPontos: data.custoPontos,
       ativo: data.ativo,
@@ -122,30 +131,64 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
         />
 
         {modo === 'produto' ? (
-          <FormField
-            control={control}
-            name="produtoId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Produto</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Escolhe o produto" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {produtos.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <>
+            <FormField
+              control={control}
+              name="produtoId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Produto</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => {
+                      field.onChange(v)
+                      const opcoes = produtos.find((p) => p.id === v)?.variacoes ?? []
+                      setValue('variacaoId', opcoes.length === 1 ? opcoes[0].id : '')
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Escolhe o produto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {produtos.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name="variacaoId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Qual variação (sabor)</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={produtoSelecionado ? 'Escolhe a variação' : 'Escolhe o produto primeiro'} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {(produtoSelecionado?.variacoes ?? []).map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
         ) : (
           <FormField
             control={control}
@@ -176,12 +219,14 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
           )}
         />
 
-        {modo === 'produto' && produtoSelecionado && (produtoSelecionado.precoVenda === null || produtoSelecionado.margem === null) && (
-          <p className="text-sm text-muted-foreground">
-            Esse produto ainda não tem custo calculado (falta compra de ingrediente registrada) — sem
-            referência de margem pra sugerir um valor seguro.
-          </p>
-        )}
+        {modo === 'produto' &&
+          variacaoSelecionada &&
+          (variacaoSelecionada.precoVenda === null || variacaoSelecionada.margem === null) && (
+            <p className="text-sm text-muted-foreground">
+              Essa variação ainda não tem custo calculado (falta compra de ingrediente registrada) — sem
+              referência de margem pra sugerir um valor seguro.
+            </p>
+          )}
 
         {dica && (
           <div
@@ -191,8 +236,8 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
           >
             <p>
               Isso equivale a ~{currency.format(dica.valorPorPonto)} por ponto — ~{dica.cashbackPercent.toFixed(1)}%
-              de cashback sobre o preço de venda, contra {produtoSelecionado!.margem!.toFixed(1)}% de margem desse
-              produto.
+              de cashback sobre o preço de venda, contra {variacaoSelecionada!.margem!.toFixed(1)}% de margem dessa
+              variação.
             </p>
             <p className={dica.arriscado ? 'font-medium' : ''}>
               {dica.arriscado

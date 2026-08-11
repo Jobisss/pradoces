@@ -38,18 +38,31 @@ export async function painelDoDia(): Promise<GrupoJanela[]> {
       nomeConvidado: true,
       telefoneConvidado: true,
       cliente: { select: { name: true, telefone: true } },
-      itens: { select: { qtde: true, lote: { select: { produto: { select: { nome: true } } } } } },
-      itemResgatavel: { select: { nomeCustom: true, produto: { select: { nome: true } } } },
+      itens: {
+        select: {
+          qtde: true,
+          lote: { select: { produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
+        },
+      },
+      itemResgatavel: {
+        select: { nomeCustom: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } },
+      },
     },
     orderBy: [{ janelaRetirada: 'asc' }, { criadoEm: 'asc' }],
   })
 
   const grupos = new Map<string, ReservaDoDia[]>()
   for (const r of reservas) {
+    const nomeResgate = r.itemResgatavel?.produto
+      ? `${r.itemResgatavel.produto.nome}${r.itemResgatavel.variacao ? ` — ${r.itemResgatavel.variacao.nome}` : ''}`
+      : (r.itemResgatavel?.nomeCustom ?? '—')
     const itens: ItemSeparacao[] =
       r.itens.length > 0
-        ? r.itens.map((i) => ({ nome: i.lote.produto.nome, qtde: i.qtde }))
-        : [{ nome: r.itemResgatavel?.produto?.nome ?? r.itemResgatavel?.nomeCustom ?? '—', qtde: 1 }]
+        ? r.itens.map((i) => ({
+            nome: i.lote.variacao ? `${i.lote.produto.nome} — ${i.lote.variacao.nome}` : i.lote.produto.nome,
+            qtde: i.qtde,
+          }))
+        : [{ nome: nomeResgate, qtde: 1 }]
 
     const entry: ReservaDoDia = {
       id: r.id,

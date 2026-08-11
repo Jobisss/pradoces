@@ -53,8 +53,8 @@ describe('produtos Server Actions', () => {
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '0,40',
       receitaId: receita.id,
+      variacoes: [{ nome: 'Padrão', precoVenda: '0,40' }],
     })
 
     expect(result.error).toMatch(/abaixo do custo/)
@@ -70,13 +70,13 @@ describe('produtos Server Actions', () => {
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '2,00',
       receitaId: receita.id,
+      variacoes: [{ nome: 'Padrão', precoVenda: '2,00' }],
     })
 
     expect(result.ok).toBe(true)
-    const row = await prisma.produto.findUniqueOrThrow({ where: { id: result.id } })
-    expect(row.precoVenda.toFixed(4)).toBe('2.0000')
+    const variacao = await prisma.variacao.findFirstOrThrow({ where: { produtoId: result.id } })
+    expect(variacao.precoVenda.toFixed(4)).toBe('2.0000')
   })
 
   it('D-11 kit: bloqueia abaixo da soma dos componentes, permite acima', async () => {
@@ -94,8 +94,8 @@ describe('produtos Server Actions', () => {
       tipo: 'KIT',
       precoVenda: '2,50',
       kitItens: [
-        { componenteId: produtoA.id, qtde: 1 },
-        { componenteId: produtoB.id, qtde: 1 },
+        { componenteId: produtoA.id, componenteVariacaoId: produtoA.variacao!.id, qtde: 1 },
+        { componenteId: produtoB.id, componenteVariacaoId: produtoB.variacao!.id, qtde: 1 },
       ],
     })
     expect(bloqueado.error).toMatch(/abaixo do custo/)
@@ -107,8 +107,8 @@ describe('produtos Server Actions', () => {
       tipo: 'KIT',
       precoVenda: '4,00',
       kitItens: [
-        { componenteId: produtoA.id, qtde: 1 },
-        { componenteId: produtoB.id, qtde: 1 },
+        { componenteId: produtoA.id, componenteVariacaoId: produtoA.variacao!.id, qtde: 1 },
+        { componenteId: produtoB.id, componenteVariacaoId: produtoB.variacao!.id, qtde: 1 },
       ],
     })
     expect(permitido.ok).toBe(true)
@@ -121,7 +121,7 @@ describe('produtos Server Actions', () => {
     const outroKit = await criarProduto({
       tipo: 'KIT',
       precoVenda: 10,
-      kitItens: [{ componenteId: produtoA.id, qtde: 1 }],
+      kitItens: [{ componenteId: produtoA.id, componenteVariacaoId: produtoA.variacao!.id, qtde: 1 }],
     })
 
     const result = await criarProdutoAction({
@@ -130,14 +130,16 @@ describe('produtos Server Actions', () => {
       categoria: 'c',
       tipo: 'KIT',
       precoVenda: '100,00',
-      kitItens: [{ componenteId: outroKit.id, qtde: 1 }],
+      // outroKit não é UNITARIO — variacaoId não importa pra provar a rejeição
+      // (qualquer uuid válido serve, o server rejeita pelo tipo do componente).
+      kitItens: [{ componenteId: outroKit.id, componenteVariacaoId: produtoA.variacao!.id, qtde: 1 }],
     })
 
     expect(result.error).toBeTruthy()
     expect(await prisma.produto.count({ where: { nome: 'Kit de kit' } })).toBe(0)
   })
 
-  it('audit preco_alterado registra antes/depois quando o preço muda', async () => {
+  it('audit preco_alterado registra antes/depois quando o preço da variação muda', async () => {
     const admin = await asAdmin()
     const receita = await receitaComCustoConhecido('0.50')
     const criado = await criarProdutoAction({
@@ -145,22 +147,25 @@ describe('produtos Server Actions', () => {
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '2,00',
       receitaId: receita.id,
+      variacoes: [{ nome: 'Padrão', precoVenda: '2,00' }],
     })
+    expect(criado.ok).toBe(true)
+
+    const variacaoOriginal = await prisma.variacao.findFirstOrThrow({ where: { produtoId: criado.id! } })
 
     const editado = await editarProduto(criado.id!, {
       nome: 'Produto com audit',
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '3,50',
       receitaId: receita.id,
+      variacoes: [{ id: variacaoOriginal.id, nome: 'Padrão', precoVenda: '3,50' }],
     })
     expect(editado.ok).toBe(true)
 
     const evento = await prisma.auditLog.findFirstOrThrow({
-      where: { action: 'preco_alterado', entityId: criado.id },
+      where: { action: 'preco_alterado', entityId: variacaoOriginal.id },
     })
     expect(evento.actorId).toBe(admin.id)
     const metadata = evento.metadata as { antes: string; depois: string }
@@ -191,7 +196,6 @@ describe('produtos Server Actions', () => {
       descricao: 'd',
       categoria: 'c',
       tipo: 'UNITARIO',
-      precoVenda: '10,00',
       receitaId: undefined,
     })
     expect(produtoResult.error).toBeTruthy()

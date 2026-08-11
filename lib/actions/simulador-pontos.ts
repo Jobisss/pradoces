@@ -52,9 +52,11 @@ export async function simularTaxaPontos(_prev: unknown, formData: FormData): Pro
   // R$1" (só fazia sentido antes do catálogo de resgate existir, Phase 5).
   // Sem itens de catálogo cadastrados ainda, cai de volta pro placeholder.
   const [itensCatalogo, config] = await Promise.all([
+    // D-13: preço vem da Variação prometida, não do Produto (que não tem
+    // mais preço próprio pra UNITARIO).
     prisma.itemResgatavel.findMany({
-      where: { ativo: true, produtoId: { not: null } },
-      select: { custoPontos: true, produto: { select: { precoVenda: true } } },
+      where: { ativo: true, variacaoId: { not: null } },
+      select: { custoPontos: true, variacao: { select: { precoVenda: true } } },
     }),
     prisma.configuracao.findUnique({ where: { id: 1 } }),
   ])
@@ -62,7 +64,7 @@ export async function simularTaxaPontos(_prev: unknown, formData: FormData): Pro
   const baseadoEmCatalogoReal = itensCatalogo.length > 0
   const valorPorPonto = baseadoEmCatalogoReal
     ? itensCatalogo
-        .reduce((soma, item) => soma.plus(new Decimal(item.produto!.precoVenda).dividedBy(item.custoPontos)), new Decimal(0))
+        .reduce((soma, item) => soma.plus(new Decimal(item.variacao!.precoVenda).dividedBy(item.custoPontos)), new Decimal(0))
         .dividedBy(itensCatalogo.length)
     : new Decimal(1)
 

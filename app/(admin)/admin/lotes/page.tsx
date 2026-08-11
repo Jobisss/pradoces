@@ -64,8 +64,10 @@ export default async function LotesPage({
           {lotes.map((lote) => (
             <li key={lote.id} className="space-y-1 py-3">
               <p className="tabular-nums text-base">
-                {lote.produto.nome} — lote de {instanteFmtBR.format(lote.produzidoEm)} · vence{' '}
-                {dataCivilFmtBR.format(lote.validade)} · {lote.qtdeDisponivel} disponíveis
+                {lote.produto.nome}
+                {lote.variacao ? ` — ${lote.variacao.nome}` : ''} — lote de{' '}
+                {instanteFmtBR.format(lote.produzidoEm)} · vence {dataCivilFmtBR.format(lote.validade)} ·{' '}
+                {lote.qtdeDisponivel} disponíveis
               </p>
               <div className="flex items-center gap-3">
                 <p className="tabular-nums text-sm text-muted-foreground">

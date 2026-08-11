@@ -18,7 +18,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   if (!produto) notFound()
 
   const esgotado =
-    (produto.tipo === 'UNITARIO' && produto.lotes.length === 0) ||
+    (produto.tipo === 'UNITARIO' && produto.variacoes.every((v) => v.lotes.length === 0)) ||
     (produto.tipo === 'KIT' && produto.kitDisponivel === 0)
 
   return (
@@ -29,7 +29,14 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
         <div>
           <p className="text-sm text-muted-foreground">{produto.categoria}</p>
           <h1 className="font-display text-2xl font-semibold md:text-3xl">{produto.nome}</h1>
-          <p className="tabular-nums text-xl font-medium text-primary">{currency.format(Number(produto.precoVenda))}</p>
+          {produto.tipo === 'KIT' && (
+            <p className="tabular-nums text-xl font-medium text-primary">{currency.format(Number(produto.precoVenda))}</p>
+          )}
+          {produto.tipo === 'UNITARIO' && produto.precoAPartir && (
+            <p className="tabular-nums text-sm text-muted-foreground">
+              A partir de {currency.format(Number(produto.precoVenda))}
+            </p>
+          )}
         </div>
 
         <p className="text-base text-foreground">{produto.descricao}</p>
@@ -54,6 +61,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
               {produto.kitComponentes.map((c, i) => (
                 <li key={i}>
                   {c.qtde}× {c.nome}
+                  {c.variacaoNome ? ` (${c.variacaoNome})` : ''}
                 </li>
               ))}
             </ul>
@@ -68,12 +76,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
               Esgotado no momento — volta em breve.
             </p>
           ) : produto.tipo === 'UNITARIO' ? (
-            <AdicionarCarrinho
-              produtoId={produto.id}
-              produtoNome={produto.nome}
-              precoUnitario={produto.precoVenda}
-              lotes={produto.lotes}
-            />
+            <AdicionarCarrinho produtoId={produto.id} produtoNome={produto.nome} variacoes={produto.variacoes} />
           ) : (
             <AdicionarKitCarrinho
               produtoId={produto.id}

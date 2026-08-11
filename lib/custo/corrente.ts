@@ -181,41 +181,55 @@ export async function custosCorrentesReceitas(
 }
 
 /**
- * Custo corrente de um produto. UNITARIO delega pra custoCorrenteReceita da
- * receita vinculada + a receita de recheio quando houver, rateada por grama
- * (custoCorrenteRecheio — regra de 3 sobre recheioGramasUsadas). KIT
- * soma os custos por unidade dos componentes × qtde (D-11) — cada componente
- * é, por definição, um produto UNITARIO com receita.
+ * Custo corrente de uma Variação (D-13) = custo da receita BASE do produto
+ * dela (custoCorrenteReceita) + custo do recheio dela quando houver, rateado
+ * por grama (custoCorrenteRecheio). Substitui o antigo branch UNITARIO de
+ * custoCorrenteProduto — a diferença é que recheio/gramas agora vêm da
+ * Variação, não do Produto.
  */
-export async function custoCorrenteProduto(
+export async function custoCorrenteVariacao(
+  variacaoId: string,
+): Promise<{ custo: Decimal; faltamCompras: string[] }> {
+  const variacao = await prisma.variacao.findUniqueOrThrow({
+    where: { id: variacaoId },
+    include: { produto: { select: { receitaId: true } } },
+  })
+
+  if (!variacao.produto.receitaId) return { custo: new Decimal(0), faltamCompras: [] }
+  const base = await custoCorrenteReceita(variacao.produto.receitaId)
+  if (!variacao.recheioReceitaId) return { custo: base.porUnidade, faltamCompras: base.faltamCompras }
+  const gramasUsadas = variacao.recheioGramasUsadas ? new Decimal(variacao.recheioGramasUsadas) : new Decimal(0)
+  const recheio = await custoCorrenteRecheio(variacao.recheioReceitaId, gramasUsadas)
+  return {
+    custo: base.porUnidade.plus(recheio.custoParaProduto),
+    faltamCompras: [...base.faltamCompras, ...recheio.faltamCompras],
+  }
+}
+
+/**
+ * Custo corrente de um KIT (D-11/D-13) = soma dos custos por unidade dos
+ * componentes × qtde. Cada item de kit aponta pra uma Variação ESPECÍFICA do
+ * componente (não "qualquer sabor") — por isso usa custoCorrenteVariacao, o
+ * que também corrige um gap antigo: antes o custo de kit ignorava totalmente
+ * o recheio dos componentes (só olhava a receita base deles).
+ */
+export async function custoCorrenteKit(
   produtoId: string,
 ): Promise<{ custo: Decimal; faltamCompras: string[] }> {
   const produto = await prisma.produto.findUniqueOrThrow({
     where: { id: produtoId },
-    include: { kitItens: { include: { componente: true } } },
+    include: { kitItens: true },
   })
-
-  if (produto.tipo === 'UNITARIO') {
-    if (!produto.receitaId) return { custo: new Decimal(0), faltamCompras: [] }
-    const base = await custoCorrenteReceita(produto.receitaId)
-    if (!produto.recheioReceitaId) return { custo: base.porUnidade, faltamCompras: base.faltamCompras }
-    const gramasUsadas = produto.recheioGramasUsadas ? new Decimal(produto.recheioGramasUsadas) : new Decimal(0)
-    const recheio = await custoCorrenteRecheio(produto.recheioReceitaId, gramasUsadas)
-    return {
-      custo: base.porUnidade.plus(recheio.custoParaProduto),
-      faltamCompras: [...base.faltamCompras, ...recheio.faltamCompras],
-    }
-  }
 
   let custo = new Decimal(0)
   const faltamCompras: string[] = []
   for (const kitItem of produto.kitItens) {
-    if (!kitItem.componente.receitaId) continue
-    const { porUnidade, faltamCompras: faltamComponente } = await custoCorrenteReceita(
-      kitItem.componente.receitaId,
+    if (!kitItem.componenteVariacaoId) continue
+    const { custo: custoVariacao, faltamCompras: faltamVariacao } = await custoCorrenteVariacao(
+      kitItem.componenteVariacaoId,
     )
-    custo = custo.plus(porUnidade.times(kitItem.qtde))
-    faltamCompras.push(...faltamComponente)
+    custo = custo.plus(custoVariacao.times(kitItem.qtde))
+    faltamCompras.push(...faltamVariacao)
   }
   return { custo, faltamCompras }
 }
@@ -230,18 +244,22 @@ export function margemPercent(preco: Decimal, custo: Decimal): Decimal {
 }
 
 /**
- * Margens correntes de TODOS os produtos, sem N+1 (Pitfall 9 — usada pela
- * lista de produtos e pela home admin "Precisa de atenção"): 1 query de
- * produtos com receitas/kits aninhados, 1 chamada ultimasCompras com todos os
- * ingredienteIds coletados, 1 findUnique de Configuracao. `custo`/`margem`
- * ficam `null` só quando NENHUM item do produto (ou dos componentes do kit)
- * tem compra registrada ainda — parcial com pelo menos 1 compra soma normal
- * (mesmo comportamento de custoCorrenteReceita, que ignora itens sem compra).
+ * Margens correntes de TODAS as Variações (UNITARIO) + de todos os KITs, sem
+ * N+1 (Pitfall 9 — usada pela lista de produtos, pela home admin "Precisa de
+ * atenção" e pela tela de cadastro de resgate): 1 query de produtos com
+ * variações/kits aninhados, 1 chamada ultimasCompras com todos os
+ * ingredienteIds coletados, 1 findUnique de Configuracao. Uma linha por
+ * Variação ativa (`variacaoId` preenchido) pra UNITARIO, uma linha por KIT
+ * (`variacaoId: null`). `custo`/`margem` ficam `null` só quando NENHUM item
+ * (base ou recheio/componentes) tem compra registrada ainda.
  */
 export async function margensCorrentesBatch(): Promise<
   Array<{
     produtoId: string
+    variacaoId: string | null
     nome: string
+    produtoNome: string
+    variacaoNome: string | null
     tipo: 'UNITARIO' | 'KIT'
     precoVenda: Decimal
     custo: Decimal | null
@@ -252,10 +270,19 @@ export async function margensCorrentesBatch(): Promise<
   const produtos = await prisma.produto.findMany({
     include: {
       receita: { include: { itens: true } },
-      // precisa de ingrediente.unidadeBase pra pesoTotalGramasReceita (rateio do recheio)
-      receitaRecheio: { include: { itens: { include: { ingrediente: true } } } },
+      variacoes: {
+        // precisa de ingrediente.unidadeBase pra pesoTotalGramasReceita (rateio do recheio)
+        include: { receitaRecheio: { include: { itens: { include: { ingrediente: true } } } } },
+      },
       kitItens: {
-        include: { componente: { include: { receita: { include: { itens: true } } } } },
+        include: {
+          componenteVariacao: {
+            include: {
+              produto: { include: { receita: { include: { itens: true } } } },
+              receitaRecheio: { include: { itens: { include: { ingrediente: true } } } },
+            },
+          },
+        },
       },
     },
   })
@@ -263,9 +290,14 @@ export async function margensCorrentesBatch(): Promise<
   const ingredienteIds = new Set<string>()
   for (const produto of produtos) {
     for (const item of produto.receita?.itens ?? []) ingredienteIds.add(item.ingredienteId)
-    for (const item of produto.receitaRecheio?.itens ?? []) ingredienteIds.add(item.ingredienteId)
+    for (const variacao of produto.variacoes) {
+      for (const item of variacao.receitaRecheio?.itens ?? []) ingredienteIds.add(item.ingredienteId)
+    }
     for (const kitItem of produto.kitItens) {
-      for (const item of kitItem.componente.receita?.itens ?? []) ingredienteIds.add(item.ingredienteId)
+      const cv = kitItem.componenteVariacao
+      if (!cv) continue
+      for (const item of cv.produto.receita?.itens ?? []) ingredienteIds.add(item.ingredienteId)
+      for (const item of cv.receitaRecheio?.itens ?? []) ingredienteIds.add(item.ingredienteId)
     }
   }
   const ultimas = await ultimasCompras([...ingredienteIds])
@@ -290,35 +322,92 @@ export async function margensCorrentesBatch(): Promise<
     return { custoParaProduto, algumEncontrado }
   }
 
-  return produtos.map((produto) => {
-    const minima = produto.margemMinimaOverride
-      ? new Decimal(produto.margemMinimaOverride)
-      : margemMinimaGlobal
-    const precoVenda = new Decimal(produto.precoVenda)
+  /** Equivalente em memória de custoCorrenteVariacao — base + recheio (quando houver). */
+  function custoVariacaoEmMemoria(
+    receitaBase: ReceitaComItens | null | undefined,
+    receitaRecheio: ReceitaComItens | null | undefined,
+    gramasUsadas: Decimal | null,
+  ) {
+    const base = custoReceitaEmMemoria(receitaBase)
+    let custo = base.porUnidade
+    let algumEncontrado = base.algumEncontrado
+    if (receitaRecheio) {
+      const recheio = custoRecheioEmMemoria(receitaRecheio, gramasUsadas)
+      custo = custo.plus(recheio.custoParaProduto)
+      if (recheio.algumEncontrado) algumEncontrado = true
+    }
+    return { custo, algumEncontrado }
+  }
 
-    let custoBruto = new Decimal(0)
-    let algumEncontrado = false
+  type Linha = {
+    produtoId: string
+    variacaoId: string | null
+    nome: string
+    produtoNome: string
+    variacaoNome: string | null
+    tipo: 'UNITARIO' | 'KIT'
+    precoVenda: Decimal
+    custo: Decimal | null
+    margem: Decimal | null
+    minima: Decimal
+  }
+  const linhas: Linha[] = []
+
+  for (const produto of produtos) {
     if (produto.tipo === 'UNITARIO') {
-      const r = custoReceitaEmMemoria(produto.receita)
-      custoBruto = r.porUnidade
-      algumEncontrado = r.algumEncontrado
-      if (produto.receitaRecheio) {
-        const gramasUsadas = produto.recheioGramasUsadas ? new Decimal(produto.recheioGramasUsadas) : null
-        const recheio = custoRecheioEmMemoria(produto.receitaRecheio, gramasUsadas)
-        custoBruto = custoBruto.plus(recheio.custoParaProduto)
-        if (recheio.algumEncontrado) algumEncontrado = true
+      for (const variacao of produto.variacoes) {
+        const minima = variacao.margemMinimaOverride ? new Decimal(variacao.margemMinimaOverride) : margemMinimaGlobal
+        const precoVenda = new Decimal(variacao.precoVenda)
+        const gramasUsadas = variacao.recheioGramasUsadas ? new Decimal(variacao.recheioGramasUsadas) : null
+        const { custo: custoBruto, algumEncontrado } = custoVariacaoEmMemoria(
+          produto.receita,
+          variacao.receitaRecheio,
+          gramasUsadas,
+        )
+        const custo = algumEncontrado ? custoBruto : null
+        const margem = custo === null ? null : margemPercent(precoVenda, custo)
+        linhas.push({
+          produtoId: produto.id,
+          variacaoId: variacao.id,
+          nome: `${produto.nome} — ${variacao.nome}`,
+          produtoNome: produto.nome,
+          variacaoNome: variacao.nome,
+          tipo: 'UNITARIO',
+          precoVenda,
+          custo,
+          margem,
+          minima,
+        })
       }
     } else {
+      const minima = produto.margemMinimaOverride ? new Decimal(produto.margemMinimaOverride) : margemMinimaGlobal
+      const precoVenda = new Decimal(produto.precoVenda ?? 0)
+      let custoBruto = new Decimal(0)
+      let algumEncontrado = false
       for (const kitItem of produto.kitItens) {
-        const r = custoReceitaEmMemoria(kitItem.componente.receita)
+        const cv = kitItem.componenteVariacao
+        if (!cv) continue
+        const gramasUsadas = cv.recheioGramasUsadas ? new Decimal(cv.recheioGramasUsadas) : null
+        const r = custoVariacaoEmMemoria(cv.produto.receita, cv.receitaRecheio, gramasUsadas)
         if (r.algumEncontrado) algumEncontrado = true
-        custoBruto = custoBruto.plus(r.porUnidade.times(kitItem.qtde))
+        custoBruto = custoBruto.plus(r.custo.times(kitItem.qtde))
       }
+      const custo = algumEncontrado ? custoBruto : null
+      const margem = custo === null ? null : margemPercent(precoVenda, custo)
+      linhas.push({
+        produtoId: produto.id,
+        variacaoId: null,
+        nome: produto.nome,
+        produtoNome: produto.nome,
+        variacaoNome: null,
+        tipo: 'KIT',
+        precoVenda,
+        custo,
+        margem,
+        minima,
+      })
     }
+  }
 
-    const custo = algumEncontrado ? custoBruto : null
-    const margem = custo === null ? null : margemPercent(precoVenda, custo)
-
-    return { produtoId: produto.id, nome: produto.nome, tipo: produto.tipo, precoVenda, custo, margem, minima }
-  })
+  return linhas
 }

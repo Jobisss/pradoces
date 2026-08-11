@@ -57,13 +57,16 @@ describe('Phase 2 schema — custo congelado enforcement (live Postgres)', () =>
         descricao: 'Brigadeiro tradicional feito com leite condensado',
         categoria: 'Doces',
         tipo: 'UNITARIO',
-        precoVenda: '2.50',
         receitaId: receita.id,
       },
+    })
+    const variacao = await prisma.variacao.create({
+      data: { produtoId: produto.id, nome: 'Padrão', precoVenda: '2.50' },
     })
     const lote = await prisma.lote.create({
       data: {
         produtoId: produto.id,
+        variacaoId: variacao.id,
         receitaId: receita.id,
         multiplicador: '1',
         rendimentoReal: 20,

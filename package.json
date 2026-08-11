@@ -14,7 +14,8 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "seed:admin": "tsx --env-file=.env scripts/seed-admin.ts",
-    "dev:login": "tsx --env-file=.env scripts/dev-login.ts"
+    "dev:login": "tsx --env-file=.env scripts/dev-login.ts",
+    "backfill:variacoes": "tsx --env-file=.env scripts/backfill-variacoes.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

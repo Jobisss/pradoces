@@ -219,10 +219,11 @@ model Receita {
   criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm     DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  itens              ReceitaIngrediente[]
-  produto            Produto?
-  produtosComRecheio Produto[]            @relation("recheio")
-  lotes              Lote[]
+  itens               ReceitaIngrediente[]
+  produto             Produto?
+  produtosComRecheio  Produto[]            @relation("recheio")
+  variacoesComRecheio Variacao[]           @relation("variacao_recheio")
+  lotes               Lote[]
 
   @@map("receitas")
 }
@@ -239,27 +240,56 @@ model ReceitaIngrediente {
   @@map("receita_ingredientes")
 }
 
+// Variação de sabor de um Produto UNITARIO (D-13) — cada uma tem seu próprio
+// recheio (opcional) e preço. A receita BASE continua exclusiva de 1 Produto
+// (Produto.receitaId @unique); é a Variação que permite N sabores da mesma
+// massa sem duplicar a receita. Onde antes o custo/preço/recheio viviam
+// direto em Produto, agora vivem aqui — Produto.precoVenda/recheioReceitaId/
+// recheioGramasUsadas ficam mortos para UNITARIO, mantidos só para KIT.
+model Variacao {
+  id                   String   @id @default(uuid()) @db.Uuid
+  produtoId            String   @map("produto_id") @db.Uuid
+  nome                 String
+  // Mesma regra de sempre em Produto.recheioReceitaId — NÃO único, a mesma
+  // receita de recheio pode atender várias variações/produtos.
+  recheioReceitaId     String?  @map("recheio_receita_id") @db.Uuid
+  recheioGramasUsadas  Decimal? @map("recheio_gramas_usadas") @db.Decimal(10, 3)
+  precoVenda           Decimal  @map("preco_venda") @db.Decimal(19, 4)
+  margemMinimaOverride Decimal? @map("margem_minima_override") @db.Decimal(5, 2)
+  // "Remover" uma variação com lotes/kits/resgates históricos vira
+  // ativo:false, nunca DELETE — todas as FKs abaixo que apontam pra cá são
+  // onDelete: Restrict (ver lib/actions/produtos.ts).
+  ativo                Boolean  @default(true)
+  criadoEm             DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm         DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(6)
+
+  produto          Produto          @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  receitaRecheio   Receita?         @relation("variacao_recheio", fields: [recheioReceitaId], references: [id], onDelete: Restrict)
+  lotes            Lote[]
+  emKits           ProdutoKitItem[]
+  itensResgataveis ItemResgatavel[]
+
+  @@index([produtoId])
+  @@map("variacoes")
+}
+
 model Produto {
   id                   String       @id @default(uuid()) @db.Uuid
   nome                 String
   descricao            String
   categoria            String
   tipo                 TipoProduto
-  precoVenda           Decimal      @map("preco_venda") @db.Decimal(19, 4)
+  // NULL para UNITARIO (preço mora em Variacao, D-13) — só usado de verdade
+  // por tipo=KIT a partir de agora.
+  precoVenda           Decimal?     @map("preco_venda") @db.Decimal(19, 4)
+  // Idem: só serve KIT a partir de agora.
   margemMinimaOverride Decimal?     @map("margem_minima_override") @db.Decimal(5, 2)
   receitaId            String?      @unique @map("receita_id") @db.Uuid
-  // Recheio (D-12): receita ANEXA opcional, só p/ UNITARIO. Rendimento da
-  // receita de recheio é sempre tratado como "por unidade final" (qtde de
-  // cada item já é a dose de 1 doce) — escala por rendimentoReal na
-  // produção, não pelo multiplicador da base (ver lib/actions/lotes.ts).
-  // Não é @unique: a mesma receita de recheio pode atender vários produtos
-  // (ex.: "Recheio de nutella" no brownie E no bolo).
+  // D-12/D-13: recheio (receita anexa) morava aqui, mas um Produto UNITARIO
+  // pode ter várias Variações com recheios diferentes — esses 2 campos ficam
+  // mortos para UNITARIO (sempre NULL daqui pra frente; ver Variacao acima),
+  // mantidos só até a migration de limpeza (nunca foram usados por KIT).
   recheioReceitaId     String?      @map("recheio_receita_id") @db.Uuid
-  // Gramas de recheio usadas em CADA unidade deste produto (ex.: 20g de
-  // brigadeiro por brownie). O custo do recheio é rateado por regra de 3:
-  // (custo total da receita de recheio ÷ soma em gramas dos itens dela) ×
-  // recheioGramasUsadas — ver lib/custo/corrente.ts. Obrigatório (app-level)
-  // quando recheioReceitaId está setado.
   recheioGramasUsadas  Decimal?     @map("recheio_gramas_usadas") @db.Decimal(10, 3)
   // PROD-06: some da vitrine pública imediatamente quando false; admin
   // continua enxergando (histórico de lotes/reservas não depende disso).
@@ -278,6 +308,7 @@ model Produto {
   fotos            ProdutoFoto[]
   itensResgataveis ItemResgatavel[]
   campanhas        CampanhaProduto[]
+  variacoes        Variacao[]
 
   @@map("produtos")
 }
@@ -317,12 +348,19 @@ model ProdutoFoto {
 }
 
 model ProdutoKitItem {
-  kitId        String @map("kit_id") @db.Uuid
-  componenteId String @map("componente_id") @db.Uuid
-  qtde         Int
+  kitId                String @map("kit_id") @db.Uuid
+  componenteId         String @map("componente_id") @db.Uuid
+  qtde                 Int
+  // D-13: kit ciente de variação — aponta pra QUAL sabor do componente entra
+  // no kit (não "qualquer lote via FEFO solto"). componenteId continua
+  // existindo (referência de conveniência ao Produto, usada onde só o nome
+  // importa) — componente é sempre UNITARIO (app-level), então sempre tem
+  // pelo menos 1 Variação, daí obrigatório aqui também.
+  componenteVariacaoId String @map("componente_variacao_id") @db.Uuid
 
-  kit        Produto @relation("kit", fields: [kitId], references: [id], onDelete: Cascade)
-  componente Produto @relation("componente", fields: [componenteId], references: [id], onDelete: Restrict)
+  kit                Produto  @relation("kit", fields: [kitId], references: [id], onDelete: Cascade)
+  componente         Produto  @relation("componente", fields: [componenteId], references: [id], onDelete: Restrict)
+  componenteVariacao Variacao @relation(fields: [componenteVariacaoId], references: [id], onDelete: Restrict)
 
   @@id([kitId, componenteId])
   @@map("produto_kit_items")
@@ -331,6 +369,12 @@ model ProdutoKitItem {
 model Lote {
   id                       String   @id @default(uuid()) @db.Uuid
   produtoId                String   @map("produto_id") @db.Uuid
+  // D-13: qual sabor/variação esse lote é — todo lote é sempre de uma
+  // variação específica (KIT nunca tem lote próprio). produtoId continua
+  // existindo (redundante com variacao.produtoId, mantido de propósito —
+  // evita reescrever toda query "qualquer lote desse produto", ex. painel
+  // do dia/resgate).
+  variacaoId               String   @map("variacao_id") @db.Uuid
   receitaId                String   @map("receita_id") @db.Uuid
   multiplicador            Decimal  @db.Decimal(6, 2)
   rendimentoReal           Int      @map("rendimento_real")
@@ -344,6 +388,7 @@ model Lote {
   criadoEm                 DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
 
   produto      Produto              @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  variacao     Variacao             @relation(fields: [variacaoId], references: [id], onDelete: Restrict)
   receita      Receita              @relation(fields: [receitaId], references: [id], onDelete: Restrict)
   usos         LoteUsoIngrediente[]
   reservaItens ReservaItem[]
@@ -446,12 +491,18 @@ model Reserva {
 model ItemResgatavel {
   id          String   @id @default(uuid()) @db.Uuid
   produtoId   String?  @map("produto_id") @db.Uuid
+  // D-13: quando produtoId está setado, variacaoId é obrigatório — resgate
+  // promete um sabor específico, não "qualquer um do produto". Enforced por
+  // CHECK custom (itens_resgataveis_variacao_com_produto), não dá pra
+  // modelar "obrigatório só quando o outro campo existe" no Prisma nativo.
+  variacaoId  String?  @map("variacao_id") @db.Uuid
   nomeCustom  String?  @map("nome_custom")
   custoPontos Int      @map("custo_pontos")
   ativo       Boolean  @default(true)
   criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
 
   produto  Produto?  @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  variacao Variacao? @relation(fields: [variacaoId], references: [id], onDelete: Restrict)
   reservas Reserva[]
 
   @@map("itens_resgataveis")

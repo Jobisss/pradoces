@@ -1,3 +1,4 @@
+import Decimal from 'decimal.js'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db/client'
 import { custosCorrentesReceitas, pesoTotalGramasReceita } from '@/lib/custo/corrente'
@@ -8,7 +9,12 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
 
   const produto = await prisma.produto.findUnique({
     where: { id },
-    include: { kitItens: true, fotos: { orderBy: { ordem: 'asc' } }, campanhas: true },
+    include: {
+      kitItens: true,
+      fotos: { orderBy: { ordem: 'asc' } },
+      campanhas: true,
+      variacoes: { orderBy: { nome: 'asc' } },
+    },
   })
   if (!produto) notFound()
 
@@ -26,7 +32,10 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
     }),
     prisma.produto.findMany({
       where: { tipo: 'UNITARIO', id: { not: id } },
-      include: { receita: { include: { itens: true } } },
+      include: {
+        receita: { include: { itens: true } },
+        variacoes: { where: { ativo: true }, orderBy: { nome: 'asc' } },
+      },
       orderBy: { nome: 'asc' },
     }),
     prisma.configuracao.findUnique({ where: { id: 1 } }),
@@ -61,16 +70,33 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
     }
   })
 
-  const unitarios = unitariosRaw
-    .filter((p) => p.receitaId)
-    .map((p) => {
-      const custo = custos.get(p.receitaId!)!
-      return {
-        id: p.id,
-        nome: p.nome,
-        custoPorUnidade: custo.faltamCompras.length > 0 && custo.total.isZero() ? null : custo.porUnidade.toFixed(6),
-      }
-    })
+  /** Custo de uma Variação = custo da receita base do produto dela + recheio dela (regra de 3, D-13). */
+  function custoVariacao(
+    baseReceitaId: string | null,
+    recheioReceitaId: string | null,
+    recheioGramasUsadas: Decimal | string | null,
+  ): string | null {
+    if (!baseReceitaId) return null
+    const custoBase = custos.get(baseReceitaId)
+    if (!custoBase || (custoBase.faltamCompras.length > 0 && custoBase.total.isZero())) return null
+    let total = custoBase.porUnidade
+    if (recheioReceitaId) {
+      const recheioOpcao = recheios.find((r) => r.id === recheioReceitaId)
+      if (!recheioOpcao?.custoPorGrama || !recheioGramasUsadas) return null
+      total = total.plus(new Decimal(recheioOpcao.custoPorGrama).times(recheioGramasUsadas))
+    }
+    return total.toFixed(6)
+  }
+
+  const unitarios = unitariosRaw.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    variacoes: p.variacoes.map((v) => ({
+      id: v.id,
+      nome: v.nome,
+      custoPorUnidade: custoVariacao(p.receitaId, v.recheioReceitaId, v.recheioGramasUsadas),
+    })),
+  }))
 
   const margemMinimaGlobal = config ? config.margemMinimaPadrao.toFixed(2) : '30.00'
 
@@ -91,12 +117,23 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
           ativo: produto.ativo,
           alergenicos: produto.alergenicos,
           campanhas: produto.campanhas.map((c) => c.campanhaId),
-          precoVenda: produto.precoVenda.toFixed(4),
+          precoVenda: produto.precoVenda ? produto.precoVenda.toFixed(4) : null,
           margemMinimaOverride: produto.margemMinimaOverride ? produto.margemMinimaOverride.toFixed(2) : null,
           receitaId: produto.receitaId,
-          recheioReceitaId: produto.recheioReceitaId,
-          recheioGramasUsadas: produto.recheioGramasUsadas ? produto.recheioGramasUsadas.toFixed(3) : null,
-          kitItens: produto.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: i.qtde })),
+          variacoes: produto.variacoes.map((v) => ({
+            id: v.id,
+            nome: v.nome,
+            recheioReceitaId: v.recheioReceitaId,
+            recheioGramasUsadas: v.recheioGramasUsadas ? v.recheioGramasUsadas.toFixed(3) : null,
+            precoVenda: v.precoVenda.toFixed(4),
+            margemMinimaOverride: v.margemMinimaOverride ? v.margemMinimaOverride.toFixed(2) : null,
+            ativo: v.ativo,
+          })),
+          kitItens: produto.kitItens.map((i) => ({
+            componenteId: i.componenteId,
+            componenteVariacaoId: i.componenteVariacaoId,
+            qtde: i.qtde,
+          })),
           fotos: produto.fotos.map((f) => ({ id: f.id, path: f.path, ordem: f.ordem })),
         }}
       />

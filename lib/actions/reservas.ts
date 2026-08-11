@@ -40,6 +40,7 @@ export type ReservaActionState = {
 type LoteLock = {
   id: string
   produto_id: string
+  variacao_id: string | null
   qtde_disponivel: number
   qtde_reservada: number
   validade: Date
@@ -109,42 +110,45 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
 
       // Kit não escolhe lote no carrinho (não tem lote próprio) — os
       // componentes dele são resolvidos AQUI, dentro da transação, pra usar
-      // o mesmo soft-hold/lock dos itens avulsos.
-      const kitItensPorKit = new Map<string, { componenteId: string; qtde: number }[]>()
-      const componenteIds = new Set<string>()
+      // o mesmo soft-hold/lock dos itens avulsos. D-13: cada item de kit
+      // aponta pra uma Variação ESPECÍFICA do componente — o FEFO escolhe
+      // só entre os lotes daquela variação, nunca de outro sabor.
+      const kitItensPorKit = new Map<string, { componenteVariacaoId: string | null; qtde: number }[]>()
+      const componenteVariacaoIds = new Set<string>()
       if (kitProdutoIds.length > 0) {
         const kitItensRows = await tx.produtoKitItem.findMany({
           where: { kitId: { in: kitProdutoIds } },
-          select: { kitId: true, componenteId: true, qtde: true },
+          select: { kitId: true, componenteVariacaoId: true, qtde: true },
         })
         for (const row of kitItensRows) {
           if (!kitItensPorKit.has(row.kitId)) kitItensPorKit.set(row.kitId, [])
-          kitItensPorKit.get(row.kitId)!.push({ componenteId: row.componenteId, qtde: row.qtde })
-          componenteIds.add(row.componenteId)
+          kitItensPorKit.get(row.kitId)!.push({ componenteVariacaoId: row.componenteVariacaoId, qtde: row.qtde })
+          if (row.componenteVariacaoId) componenteVariacaoIds.add(row.componenteVariacaoId)
         }
       }
 
       // Uma única query de lock, em ordem determinística por id (mesmo
       // princípio do lock original) — cobre tanto os lotes escolhidos
-      // diretamente quanto TODOS os lotes vigentes dos componentes de kit
-      // (não dá pra saber de qual lote o FEFO vai tirar antes de travar).
+      // diretamente quanto TODOS os lotes vigentes das variações de
+      // componente de kit (não dá pra saber de qual lote o FEFO vai tirar
+      // antes de travar).
       const lotes = await tx.$queryRaw<LoteLock[]>`
-        SELECT id, produto_id, qtde_disponivel, qtde_reservada, validade
+        SELECT id, produto_id, variacao_id, qtde_disponivel, qtde_reservada, validade
         FROM lotes
         WHERE id = ANY(${loteIdsExplicitos}::uuid[])
-           OR (produto_id = ANY(${[...componenteIds]}::uuid[]) AND validade >= ${hojeDate})
+           OR (variacao_id = ANY(${[...componenteVariacaoIds]}::uuid[]) AND validade >= ${hojeDate})
         ORDER BY id FOR UPDATE`
 
       const loteMap = new Map(lotes.map((l) => [l.id, l]))
       if (loteIdsExplicitos.some((id) => !loteMap.has(id))) throw new ReservaError(DADOS_DESATUALIZADOS)
 
-      const lotesPorComponente = new Map<string, LoteLock[]>()
+      const lotesPorVariacao = new Map<string, LoteLock[]>()
       for (const lote of lotes) {
-        if (!componenteIds.has(lote.produto_id)) continue
-        if (!lotesPorComponente.has(lote.produto_id)) lotesPorComponente.set(lote.produto_id, [])
-        lotesPorComponente.get(lote.produto_id)!.push(lote)
+        if (!lote.variacao_id || !componenteVariacaoIds.has(lote.variacao_id)) continue
+        if (!lotesPorVariacao.has(lote.variacao_id)) lotesPorVariacao.set(lote.variacao_id, [])
+        lotesPorVariacao.get(lote.variacao_id)!.push(lote)
       }
-      for (const grupo of lotesPorComponente.values()) grupo.sort((a, b) => a.validade.getTime() - b.validade.getTime())
+      for (const grupo of lotesPorVariacao.values()) grupo.sort((a, b) => a.validade.getTime() - b.validade.getTime())
 
       const produtoIds = [...new Set(lotes.map((l) => l.produto_id)), ...kitProdutoIds]
       const produtos = await tx.produto.findMany({
@@ -153,6 +157,13 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
       })
       const produtoMap = new Map(produtos.map((p) => [p.id, p]))
 
+      const variacaoIds = [...new Set(lotes.map((l) => l.variacao_id).filter((v): v is string => !!v))]
+      const variacoes = await tx.variacao.findMany({
+        where: { id: { in: variacaoIds } },
+        select: { id: true, ativo: true, precoVenda: true },
+      })
+      const variacaoMap = new Map(variacoes.map((v) => [v.id, v]))
+
       // qtde total sendo tirada de cada lote (avulso + kit somados, pra não
       // dar dupla contagem se o mesmo lote for usado nos dois caminhos).
       const alocadoPorLote = new Map<string, number>()
@@ -160,7 +171,8 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
       for (const [loteId, qtde] of qtdePorLoteExplicito) {
         const lote = loteMap.get(loteId)!
         const produto = produtoMap.get(lote.produto_id)
-        if (!produto || !produto.ativo) throw new ReservaError(DADOS_DESATUALIZADOS)
+        const variacao = lote.variacao_id ? variacaoMap.get(lote.variacao_id) : undefined
+        if (!produto || !produto.ativo || !variacao || !variacao.ativo) throw new ReservaError(DADOS_DESATUALIZADOS)
         if (lote.validade < hojeDate) throw new ReservaError(DADOS_DESATUALIZADOS)
         const livreParaReserva = lote.qtde_disponivel - lote.qtde_reservada
         if (qtde > livreParaReserva) throw new ReservaError(ESTOQUE_INSUFICIENTE)
@@ -171,7 +183,14 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
       for (const [kitProdutoId, qtdeKits] of qtdePorKitProduto) {
         const kitProduto = produtoMap.get(kitProdutoId)
         const kitItens = kitItensPorKit.get(kitProdutoId)
-        if (!kitProduto || !kitProduto.ativo || kitProduto.tipo !== 'KIT' || !kitItens || kitItens.length === 0) {
+        if (
+          !kitProduto ||
+          !kitProduto.ativo ||
+          kitProduto.tipo !== 'KIT' ||
+          kitProduto.precoVenda === null ||
+          !kitItens ||
+          kitItens.length === 0
+        ) {
           throw new ReservaError(DADOS_DESATUALIZADOS)
         }
 
@@ -182,9 +201,9 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
         const totalUnidadesPorKit = kitItens.reduce((soma, k) => soma + k.qtde, 0)
         const precoPorUnidade = new Decimal(kitProduto.precoVenda).dividedBy(totalUnidadesPorKit).toFixed(4)
 
-        for (const { componenteId, qtde: qtdePorKit } of kitItens) {
+        for (const { componenteVariacaoId, qtde: qtdePorKit } of kitItens) {
           let restante = qtdePorKit * qtdeKits
-          const lotesDisponiveis = lotesPorComponente.get(componenteId) ?? []
+          const lotesDisponiveis = componenteVariacaoId ? (lotesPorVariacao.get(componenteVariacaoId) ?? []) : []
           for (const lote of lotesDisponiveis) {
             if (restante <= 0) break
             const jaAlocado = alocadoPorLote.get(lote.id) ?? 0
@@ -218,11 +237,11 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
             create: [
               ...itensUnitario.map((item) => {
                 const lote = loteMap.get(item.loteId)!
-                const produto = produtoMap.get(lote.produto_id)!
+                const variacao = variacaoMap.get(lote.variacao_id!)!
                 return {
                   loteId: item.loteId,
                   qtde: item.qtde,
-                  precoUnitarioCongelado: produto.precoVenda,
+                  precoUnitarioCongelado: variacao.precoVenda,
                 }
               }),
               ...itensKitCriar,

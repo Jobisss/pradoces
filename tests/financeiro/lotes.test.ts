@@ -12,7 +12,7 @@ vi.mock('next/headers', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { produzirLote } from '@/lib/actions/lotes'
+import { produzirLotes } from '@/lib/actions/lotes'
 
 async function asAdmin() {
   const admin = await createTestUser({ role: 'admin' })
@@ -36,16 +36,16 @@ async function produzirLoteDeTeste(opts: { validade: string; rendimentoReal?: nu
   })
   const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receita.id, precoVenda: 5 })
 
-  const result = await produzirLote({
+  const result = await produzirLotes({
     produtoId: produto.id,
     receitaId: receita.id,
     multiplicador: '1',
-    rendimentoReal: opts.rendimentoReal ?? 10,
     validade: opts.validade,
-    linhas: [{ ingredienteCompraId: compra.id, qtde: '100' }],
+    linhasBase: [{ ingredienteCompraId: compra.id, qtde: '100' }],
+    variacoes: [{ variacaoId: produto.variacao!.id, rendimentoReal: opts.rendimentoReal ?? 10, linhasRecheio: [] }],
   })
-  if (!result.ok) throw new Error(`fixture produzirLote falhou: ${result.error}`)
-  return result.id!
+  if (!result.ok) throw new Error(`fixture produzirLotes falhou: ${result.error}`)
+  return result.lotes![0].id
 }
 
 describe('hojeSaoPaulo', () => {
@@ -111,7 +111,7 @@ describe('listarLotes (LOTE-07)', () => {
   })
 })
 
-describe('produzirLote — multiplicador (D-07)', () => {
+describe('produzirLotes — multiplicador (D-07)', () => {
   beforeEach(async () => {
     await truncateAll()
     ctx.ip = `198.51.100.${Math.floor(Math.random() * 250) + 1}`
@@ -133,17 +133,17 @@ describe('produzirLote — multiplicador (D-07)', () => {
     })
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receita.id, precoVenda: 20 })
 
-    const result = await produzirLote({
+    const result = await produzirLotes({
       produtoId: produto.id,
       receitaId: receita.id,
       multiplicador: '1,5',
-      rendimentoReal: 30,
       validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compra.id, qtde: '592,5' }],
+      linhasBase: [{ ingredienteCompraId: compra.id, qtde: '592,5' }],
+      variacoes: [{ variacaoId: produto.variacao!.id, rendimentoReal: 30, linhasRecheio: [] }],
     })
 
     expect(result.ok).toBe(true)
-    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.id } })
+    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.lotes![0].id } })
     expect(usos[0].qtdeUsada.toFixed(3)).toBe('592.500')
     expect(usos[0].marcaSnapshot).toBe('Marca Mult')
     expect(usos[0].custoUnitarioCongelado.toFixed(6)).toBe('0.010000')

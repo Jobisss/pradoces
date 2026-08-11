@@ -3,7 +3,7 @@ import Decimal from 'decimal.js'
 import {
   ultimasCompras,
   custoCorrenteReceita,
-  custoCorrenteProduto,
+  custoCorrenteKit,
   margemPercent,
 } from '@/lib/custo/corrente'
 import { computeLoteSnapshot } from '@/lib/custo/congelado'
@@ -131,7 +131,7 @@ describe('ultimasCompras (ING-05 / A2 tie-break)', () => {
   })
 })
 
-describe('custoCorrenteProduto — kit (D-11)', () => {
+describe('custoCorrenteKit (D-11/D-13)', () => {
   beforeEach(async () => {
     await truncateAll()
   })
@@ -160,12 +160,12 @@ describe('custoCorrenteProduto — kit (D-11)', () => {
       tipo: 'KIT',
       precoVenda: 15,
       kitItens: [
-        { componenteId: produtoA.id, qtde: 2 },
-        { componenteId: produtoB.id, qtde: 1 },
+        { componenteId: produtoA.id, componenteVariacaoId: produtoA.variacao!.id, qtde: 2 },
+        { componenteId: produtoB.id, componenteVariacaoId: produtoB.variacao!.id, qtde: 1 },
       ],
     })
 
-    const { custo } = await custoCorrenteProduto(kit.id)
+    const { custo } = await custoCorrenteKit(kit.id)
     const esperado = porUnidadeA.times(2).plus(porUnidadeB.times(1))
 
     expect(custo.toFixed(6)).toBe(esperado.toFixed(6))

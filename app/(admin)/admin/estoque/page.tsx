@@ -16,7 +16,7 @@ export default async function EstoquePage() {
       ) : (
         <ul className="divide-y divide-border">
           {estoque.map((e) => (
-            <li key={e.produtoId} className="flex items-center justify-between py-3">
+            <li key={`${e.produtoId}:${e.variacaoId ?? ''}`} className="flex items-center justify-between py-3">
               <div>
                 <Link href="/admin/lotes" className="text-base font-medium underline-offset-2 hover:underline">
                   {e.nome}

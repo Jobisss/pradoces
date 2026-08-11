@@ -46,15 +46,16 @@ export async function resgatarItem(
     resultado = await prisma.$transaction(async (tx) => {
       const item = await tx.itemResgatavel.findUnique({
         where: { id: itemResgatavelId },
-        select: { id: true, ativo: true, custoPontos: true, produtoId: true },
+        select: { id: true, ativo: true, custoPontos: true, produtoId: true, variacaoId: true },
       })
       if (!item || !item.ativo) throw new ResgateError('Esse item não está mais disponível.')
 
-      if (item.produtoId) {
+      // D-13: estoque da VARIAÇÃO prometida, não "qualquer sabor" do produto.
+      if (item.variacaoId) {
         const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
         const temEstoque = await tx.lote.findFirst({
           where: {
-            produtoId: item.produtoId,
+            variacaoId: item.variacaoId,
             validade: { gte: new Date(`${hoje}T00:00:00Z`) },
             qtdeDisponivel: { gt: 0 },
           },

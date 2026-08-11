@@ -6,22 +6,31 @@ export default async function NovoItemResgatavelPage() {
   const [produtosAtivos, margens, config] = await Promise.all([
     prisma.produto.findMany({
       where: { ativo: true, tipo: 'UNITARIO' },
-      select: { id: true, nome: true },
+      select: {
+        id: true,
+        nome: true,
+        variacoes: { where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: 'asc' } },
+      },
       orderBy: { nome: 'asc' },
     }),
     margensCorrentesBatch(),
     prisma.configuracao.findUnique({ where: { id: 1 } }),
   ])
-  const margensPorId = new Map(margens.map((m) => [m.produtoId, m]))
-  const produtos = produtosAtivos.map((p) => {
-    const m = margensPorId.get(p.id)
-    return {
-      id: p.id,
-      nome: p.nome,
-      precoVenda: m ? Number(m.precoVenda) : null,
-      margem: m?.margem ? Number(m.margem) : null,
-    }
-  })
+
+  const margemPorVariacaoId = new Map(margens.filter((m) => m.variacaoId).map((m) => [m.variacaoId!, m]))
+  const produtos = produtosAtivos.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    variacoes: p.variacoes.map((v) => {
+      const m = margemPorVariacaoId.get(v.id)
+      return {
+        id: v.id,
+        nome: v.nome,
+        precoVenda: m ? Number(m.precoVenda) : null,
+        margem: m?.margem ? Number(m.margem) : null,
+      }
+    }),
+  }))
 
   return (
     <div className="space-y-6">

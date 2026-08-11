@@ -1,3 +1,4 @@
+import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
 import { custosCorrentesReceitas, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { ProdutoForm } from '@/components/admin/produto-form'
@@ -17,7 +18,10 @@ export default async function NovoProdutoPage() {
     }),
     prisma.produto.findMany({
       where: { tipo: 'UNITARIO' },
-      include: { receita: { include: { itens: true } } },
+      include: {
+        receita: { include: { itens: true } },
+        variacoes: { where: { ativo: true }, orderBy: { nome: 'asc' } },
+      },
       orderBy: { nome: 'asc' },
     }),
     prisma.configuracao.findUnique({ where: { id: 1 } }),
@@ -52,16 +56,33 @@ export default async function NovoProdutoPage() {
     }
   })
 
-  const unitarios = unitariosRaw
-    .filter((p) => p.receitaId)
-    .map((p) => {
-      const custo = custos.get(p.receitaId!)!
-      return {
-        id: p.id,
-        nome: p.nome,
-        custoPorUnidade: custo.faltamCompras.length > 0 && custo.total.isZero() ? null : custo.porUnidade.toFixed(6),
-      }
-    })
+  /** Custo de uma Variação = custo da receita base do produto dela + recheio dela (regra de 3, D-13). */
+  function custoVariacao(
+    baseReceitaId: string | null,
+    recheioReceitaId: string | null,
+    recheioGramasUsadas: Decimal | string | null,
+  ): string | null {
+    if (!baseReceitaId) return null
+    const custoBase = custos.get(baseReceitaId)
+    if (!custoBase || (custoBase.faltamCompras.length > 0 && custoBase.total.isZero())) return null
+    let total = custoBase.porUnidade
+    if (recheioReceitaId) {
+      const recheioOpcao = recheios.find((r) => r.id === recheioReceitaId)
+      if (!recheioOpcao?.custoPorGrama || !recheioGramasUsadas) return null
+      total = total.plus(new Decimal(recheioOpcao.custoPorGrama).times(recheioGramasUsadas))
+    }
+    return total.toFixed(6)
+  }
+
+  const unitarios = unitariosRaw.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    variacoes: p.variacoes.map((v) => ({
+      id: v.id,
+      nome: v.nome,
+      custoPorUnidade: custoVariacao(p.receitaId, v.recheioReceitaId, v.recheioGramasUsadas),
+    })),
+  }))
 
   const margemMinimaGlobal = config ? config.margemMinimaPadrao.toFixed(2) : '30.00'
 

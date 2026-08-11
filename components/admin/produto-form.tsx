@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch, type Control } from 'react-hook-form'
 import Decimal from 'decimal.js'
 import { TriangleAlert, XIcon } from 'lucide-react'
 import { criarProduto, editarProduto, sugestoesCategoria } from '@/lib/actions/produtos'
@@ -35,6 +35,78 @@ function margemPercent(preco: Decimal, custo: Decimal): Decimal {
   return preco.minus(custo).dividedBy(preco).times(100)
 }
 
+/** custo da base + recheio (se houver) — mesma conta de lib/custo/corrente.ts:custoCorrenteVariacao, em decimal.js no client. */
+function calcularCusto(
+  custoBase: Decimal | null,
+  recheioSelecionado: RecheioOpcao | undefined,
+  gramasUsadas: Decimal | null,
+): Decimal | null {
+  if (custoBase === null) return null
+  if (!recheioSelecionado) return custoBase
+  const custoRecheio =
+    recheioSelecionado.custoPorGrama && gramasUsadas
+      ? new Decimal(recheioSelecionado.custoPorGrama).times(gramasUsadas)
+      : null
+  return custoRecheio !== null ? custoBase.plus(custoRecheio) : null
+}
+
+/** Os 3 estados do UI-SPEC: custo incompleto / abaixo do custo (bloqueio PROD-09) / margem ok-ou-baixa. */
+function blocoMargem(
+  custo: Decimal | null,
+  precoRaw: string,
+  minimaRaw: string,
+  margemMinimaGlobal: string,
+): { node: React.ReactNode; abaixoDoCusto: boolean } {
+  if (custo === null) {
+    return { node: <p className="text-sm text-muted-foreground">custo incompleto</p>, abaixoDoCusto: false }
+  }
+  const preco = toDecimal(precoRaw)
+  if (preco === null) return { node: null, abaixoDoCusto: false }
+  if (preco.lessThan(custo)) {
+    return {
+      node: (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Esse preço tá abaixo do custo ({currency.format(custo.toNumber())}) — você pagaria pra vender. Aumenta o
+            preço pra salvar.
+          </AlertDescription>
+        </Alert>
+      ),
+      abaixoDoCusto: true,
+    }
+  }
+  const minima = toDecimal(minimaRaw) ?? toDecimal(margemMinimaGlobal) ?? new Decimal(30)
+  const margem = margemPercent(preco, custo)
+  const abaixoDoMinimo = margem.lessThan(minima)
+  const lucro = preco.minus(custo)
+  if (abaixoDoMinimo) {
+    return {
+      node: (
+        <div className="space-y-1 rounded-lg border-l-4 border-destructive bg-card p-3">
+          <p className="flex items-center gap-1.5 text-base text-destructive">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            Margem abaixo do mínimo ({minima.toFixed(0)}%): de cada R$ 10 vendidos, menos de R$ 3 ficam com você.
+            Vale subir o preço ou rever a receita.
+          </p>
+        </div>
+      ),
+      abaixoDoCusto: false,
+    }
+  }
+  return {
+    node: (
+      <div className="space-y-1 rounded-lg border border-border bg-card p-3">
+        <p className="tabular-nums text-base">
+          Custa {currency.format(custo.toNumber())} pra fazer hoje. Vendendo a {currency.format(preco.toNumber())},
+          ficam {currency.format(lucro.toNumber())} com você ({margem.toFixed(0)}% de margem).
+        </p>
+        <p className="text-xs text-muted-foreground">Margem = quanto do preço fica com você, já descontado o custo.</p>
+      </div>
+    ),
+    abaixoDoCusto: false,
+  }
+}
+
 type OpcaoCusto = { id: string; nome: string; custoPorUnidade: string | null }
 type RecheioOpcao = {
   id: string
@@ -42,6 +114,18 @@ type RecheioOpcao = {
   custoPorGrama: string | null
   pesoTotalG: string
   itensForaDeGramas: string[]
+}
+type UnitarioVariacaoOpcao = { id: string; nome: string; custoPorUnidade: string | null }
+type UnitarioOpcao = { id: string; nome: string; variacoes: UnitarioVariacaoOpcao[] }
+
+type VariacaoFormValues = {
+  id?: string
+  nome: string
+  recheioReceitaId: string
+  recheioGramasUsadas: string
+  precoVenda: string
+  margemMinimaOverride: string
+  ativo: boolean
 }
 
 type ProdutoFormValues = {
@@ -55,15 +139,14 @@ type ProdutoFormValues = {
   precoVenda: string
   margemMinimaOverride: string
   receitaId: string
-  recheioReceitaId: string
-  recheioGramasUsadas: string
-  kitItens: Array<{ componenteId: string; qtde: string }>
+  variacoes: VariacaoFormValues[]
+  kitItens: Array<{ componenteId: string; componenteVariacaoId: string; qtde: string }>
 }
 
 type ProdutoFormProps = {
   receitas: OpcaoCusto[]
   recheios: RecheioOpcao[]
-  unitarios: OpcaoCusto[]
+  unitarios: UnitarioOpcao[]
   margemMinimaGlobal: string
   defaults?: {
     id: string
@@ -74,21 +157,193 @@ type ProdutoFormProps = {
     ativo: boolean
     alergenicos: string[]
     campanhas: string[]
-    precoVenda: string
+    precoVenda: string | null
     margemMinimaOverride: string | null
     receitaId: string | null
-    recheioReceitaId: string | null
-    recheioGramasUsadas: string | null
-    kitItens: Array<{ componenteId: string; qtde: number }>
+    variacoes: Array<{
+      id: string
+      nome: string
+      recheioReceitaId: string | null
+      recheioGramasUsadas: string | null
+      precoVenda: string
+      margemMinimaOverride: string | null
+      ativo: boolean
+    }>
+    kitItens: Array<{ componenteId: string; componenteVariacaoId: string | null; qtde: number }>
     fotos: Array<{ id: string; path: string; ordem: number }>
   }
+}
+
+const VARIACAO_NOVA: VariacaoFormValues = {
+  nome: 'Padrão',
+  recheioReceitaId: '',
+  recheioGramasUsadas: '',
+  precoVenda: '',
+  margemMinimaOverride: '',
+  ativo: true,
+}
+
+/** 1 linha de Variação (D-13) — cada uma tem seu próprio recheio+preço, com o preview de custo/margem já rodando pra ela. */
+function VariacaoLinha({
+  index,
+  control,
+  onRemove,
+  custoBase,
+  receitaId,
+  recheios,
+  margemMinimaGlobal,
+}: {
+  index: number
+  control: Control<ProdutoFormValues>
+  onRemove: () => void
+  custoBase: Decimal | null
+  receitaId: string
+  recheios: RecheioOpcao[]
+  margemMinimaGlobal: string
+}) {
+  const row = useWatch({ control, name: `variacoes.${index}` })
+  const recheioSelecionado = recheios.find((r) => r.id === row.recheioReceitaId)
+  const gramasUsadas = toDecimal(row.recheioGramasUsadas ?? '')
+  const custo = calcularCusto(custoBase, recheioSelecionado, gramasUsadas)
+  const { node } = blocoMargem(custo, row.precoVenda ?? '', row.margemMinimaOverride ?? '', margemMinimaGlobal)
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border p-3">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 space-y-1.5">
+          <FormField
+            control={control}
+            name={`variacoes.${index}.nome`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nome da variação</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Ex.: Ovomaltine" required />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mt-6 size-11 shrink-0"
+          aria-label="Remover variação"
+          onClick={onRemove}
+        >
+          <XIcon />
+        </Button>
+      </div>
+
+      <FormField
+        control={control}
+        name={`variacoes.${index}.recheioReceitaId`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Recheio (opcional) — se essa variação tiver</FormLabel>
+            <Select value={field.value || 'nenhum'} onValueChange={(v) => field.onChange(v === 'nenhum' ? '' : v)}>
+              <FormControl>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sem recheio" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="nenhum">Sem recheio</SelectItem>
+                {recheios
+                  .filter((r) => r.id !== receitaId)
+                  .map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.nome}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {row.recheioReceitaId && (
+        <FormField
+          control={control}
+          name={`variacoes.${index}.recheioGramasUsadas`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Gramas de recheio em cada unidade</FormLabel>
+              <FormControl>
+                <Input inputMode="decimal" placeholder="ex.: 20" {...field} required />
+              </FormControl>
+              {recheioSelecionado && (
+                <p className="text-sm text-muted-foreground">
+                  Essa receita rende {recheioSelecionado.pesoTotalG}g no total
+                  {recheioSelecionado.custoPorGrama === null && ' — sem custo suficiente pra calcular ainda'}.
+                  {recheioSelecionado.itensForaDeGramas.length > 0 && (
+                    <>
+                      {' '}
+                      Não entraram no total (não estão em gramas): {recheioSelecionado.itensForaDeGramas.join(', ')}.
+                    </>
+                  )}
+                </p>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      <FormField
+        control={control}
+        name={`variacoes.${index}.precoVenda`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Preço de venda (R$)</FormLabel>
+            <FormControl>
+              <Input {...field} inputMode="decimal" placeholder="0,00" required />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {node}
+
+      <FormField
+        control={control}
+        name={`variacoes.${index}.margemMinimaOverride`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Margem mínima só dessa variação (%) — se quiser diferente do padrão</FormLabel>
+            <FormControl>
+              <Input {...field} inputMode="decimal" placeholder={margemMinimaGlobal} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={control}
+        name={`variacoes.${index}.ativo`}
+        render={({ field }) => (
+          <FormItem className="group/field flex flex-row items-center gap-2 space-y-0">
+            <FormControl>
+              <Checkbox checked={field.value} onCheckedChange={(v) => field.onChange(v === true)} />
+            </FormControl>
+            <FormLabel className="font-normal">Ativa (aparece na vitrine pro cliente)</FormLabel>
+          </FormItem>
+        )}
+      />
+    </div>
+  )
 }
 
 /**
  * Form de produto — bloco de margem AO VIVO (D-09) com os 3 estados do
  * UI-SPEC: saudável, abaixo do mínimo (borda+ícone+texto, nunca só cor) e
- * bloqueio PROD-09 (preço < custo). O bloqueio aqui é cortesia visual — quem
- * decide de verdade é a action (lib/actions/produtos.ts), testado no 02-06.
+ * bloqueio PROD-09 (preço < custo). D-13: pra UNITARIO, cada Variação tem seu
+ * próprio bloco de margem — o bloqueio aqui é cortesia visual, quem decide de
+ * verdade é a action (lib/actions/produtos.ts).
  */
 export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal, defaults }: ProdutoFormProps) {
   const router = useRouter()
@@ -107,103 +362,71 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       precoVenda: defaults?.precoVenda ?? '',
       margemMinimaOverride: defaults?.margemMinimaOverride ?? '',
       receitaId: defaults?.receitaId ?? '',
-      recheioReceitaId: defaults?.recheioReceitaId ?? '',
-      recheioGramasUsadas: defaults?.recheioGramasUsadas ?? '',
-      kitItens: defaults?.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: String(i.qtde) })) ?? [],
+      variacoes: defaults
+        ? defaults.variacoes.map((v) => ({
+            id: v.id,
+            nome: v.nome,
+            recheioReceitaId: v.recheioReceitaId ?? '',
+            recheioGramasUsadas: v.recheioGramasUsadas ?? '',
+            precoVenda: v.precoVenda,
+            margemMinimaOverride: v.margemMinimaOverride ?? '',
+            ativo: v.ativo,
+          }))
+        : [VARIACAO_NOVA],
+      kitItens:
+        defaults?.kitItens.map((i) => ({
+          componenteId: i.componenteId,
+          componenteVariacaoId: i.componenteVariacaoId ?? '',
+          qtde: String(i.qtde),
+        })) ?? [],
     },
   })
   const { control, handleSubmit, watch, setValue } = form
-  const { fields, append, remove } = useFieldArray({ control, name: 'kitItens' })
+  const kitFieldArray = useFieldArray({ control, name: 'kitItens' })
+  const variacaoFieldArray = useFieldArray({ control, name: 'variacoes' })
 
   const tipo = watch('tipo')
   const receitaId = watch('receitaId')
-  const recheioReceitaId = watch('recheioReceitaId')
-  const recheioGramasUsadasRaw = watch('recheioGramasUsadas')
   const kitItens = watch('kitItens')
+  const variacoesWatch = watch('variacoes')
   const precoVendaRaw = watch('precoVenda')
   const margemOverrideRaw = watch('margemMinimaOverride')
   const categoria = watch('categoria')
 
-  const recheioSelecionado = recheios.find((x) => x.id === recheioReceitaId)
-  const gramasUsadas = toDecimal(recheioGramasUsadasRaw)
+  const custoBaseReceita = receitas.find((r) => r.id === receitaId)?.custoPorUnidade
+  const custoBase = custoBaseReceita ? new Decimal(custoBaseReceita) : null
 
-  let custo: Decimal | null = null
+  // Cortesia visual pro botão de submit — a validação de verdade é no server.
+  let algumaVariacaoAbaixoDoCusto = false
   if (tipo === 'UNITARIO') {
-    const r = receitas.find((x) => x.id === receitaId)
-    const base = r?.custoPorUnidade ? new Decimal(r.custoPorUnidade) : null
-    if (base && recheioReceitaId) {
-      const custoRecheio =
-        recheioSelecionado?.custoPorGrama && gramasUsadas
-          ? new Decimal(recheioSelecionado.custoPorGrama).times(gramasUsadas)
-          : null
-      custo = custoRecheio !== null ? base.plus(custoRecheio) : null
-    } else {
-      custo = base
+    for (const v of variacoesWatch) {
+      const recheioSelecionado = recheios.find((r) => r.id === v.recheioReceitaId)
+      const custo = calcularCusto(custoBase, recheioSelecionado, toDecimal(v.recheioGramasUsadas))
+      if (blocoMargem(custo, v.precoVenda, v.margemMinimaOverride, margemMinimaGlobal).abaixoDoCusto) {
+        algumaVariacaoAbaixoDoCusto = true
+        break
+      }
     }
-  } else {
+  }
+
+  let blocoMargemKit: React.ReactNode = null
+  let kitAbaixoDoCusto = false
+  if (tipo === 'KIT') {
     let total = new Decimal(0)
     let algumFaltando = kitItens.length === 0
     for (const item of kitItens) {
-      if (!item.componenteId) {
+      const variacoesDoComponente = unitarios.find((u) => u.id === item.componenteId)?.variacoes ?? []
+      const variacaoEscolhida = variacoesDoComponente.find((v) => v.id === item.componenteVariacaoId)
+      if (!item.componenteId || !variacaoEscolhida?.custoPorUnidade) {
         algumFaltando = true
         continue
       }
-      const u = unitarios.find((x) => x.id === item.componenteId)
-      if (!u?.custoPorUnidade) {
-        algumFaltando = true
-        continue
-      }
-      total = total.plus(new Decimal(u.custoPorUnidade).times(Number(item.qtde) || 0))
+      total = total.plus(new Decimal(variacaoEscolhida.custoPorUnidade).times(Number(item.qtde) || 0))
     }
-    custo = algumFaltando ? null : total
-  }
-
-  const preco = toDecimal(precoVendaRaw)
-  const minima = toDecimal(margemOverrideRaw) ?? toDecimal(margemMinimaGlobal) ?? new Decimal(30)
-
-  let blocoMargem: React.ReactNode = null
-  let precoAbaixoDoCusto = false
-  if (custo === null) {
-    blocoMargem = <p className="text-sm text-muted-foreground">custo incompleto</p>
-  } else if (preco !== null) {
-    if (preco.lessThan(custo)) {
-      precoAbaixoDoCusto = true
-      blocoMargem = (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Esse preço tá abaixo do custo ({currency.format(custo.toNumber())}) — você pagaria pra vender. Aumenta o preço pra salvar.
-          </AlertDescription>
-        </Alert>
-      )
-    } else {
-      const margem = margemPercent(preco, custo)
-      const abaixoDoMinimo = margem.lessThan(minima)
-      const lucro = preco.minus(custo)
-      if (abaixoDoMinimo) {
-        blocoMargem = (
-          <div className="space-y-1 rounded-lg border-l-4 border-destructive bg-card p-3">
-            <p className="flex items-center gap-1.5 text-base text-destructive">
-              <TriangleAlert className="size-4 shrink-0" aria-hidden />
-              Margem abaixo do mínimo ({minima.toFixed(0)}%): de cada R$ 10 vendidos, menos de R$ 3
-              ficam com você. Vale subir o preço ou rever a receita.
-            </p>
-          </div>
-        )
-      } else {
-        blocoMargem = (
-          <div className="space-y-1 rounded-lg border border-border bg-card p-3">
-            <p className="tabular-nums text-base">
-              Custa {currency.format(custo.toNumber())} pra fazer hoje. Vendendo a{' '}
-              {currency.format(preco.toNumber())}, ficam {currency.format(lucro.toNumber())} com
-              você ({margem.toFixed(0)}% de margem).
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Margem = quanto do preço fica com você, já descontado o custo.
-            </p>
-          </div>
-        )
-      }
-    }
+    const custo = algumFaltando ? null : total
+    const resultado = blocoMargem(custo, precoVendaRaw, margemOverrideRaw, margemMinimaGlobal)
+    blocoMargemKit = resultado.node
+    kitAbaixoDoCusto = resultado.abaixoDoCusto
   }
 
   function onSubmit(data: ProdutoFormValues) {
@@ -216,15 +439,28 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       ativo: data.ativo,
       alergenicos: data.alergenicos,
       campanhas: data.campanhas,
-      precoVenda: data.precoVenda,
-      margemMinimaOverride: data.margemMinimaOverride,
+      precoVenda: data.tipo === 'KIT' ? data.precoVenda : undefined,
+      margemMinimaOverride: data.tipo === 'KIT' ? data.margemMinimaOverride : undefined,
       receitaId: data.tipo === 'UNITARIO' ? data.receitaId : undefined,
-      recheioReceitaId: data.tipo === 'UNITARIO' ? data.recheioReceitaId || undefined : undefined,
-      recheioGramasUsadas:
-        data.tipo === 'UNITARIO' && data.recheioReceitaId ? data.recheioGramasUsadas || undefined : undefined,
+      variacoes:
+        data.tipo === 'UNITARIO'
+          ? data.variacoes.map((v) => ({
+              id: v.id,
+              nome: v.nome,
+              recheioReceitaId: v.recheioReceitaId || undefined,
+              recheioGramasUsadas: v.recheioReceitaId ? v.recheioGramasUsadas || undefined : undefined,
+              precoVenda: v.precoVenda,
+              margemMinimaOverride: v.margemMinimaOverride || undefined,
+              ativo: v.ativo,
+            }))
+          : undefined,
       kitItens:
         data.tipo === 'KIT'
-          ? data.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: Number(i.qtde) || 1 }))
+          ? data.kitItens.map((i) => ({
+              componenteId: i.componenteId,
+              componenteVariacaoId: i.componenteVariacaoId,
+              qtde: Number(i.qtde) || 1,
+            }))
           : undefined,
     }
     startTransition(async () => {
@@ -400,7 +636,7 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
               name="receitaId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Receita</FormLabel>
+                  <FormLabel>Receita (a massa)</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -420,167 +656,186 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
               )}
             />
 
-            <FormField
-              control={control}
-              name="recheioReceitaId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Recheio (opcional) — se esse doce tiver</FormLabel>
-                  <Select
-                    value={field.value || 'nenhum'}
-                    onValueChange={(v) => field.onChange(v === 'nenhum' ? '' : v)}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Sem recheio" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="nenhum">Sem recheio</SelectItem>
-                      {recheios
-                        .filter((r) => r.id !== receitaId)
-                        .map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.nome}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {recheioReceitaId && (
-              <FormField
-                control={control}
-                name="recheioGramasUsadas"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gramas de recheio em cada unidade</FormLabel>
-                    <FormControl>
-                      <Input inputMode="decimal" placeholder="ex.: 20" {...field} required />
-                    </FormControl>
-                    {recheioSelecionado && (
-                      <p className="text-sm text-muted-foreground">
-                        Essa receita rende {recheioSelecionado.pesoTotalG}g no total
-                        {recheioSelecionado.custoPorGrama === null && ' — sem custo suficiente pra calcular ainda'}.
-                        {recheioSelecionado.itensForaDeGramas.length > 0 && (
-                          <>
-                            {' '}
-                            Não entraram no total (não estão em gramas):{' '}
-                            {recheioSelecionado.itensForaDeGramas.join(', ')}.
-                          </>
-                        )}
-                      </p>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">Variações</h2>
+              <p className="text-sm text-muted-foreground">
+                Cada sabor/recheio diferente da mesma massa vira uma variação, com preço próprio.
+              </p>
+              {variacaoFieldArray.fields.map((field, index) => (
+                <VariacaoLinha
+                  key={field.id}
+                  index={index}
+                  control={control}
+                  onRemove={() => variacaoFieldArray.remove(index)}
+                  custoBase={custoBase}
+                  receitaId={receitaId}
+                  recheios={recheios}
+                  margemMinimaGlobal={margemMinimaGlobal}
+                />
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                onClick={() => variacaoFieldArray.append(VARIACAO_NOVA)}
+              >
+                Mais uma variação
+              </Button>
+            </div>
           </>
         )}
 
         {tipo === 'KIT' && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Itens do kit</h2>
-            {fields.map((field, index) => (
-              <div key={field.id} className="flex items-end gap-2 rounded-lg border border-border p-3">
-                <div className="flex-1 space-y-1.5">
+            {kitFieldArray.fields.map((field, index) => {
+              const componenteId = kitItens[index]?.componenteId
+              const variacoesDoComponente = unitarios.find((u) => u.id === componenteId)?.variacoes ?? []
+              return (
+                <div key={field.id} className="space-y-2 rounded-lg border border-border p-3">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <FormField
+                        control={control}
+                        name={`kitItens.${index}.componenteId`}
+                        render={({ field: compField }) => (
+                          <FormItem>
+                            <FormLabel>Componente</FormLabel>
+                            <Select
+                              value={compField.value}
+                              onValueChange={(v) => {
+                                compField.onChange(v)
+                                const opcoes = unitarios.find((u) => u.id === v)?.variacoes ?? []
+                                setValue(
+                                  `kitItens.${index}.componenteVariacaoId`,
+                                  opcoes.length === 1 ? opcoes[0].id : '',
+                                )
+                              }}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Escolhe um doce único" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {unitarios.map((u) => (
+                                  <SelectItem key={u.id} value={u.id}>
+                                    {u.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="w-24 space-y-1.5">
+                      <FormField
+                        control={control}
+                        name={`kitItens.${index}.qtde`}
+                        render={({ field: qtdeField }) => (
+                          <FormItem>
+                            <FormLabel>Qtde</FormLabel>
+                            <FormControl>
+                              <Input {...qtdeField} inputMode="numeric" />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="size-11 shrink-0"
+                      aria-label="Remover item do kit"
+                      onClick={() => kitFieldArray.remove(index)}
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+
                   <FormField
                     control={control}
-                    name={`kitItens.${index}.componenteId`}
-                    render={({ field: compField }) => (
+                    name={`kitItens.${index}.componenteVariacaoId`}
+                    render={({ field: varField }) => (
                       <FormItem>
-                        <FormLabel>Componente</FormLabel>
-                        <Select value={compField.value} onValueChange={compField.onChange}>
+                        <FormLabel>Qual variação desse componente</FormLabel>
+                        <Select value={varField.value} onValueChange={varField.onChange}>
                           <FormControl>
                             <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Escolhe um doce único" />
+                              <SelectValue
+                                placeholder={componenteId ? 'Escolhe a variação' : 'Escolhe o componente primeiro'}
+                              />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {unitarios.map((u) => (
-                              <SelectItem key={u.id} value={u.id}>
-                                {u.nome}
+                            {variacoesDoComponente.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.nome}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-                <div className="w-24 space-y-1.5">
-                  <FormField
-                    control={control}
-                    name={`kitItens.${index}.qtde`}
-                    render={({ field: qtdeField }) => (
-                      <FormItem>
-                        <FormLabel>Qtde</FormLabel>
-                        <FormControl>
-                          <Input {...qtdeField} inputMode="numeric" />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="size-11 shrink-0"
-                  aria-label="Remover item do kit"
-                  onClick={() => remove(index)}
-                >
-                  <XIcon />
-                </Button>
-              </div>
-            ))}
+              )
+            })}
             <Button
               type="button"
               variant="outline"
               className="h-11"
-              onClick={() => append({ componenteId: '', qtde: '1' })}
+              onClick={() => kitFieldArray.append({ componenteId: '', componenteVariacaoId: '', qtde: '1' })}
             >
               Mais um item
             </Button>
           </div>
         )}
 
-        <FormField
-          control={control}
-          name="precoVenda"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Preço de venda (R$)</FormLabel>
-              <FormControl>
-                <Input {...field} inputMode="decimal" placeholder="0,00" required />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {tipo === 'KIT' && (
+          <>
+            <FormField
+              control={control}
+              name="precoVenda"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Preço de venda do kit (R$)</FormLabel>
+                  <FormControl>
+                    <Input {...field} inputMode="decimal" placeholder="0,00" required />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        {blocoMargem}
+            {blocoMargemKit}
 
-        <FormField
-          control={control}
-          name="margemMinimaOverride"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Margem mínima só desse produto (%) — se quiser diferente do padrão</FormLabel>
-              <FormControl>
-                <Input {...field} inputMode="decimal" placeholder={margemMinimaGlobal} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            <FormField
+              control={control}
+              name="margemMinimaOverride"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Margem mínima só desse kit (%) — se quiser diferente do padrão</FormLabel>
+                  <FormControl>
+                    <Input {...field} inputMode="decimal" placeholder={margemMinimaGlobal} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
 
         <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
           <div className="mx-auto w-full max-w-md">
-            <Button type="submit" size="lg" className="w-full" disabled={pending || precoAbaixoDoCusto}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={pending || algumaVariacaoAbaixoDoCusto || kitAbaixoDoCusto}
+            >
               {pending ? 'Salvando...' : 'Salvar produto'}
             </Button>
           </div>

@@ -11,6 +11,7 @@ function mesSaoPaulo(data: Date): string {
 
 export type ProdutoRelatorio = {
   produtoId: string
+  variacaoId: string | null
   nome: string
   qtde: number
   receita: Decimal
@@ -33,6 +34,11 @@ export type RelatorioFaturamento = {
  * — "lucro real" é preço−custo de quando o lote foi produzido, não de hoje).
  * Só reserva tipo PADRAO conta como faturamento — resgate é pago em pontos,
  * não é receita em R$ (FIN-05 cobre o valor movimentado em pontos à parte).
+ *
+ * D-13: agrupa por VARIAÇÃO (`lote.variacaoId`), não por produto — é isso
+ * que permite ver o lucro separado por sabor. KIT nunca aparece aqui direto:
+ * um ReservaItem de kit já é o lote do COMPONENTE (uma variação de um
+ * produto UNITARIO), resolvido na hora da reserva.
  */
 export async function relatorioFaturamento(desde: Date, ate: Date): Promise<RelatorioFaturamento> {
   const reservas = await prisma.reserva.findMany({
@@ -50,7 +56,9 @@ export async function relatorioFaturamento(desde: Date, ate: Date): Promise<Rela
             select: {
               custoPorUnidadeCongelado: true,
               produtoId: true,
+              variacaoId: true,
               produto: { select: { nome: true } },
+              variacao: { select: { nome: true } },
             },
           },
         },
@@ -58,14 +66,22 @@ export async function relatorioFaturamento(desde: Date, ate: Date): Promise<Rela
     },
   })
 
-  const porProduto = new Map<string, { nome: string; receita: Decimal; custo: Decimal; qtde: number }>()
+  const porVariacao = new Map<
+    string,
+    { produtoId: string; variacaoId: string | null; nome: string; receita: Decimal; custo: Decimal; qtde: number }
+  >()
   for (const r of reservas) {
     for (const item of r.itens) {
       const receita = item.precoUnitarioCongelado.times(item.qtde)
       const custo = item.lote.custoPorUnidadeCongelado.times(item.qtde)
-      const chave = item.lote.produtoId
-      const atual = porProduto.get(chave) ?? {
-        nome: item.lote.produto.nome,
+      const chave = item.lote.variacaoId ?? item.lote.produtoId
+      const nome = item.lote.variacao
+        ? `${item.lote.produto.nome} — ${item.lote.variacao.nome}`
+        : item.lote.produto.nome
+      const atual = porVariacao.get(chave) ?? {
+        produtoId: item.lote.produtoId,
+        variacaoId: item.lote.variacaoId,
+        nome,
         receita: new Decimal(0),
         custo: new Decimal(0),
         qtde: 0,
@@ -73,12 +89,13 @@ export async function relatorioFaturamento(desde: Date, ate: Date): Promise<Rela
       atual.receita = atual.receita.plus(receita)
       atual.custo = atual.custo.plus(custo)
       atual.qtde += item.qtde
-      porProduto.set(chave, atual)
+      porVariacao.set(chave, atual)
     }
   }
 
-  const lista: ProdutoRelatorio[] = [...porProduto.entries()].map(([produtoId, v]) => ({
-    produtoId,
+  const lista: ProdutoRelatorio[] = [...porVariacao.values()].map((v) => ({
+    produtoId: v.produtoId,
+    variacaoId: v.variacaoId,
     nome: v.nome,
     qtde: v.qtde,
     receita: v.receita,
@@ -100,10 +117,12 @@ export type MesAgregado = { mes: string; receita: Decimal; custo: Decimal; lucro
 
 /**
  * FIN-04/06 — histórico mensal (lucro real por produto quando `produtoId` é
- * passado — FIN-04; sazonalidade agregando todos os produtos quando não —
- * FIN-06). "Mês" é o mês de CONFIRMAÇÃO em America/Sao_Paulo.
+ * passado — FIN-04; por sabor específico quando `variacaoId` é passado —
+ * D-13; sazonalidade agregando tudo quando nenhum dos dois — FIN-06). "Mês"
+ * é o mês de CONFIRMAÇÃO em America/Sao_Paulo. `variacaoId` tem prioridade
+ * sobre `produtoId` quando os dois vêm preenchidos.
  */
-export async function historicoMensal(meses = 12, produtoId?: string): Promise<MesAgregado[]> {
+export async function historicoMensal(meses = 12, produtoId?: string, variacaoId?: string): Promise<MesAgregado[]> {
   const desde = new Date()
   desde.setUTCMonth(desde.getUTCMonth() - meses)
 
@@ -119,7 +138,7 @@ export async function historicoMensal(meses = 12, produtoId?: string): Promise<M
         select: {
           qtde: true,
           precoUnitarioCongelado: true,
-          lote: { select: { custoPorUnidadeCongelado: true, produtoId: true } },
+          lote: { select: { custoPorUnidadeCongelado: true, produtoId: true, variacaoId: true } },
         },
       },
     },
@@ -129,7 +148,11 @@ export async function historicoMensal(meses = 12, produtoId?: string): Promise<M
   for (const r of reservas) {
     const mes = mesSaoPaulo(r.confirmadaEm!)
     for (const item of r.itens) {
-      if (produtoId && item.lote.produtoId !== produtoId) continue
+      if (variacaoId) {
+        if (item.lote.variacaoId !== variacaoId) continue
+      } else if (produtoId && item.lote.produtoId !== produtoId) {
+        continue
+      }
       const atual = porMes.get(mes) ?? { receita: new Decimal(0), custo: new Decimal(0) }
       atual.receita = atual.receita.plus(item.precoUnitarioCongelado.times(item.qtde))
       atual.custo = atual.custo.plus(item.lote.custoPorUnidadeCongelado.times(item.qtde))

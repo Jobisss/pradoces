@@ -19,7 +19,7 @@ function amanha(): string {
 export default async function RelatoriosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ desde?: string; ate?: string; produto?: string }>
+  searchParams: Promise<{ desde?: string; ate?: string; produto?: string; variacao?: string }>
 }) {
   const params = await searchParams
   const desdeStr = params.desde || inicioDoMes()
@@ -27,11 +27,16 @@ export default async function RelatoriosPage({
   const desde = new Date(`${desdeStr}T00:00:00Z`)
   const ate = new Date(`${ateStr}T00:00:00Z`)
 
-  const [relatorio, historico, marcas, produtoFiltro] = await Promise.all([
+  const [relatorio, historico, marcas, variacaoFiltro] = await Promise.all([
     relatorioFaturamento(desde, ate),
-    historicoMensal(12, params.produto),
+    historicoMensal(12, params.produto, params.variacao),
     margemPorMarca(),
-    params.produto ? prisma.produto.findUnique({ where: { id: params.produto }, select: { nome: true } }) : null,
+    params.variacao
+      ? prisma.variacao.findUnique({
+          where: { id: params.variacao },
+          select: { nome: true, produto: { select: { nome: true } } },
+        })
+      : null,
   ])
 
   return (
@@ -86,8 +91,15 @@ export default async function RelatoriosPage({
         ) : (
           <ul className="divide-y divide-border">
             {relatorio.topPorReceita.map((p) => (
-              <li key={p.produtoId} className="flex items-center justify-between py-2 text-sm">
-                <Link href={`/admin/relatorios?produto=${p.produtoId}`} className="underline-offset-2 hover:underline">
+              <li key={p.variacaoId ?? p.produtoId} className="flex items-center justify-between py-2 text-sm">
+                <Link
+                  href={
+                    p.variacaoId
+                      ? `/admin/relatorios?variacao=${p.variacaoId}`
+                      : `/admin/relatorios?produto=${p.produtoId}`
+                  }
+                  className="underline-offset-2 hover:underline"
+                >
                   {p.nome} ({p.qtde} un)
                 </Link>
                 <span className="tabular-nums">{currency.format(p.receita.toNumber())}</span>
@@ -104,7 +116,7 @@ export default async function RelatoriosPage({
         ) : (
           <ul className="divide-y divide-border">
             {relatorio.topPorMargem.map((p) => (
-              <li key={p.produtoId} className="flex items-center justify-between py-2 text-sm">
+              <li key={p.variacaoId ?? p.produtoId} className="flex items-center justify-between py-2 text-sm">
                 <span>{p.nome}</span>
                 <span className="tabular-nums">{p.margemPercent.toFixed(0)}%</span>
               </li>
@@ -115,9 +127,10 @@ export default async function RelatoriosPage({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">
-          Histórico mensal {produtoFiltro ? `— ${produtoFiltro.nome}` : '(todos os produtos)'}
+          Histórico mensal{' '}
+          {variacaoFiltro ? `— ${variacaoFiltro.produto.nome} — ${variacaoFiltro.nome}` : '(todos os produtos)'}
         </h2>
-        {params.produto && (
+        {(params.produto || params.variacao) && (
           <Link href="/admin/relatorios" className="text-sm text-primary underline underline-offset-2">
             Ver todos os produtos
           </Link>

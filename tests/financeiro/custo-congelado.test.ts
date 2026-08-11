@@ -11,7 +11,7 @@ vi.mock('next/headers', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { produzirLote } from '@/lib/actions/lotes'
+import { produzirLotes } from '@/lib/actions/lotes'
 
 async function asAdmin() {
   const admin = await createTestUser({ role: 'admin' })
@@ -20,7 +20,7 @@ async function asAdmin() {
   return admin
 }
 
-/** Monta ingrediente + receita (1 item, qtde `qtdeItem`) + produto, retorna tudo. */
+/** Monta ingrediente + receita (1 item, qtde `qtdeItem`) + produto (com 1 variação "Padrão"), retorna tudo. */
 async function montarCenario(qtdeItem: string, rendimentoPadrao = 20) {
   const ingrediente = await criarIngrediente({ nome: `Leite condensado ${Date.now()}-${Math.random()}` })
   const compra = await registrarCompra({
@@ -37,7 +37,27 @@ async function montarCenario(qtdeItem: string, rendimentoPadrao = 20) {
   return { ingrediente, compra, receita, produto }
 }
 
-describe('produzirLote — custo congelado', () => {
+/** D-13: produzirLotes espera variacoes[] — pra uma variação só, sem recheio, é isso aqui. */
+function payloadUmaVariacao(opts: {
+  produtoId: string
+  variacaoId: string
+  receitaId: string
+  multiplicador: string
+  rendimentoReal: number
+  validade: string
+  linhasBase: Array<{ ingredienteCompraId: string; qtde: string }>
+}) {
+  return {
+    produtoId: opts.produtoId,
+    receitaId: opts.receitaId,
+    multiplicador: opts.multiplicador,
+    validade: opts.validade,
+    linhasBase: opts.linhasBase,
+    variacoes: [{ variacaoId: opts.variacaoId, rendimentoReal: opts.rendimentoReal, linhasRecheio: [] }],
+  }
+}
+
+describe('produzirLotes — custo congelado', () => {
   beforeEach(async () => {
     await truncateAll()
     ctx.ip = `198.51.100.${Math.floor(Math.random() * 250) + 1}`
@@ -48,15 +68,19 @@ describe('produzirLote — custo congelado', () => {
     await asAdmin()
     const { ingrediente, compra, receita, produto } = await montarCenario('395')
 
-    const result = await produzirLote({
-      produtoId: produto.id,
-      receitaId: receita.id,
-      multiplicador: '1',
-      rendimentoReal: 20,
-      validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compra.id, qtde: '395' }],
-    })
+    const result = await produzirLotes(
+      payloadUmaVariacao({
+        produtoId: produto.id,
+        variacaoId: produto.variacao!.id,
+        receitaId: receita.id,
+        multiplicador: '1',
+        rendimentoReal: 20,
+        validade: '2026-12-31',
+        linhasBase: [{ ingredienteCompraId: compra.id, qtde: '395' }],
+      }),
+    )
     expect(result.ok).toBe(true)
+    const loteId = result.lotes![0].id
 
     // Preço corrente muda: nova compra mais cara (Italac) vira a "última".
     await registrarCompra({
@@ -66,7 +90,7 @@ describe('produzirLote — custo congelado', () => {
       marca: 'Italac',
     })
 
-    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.id } })
+    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId } })
     expect(usos).toHaveLength(1)
     expect(usos[0].custoUnitarioCongelado.toFixed(6)).toBe('0.010000')
     expect(usos[0].marcaSnapshot).toBe('Moça')
@@ -85,56 +109,63 @@ describe('produzirLote — custo congelado', () => {
     await asAdmin()
     const { compra, receita, produto } = await montarCenario('395')
 
-    const payload = {
+    const payload = payloadUmaVariacao({
       produtoId: produto.id,
+      variacaoId: produto.variacao!.id,
       receitaId: receita.id,
       multiplicador: '1',
       rendimentoReal: 20,
       validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compra.id, qtde: '395' }],
-    }
+      linhasBase: [{ ingredienteCompraId: compra.id, qtde: '395' }],
+    })
     expect('custo' in payload).toBe(false)
 
-    const result = await produzirLote(payload)
+    const result = await produzirLotes(payload)
     expect(result.ok).toBe(true)
     // 395 x 0.01 = 3.95 total, sem gás, / 20 = 0.1975
-    expect(result.custoTotal).toBe('3.9500')
-    expect(result.custoPorUnidade).toBe('0.197500')
+    expect(result.lotes![0].custoTotal).toBe('3.9500')
+    expect(result.lotes![0].custoPorUnidade).toBe('0.197500')
   })
 
   it('D-06: custoPorUnidadeCongelado usa o rendimento REAL, não o padrão', async () => {
     await asAdmin()
     const { compra, receita, produto } = await montarCenario('395', 20)
 
-    const result = await produzirLote({
-      produtoId: produto.id,
-      receitaId: receita.id,
-      multiplicador: '1',
-      rendimentoReal: 18,
-      validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compra.id, qtde: '395' }],
-    })
+    const result = await produzirLotes(
+      payloadUmaVariacao({
+        produtoId: produto.id,
+        variacaoId: produto.variacao!.id,
+        receitaId: receita.id,
+        multiplicador: '1',
+        rendimentoReal: 18,
+        validade: '2026-12-31',
+        linhasBase: [{ ingredienteCompraId: compra.id, qtde: '395' }],
+      }),
+    )
 
     expect(result.ok).toBe(true)
     // total 3.95 / 18 (não / 20)
-    expect(result.custoPorUnidade).toBe('0.219444')
+    expect(result.lotes![0].custoPorUnidade).toBe('0.219444')
   })
 
   it('D-07: multiplicador escala qtdeUsada', async () => {
     await asAdmin()
     const { compra, receita, produto } = await montarCenario('395')
 
-    const result = await produzirLote({
-      produtoId: produto.id,
-      receitaId: receita.id,
-      multiplicador: '1,5',
-      rendimentoReal: 20,
-      validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compra.id, qtde: '592,5' }],
-    })
+    const result = await produzirLotes(
+      payloadUmaVariacao({
+        produtoId: produto.id,
+        variacaoId: produto.variacao!.id,
+        receitaId: receita.id,
+        multiplicador: '1,5',
+        rendimentoReal: 20,
+        validade: '2026-12-31',
+        linhasBase: [{ ingredienteCompraId: compra.id, qtde: '592,5' }],
+      }),
+    )
 
     expect(result.ok).toBe(true)
-    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.id } })
+    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.lotes![0].id } })
     expect(usos[0].qtdeUsada.toFixed(3)).toBe('592.500')
   })
 
@@ -161,17 +192,20 @@ describe('produzirLote — custo congelado', () => {
     })
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receita.id, precoVenda: 20 })
 
-    const result = await produzirLote({
-      produtoId: produto.id,
-      receitaId: receita.id,
-      multiplicador: '1',
-      rendimentoReal: 10,
-      validade: '2026-12-31',
-      linhas: [{ ingredienteCompraId: compraAntiga.id, qtde: '200' }],
-    })
+    const result = await produzirLotes(
+      payloadUmaVariacao({
+        produtoId: produto.id,
+        variacaoId: produto.variacao!.id,
+        receitaId: receita.id,
+        multiplicador: '1',
+        rendimentoReal: 10,
+        validade: '2026-12-31',
+        linhasBase: [{ ingredienteCompraId: compraAntiga.id, qtde: '200' }],
+      }),
+    )
 
     expect(result.ok).toBe(true)
-    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.id } })
+    const usos = await prisma.loteUsoIngrediente.findMany({ where: { loteId: result.lotes![0].id } })
     expect(usos[0].ingredienteCompraId).toBe(compraAntiga.id)
     expect(usos[0].marcaSnapshot).toBe('Antiga')
   })
@@ -182,13 +216,13 @@ describe('produzirLote — custo congelado', () => {
     ctx.cookie = cookie
 
     const before = await prisma.lote.count()
-    const result = await produzirLote({
+    const result = await produzirLotes({
       produtoId: 'nao-existe',
       receitaId: 'nao-existe',
       multiplicador: '1',
-      rendimentoReal: 1,
       validade: '2026-12-31',
-      linhas: [],
+      linhasBase: [],
+      variacoes: [],
     })
 
     expect(result.error).toBeTruthy()

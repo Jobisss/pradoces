@@ -10,6 +10,13 @@ import { computeLoteSnapshot } from '@/lib/custo/congelado'
  * 02-04..07). `produzirLote` espelha fielmente o que a action do 02-07 fará:
  * carrega itens da receita, resolve ultimasCompras, escala pelo
  * multiplicador, congela via computeLoteSnapshot, insere com nested create.
+ *
+ * D-13: `criarProduto` UNITARIO cria automaticamente 1 Variação "Padrão" com
+ * o `precoVenda`/`recheioReceitaId`/`recheioGramasUsadas` passados — a
+ * maioria dos testes existentes só se importa com "o produto tem um preço e
+ * (talvez) um recheio", não com múltiplas variações, então isso evita
+ * reescrever cada chamada. Testes que precisam de mais de 1 variação chamam
+ * `criarVariacao` direto.
  */
 
 export async function criarIngrediente(opts?: {
@@ -82,6 +89,29 @@ export async function criarReceita(opts: {
   })
 }
 
+export async function criarVariacao(opts: {
+  produtoId: string
+  nome?: string
+  precoVenda?: Decimal.Value
+  recheioReceitaId?: string
+  recheioGramasUsadas?: Decimal.Value
+  margemMinimaOverride?: Decimal.Value | null
+  ativo?: boolean
+}) {
+  return prisma.variacao.create({
+    data: {
+      produtoId: opts.produtoId,
+      nome: opts.nome ?? 'Padrão',
+      precoVenda: new Decimal(opts.precoVenda ?? 10).toFixed(4),
+      recheioReceitaId: opts.recheioReceitaId,
+      recheioGramasUsadas: opts.recheioGramasUsadas != null ? new Decimal(opts.recheioGramasUsadas).toFixed(3) : null,
+      margemMinimaOverride:
+        opts.margemMinimaOverride != null ? new Decimal(opts.margemMinimaOverride).toFixed(2) : null,
+      ativo: opts.ativo ?? true,
+    },
+  })
+}
+
 export async function criarProduto(opts?: {
   nome?: string
   tipo?: 'UNITARIO' | 'KIT'
@@ -90,28 +120,57 @@ export async function criarProduto(opts?: {
   categoria?: string
   descricao?: string
   margemMinimaOverride?: Decimal.Value | null
-  kitItens?: Array<{ componenteId: string; qtde: number }>
+  kitItens?: Array<{ componenteId: string; componenteVariacaoId: string; qtde: number }>
+  // D-13 — só usados pra UNITARIO, viram a Variação "Padrão" auto-criada.
+  recheioReceitaId?: string
+  recheioGramasUsadas?: Decimal.Value
+  variacaoNome?: string
 }) {
-  return prisma.produto.create({
+  const tipo = opts?.tipo ?? 'UNITARIO'
+
+  const produto = await prisma.produto.create({
     data: {
       nome: opts?.nome ?? `Produto ${randomUUID().slice(0, 8)}`,
       descricao: opts?.descricao ?? 'Descrição de teste',
       categoria: opts?.categoria ?? 'Categoria Teste',
-      tipo: opts?.tipo ?? 'UNITARIO',
-      precoVenda: new Decimal(opts?.precoVenda ?? 10).toFixed(4),
-      receitaId: opts?.receitaId,
+      tipo,
+      precoVenda: tipo === 'KIT' ? new Decimal(opts?.precoVenda ?? 10).toFixed(4) : null,
       margemMinimaOverride:
-        opts?.margemMinimaOverride != null ? new Decimal(opts.margemMinimaOverride).toFixed(2) : null,
+        tipo === 'KIT' && opts?.margemMinimaOverride != null
+          ? new Decimal(opts.margemMinimaOverride).toFixed(2)
+          : null,
+      receitaId: opts?.receitaId,
       kitItens: opts?.kitItens
-        ? { create: opts.kitItens.map((item) => ({ componenteId: item.componenteId, qtde: item.qtde })) }
+        ? {
+            create: opts.kitItens.map((item) => ({
+              componenteId: item.componenteId,
+              componenteVariacaoId: item.componenteVariacaoId,
+              qtde: item.qtde,
+            })),
+          }
         : undefined,
     },
   })
+
+  if (tipo === 'UNITARIO') {
+    const variacao = await criarVariacao({
+      produtoId: produto.id,
+      nome: opts?.variacaoNome,
+      precoVenda: opts?.precoVenda,
+      recheioReceitaId: opts?.recheioReceitaId,
+      recheioGramasUsadas: opts?.recheioGramasUsadas,
+      margemMinimaOverride: opts?.margemMinimaOverride,
+    })
+    return { ...produto, variacao }
+  }
+
+  return { ...produto, variacao: null }
 }
 
 export async function produzirLote(opts: {
   receitaId: string
   produtoId: string
+  variacaoId?: string
   multiplicador?: Decimal.Value
   rendimentoReal: number
   validade?: Date
@@ -122,6 +181,13 @@ export async function produzirLote(opts: {
     where: { id: opts.receitaId },
     include: { itens: true },
   })
+
+  // Se não veio variacaoId explícito, usa a Variação "Padrão" do produto
+  // (criarProduto UNITARIO sempre cria uma) — evita quebrar as várias
+  // chamadas existentes que só passavam produtoId/receitaId.
+  const variacaoId =
+    opts.variacaoId ??
+    (await prisma.variacao.findFirstOrThrow({ where: { produtoId: opts.produtoId } })).id
 
   const ultimas = await ultimasCompras(receita.itens.map((item) => item.ingredienteId))
 
@@ -148,6 +214,7 @@ export async function produzirLote(opts: {
   return prisma.lote.create({
     data: {
       produtoId: opts.produtoId,
+      variacaoId,
       receitaId: opts.receitaId,
       multiplicador: multiplicador.toFixed(2),
       rendimentoReal: opts.rendimentoReal,

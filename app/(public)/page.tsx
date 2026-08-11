@@ -121,7 +121,10 @@ export default async function Home({
                 </div>
                 <div className="space-y-0.5 p-2">
                   <p className="truncate text-sm font-medium text-foreground">{p.nome}</p>
-                  <p className="tabular-nums text-sm text-muted-foreground">{currency.format(Number(p.precoVenda))}</p>
+                  <p className="tabular-nums text-sm text-muted-foreground">
+                    {p.precoAPartir ? 'A partir de ' : ''}
+                    {currency.format(Number(p.precoVenda))}
+                  </p>
                 </div>
               </Link>
             </li>

@@ -46,6 +46,7 @@ export async function criarItemResgatavel(input: unknown): Promise<ItemResgatave
     item = await prisma.itemResgatavel.create({
       data: {
         produtoId: parsed.data.produtoId ?? null,
+        variacaoId: parsed.data.variacaoId ?? null,
         nomeCustom: parsed.data.nomeCustom ?? null,
         custoPontos: parsed.data.custoPontos,
         ativo: parsed.data.ativo,
@@ -81,6 +82,7 @@ export async function editarItemResgatavel(id: string, input: unknown): Promise<
       where: { id },
       data: {
         produtoId: parsed.data.produtoId ?? null,
+        variacaoId: parsed.data.variacaoId ?? null,
         nomeCustom: parsed.data.nomeCustom ?? null,
         custoPontos: parsed.data.custoPontos,
         ativo: parsed.data.ativo,

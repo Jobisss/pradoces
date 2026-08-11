@@ -7,6 +7,13 @@ export const ItemResgatavelSchema = z
       .uuid()
       .optional()
       .or(z.literal('').transform(() => undefined)),
+    // D-13: quando é um produto do catálogo, a variação específica é
+    // obrigatória — resgate promete um sabor certo, não "qualquer um".
+    variacaoId: z
+      .string()
+      .uuid()
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     nomeCustom: z
       .string()
       .trim()
@@ -25,6 +32,9 @@ export const ItemResgatavelSchema = z
         message: 'Escolhe um produto do catálogo OU escreve um nome — nunca os dois, nem nenhum.',
         path: ['produtoId'],
       })
+    }
+    if (temProduto && !v.variacaoId) {
+      ctx.addIssue({ code: 'custom', message: 'Escolhe qual variação desse produto vira o prêmio.', path: ['variacaoId'] })
     }
   })
 
