@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/client'
-import { custosCorrentesReceitas } from '@/lib/custo/corrente'
+import { custosCorrentesReceitas, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { ProdutoForm } from '@/components/admin/produto-form'
 
 export default async function NovoProdutoPage() {
@@ -10,7 +10,11 @@ export default async function NovoProdutoPage() {
       orderBy: { nome: 'asc' },
     }),
     // Recheio não é @unique — qualquer receita serve, mesmo já usada como base de outro produto.
-    prisma.receita.findMany({ include: { itens: true }, orderBy: { nome: 'asc' } }),
+    // Precisa de ingrediente.unidadeBase pra pesoTotalGramasReceita (rateio do recheio por grama).
+    prisma.receita.findMany({
+      include: { itens: { include: { ingrediente: true } } },
+      orderBy: { nome: 'asc' },
+    }),
     prisma.produto.findMany({
       where: { tipo: 'UNITARIO' },
       include: { receita: { include: { itens: true } } },
@@ -35,7 +39,18 @@ export default async function NovoProdutoPage() {
   }
 
   const receitas = receitasDisponiveisRaw.map(serializar)
-  const recheios = todasReceitasRaw.map(serializar)
+  const recheios = todasReceitasRaw.map((r) => {
+    const custo = custos.get(r.id)!
+    const { pesoTotalG, itensForaDeGramas } = pesoTotalGramasReceita(r.itens)
+    const semCusto = custo.faltamCompras.length > 0 && custo.total.isZero()
+    return {
+      id: r.id,
+      nome: r.nome,
+      custoPorGrama: !semCusto && !pesoTotalG.isZero() ? custo.total.dividedBy(pesoTotalG).toFixed(6) : null,
+      pesoTotalG: pesoTotalG.toFixed(3),
+      itensForaDeGramas,
+    }
+  })
 
   const unitarios = unitariosRaw
     .filter((p) => p.receitaId)

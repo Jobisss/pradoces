@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db/client'
-import { custosCorrentesReceitas } from '@/lib/custo/corrente'
+import { custosCorrentesReceitas, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { ProdutoForm } from '@/components/admin/produto-form'
 
 export default async function EditarProdutoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +19,11 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
       orderBy: { nome: 'asc' },
     }),
     // Recheio não é @unique — qualquer receita serve, mesmo já usada como base de outro produto.
-    prisma.receita.findMany({ include: { itens: true }, orderBy: { nome: 'asc' } }),
+    // Precisa de ingrediente.unidadeBase pra pesoTotalGramasReceita (rateio do recheio por grama).
+    prisma.receita.findMany({
+      include: { itens: { include: { ingrediente: true } } },
+      orderBy: { nome: 'asc' },
+    }),
     prisma.produto.findMany({
       where: { tipo: 'UNITARIO', id: { not: id } },
       include: { receita: { include: { itens: true } } },
@@ -44,7 +48,18 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
   }
 
   const receitas = receitasDisponiveisRaw.map(serializar)
-  const recheios = todasReceitasRaw.map(serializar)
+  const recheios = todasReceitasRaw.map((r) => {
+    const custo = custos.get(r.id)!
+    const { pesoTotalG, itensForaDeGramas } = pesoTotalGramasReceita(r.itens)
+    const semCusto = custo.faltamCompras.length > 0 && custo.total.isZero()
+    return {
+      id: r.id,
+      nome: r.nome,
+      custoPorGrama: !semCusto && !pesoTotalG.isZero() ? custo.total.dividedBy(pesoTotalG).toFixed(6) : null,
+      pesoTotalG: pesoTotalG.toFixed(3),
+      itensForaDeGramas,
+    }
+  })
 
   const unitarios = unitariosRaw
     .filter((p) => p.receitaId)
@@ -80,6 +95,7 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
           margemMinimaOverride: produto.margemMinimaOverride ? produto.margemMinimaOverride.toFixed(2) : null,
           receitaId: produto.receitaId,
           recheioReceitaId: produto.recheioReceitaId,
+          recheioGramasUsadas: produto.recheioGramasUsadas ? produto.recheioGramasUsadas.toFixed(3) : null,
           kitItens: produto.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: i.qtde })),
           fotos: produto.fotos.map((f) => ({ id: f.id, path: f.path, ordem: f.ordem })),
         }}

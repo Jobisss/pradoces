@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zDecimalBRL } from '@/lib/validation/decimal'
+import { zDecimalBRL, zQtdeBRL } from '@/lib/validation/decimal'
 
 const OBRIGATORIO = 'Esse campo é obrigatório.'
 
@@ -48,6 +48,8 @@ export const ProdutoSchema = z
       .uuid()
       .optional()
       .or(z.literal('').transform(() => undefined)),
+    // Gramas de recheio usadas em CADA unidade — obrigatório quando há recheio (superRefine abaixo).
+    recheioGramasUsadas: zQtdeBRL.optional().or(z.literal('').transform(() => undefined)),
     kitItens: z
       .array(z.object({ componenteId: z.string().uuid(), qtde: z.coerce.number().int().min(1) }))
       .optional(),
@@ -65,6 +67,20 @@ export const ProdutoSchema = z
           code: 'custom',
           message: 'O recheio precisa ser uma receita diferente da base.',
           path: ['recheioReceitaId'],
+        })
+      }
+      if (v.recheioReceitaId && !v.recheioGramasUsadas) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Informa quantas gramas de recheio entram em cada unidade.',
+          path: ['recheioGramasUsadas'],
+        })
+      }
+      if (!v.recheioReceitaId && v.recheioGramasUsadas) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Sem recheio selecionado, não informa gramas.',
+          path: ['recheioGramasUsadas'],
         })
       }
     } else {

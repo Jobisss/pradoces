@@ -54,7 +54,7 @@ export async function ultimasCompras(ingredienteIds: string[]): Promise<Map<stri
 type ReceitaComItens = {
   rendimentoPadrao: number
   custoGas: Decimal | null
-  itens: { ingredienteId: string; qtde: Decimal; ingrediente?: { nome: string } }[]
+  itens: { ingredienteId: string; qtde: Decimal; ingrediente?: { nome: string; unidadeBase?: string } }[]
 }
 
 /** Soma qtde × custo da última compra de cada item + gás. Itens sem compra contribuem 0. */
@@ -72,6 +72,30 @@ function somaCustoItens(itens: ReceitaComItens['itens'], ultimas: Map<string, Ul
     total = total.plus(new Decimal(item.qtde).times(ultima.custoPorUnidadeBase))
   }
   return { total, algumEncontrado, faltamCompras }
+}
+
+/**
+ * Peso total (g) de uma receita de recheio — soma da qtde dos itens cuja
+ * unidade base do ingrediente é 'g'. Itens em 'ml'/'un' ficam de fora (não dá
+ * pra somar peso com volume/unidade sem densidade) e voltam em
+ * `itensForaDeGramas` pra avisar a mãe. Usado pra ratear o custo do recheio
+ * por regra de 3 (grama usada no produto ÷ peso total da receita) — ver
+ * custoCorrenteRecheio.
+ */
+export function pesoTotalGramasReceita(itens: ReceitaComItens['itens']): {
+  pesoTotalG: Decimal
+  itensForaDeGramas: string[]
+} {
+  let pesoTotalG = new Decimal(0)
+  const itensForaDeGramas: string[] = []
+  for (const item of itens) {
+    if (item.ingrediente?.unidadeBase === 'g') {
+      pesoTotalG = pesoTotalG.plus(new Decimal(item.qtde))
+    } else if (item.ingrediente) {
+      itensForaDeGramas.push(item.ingrediente.nome)
+    }
+  }
+  return { pesoTotalG, itensForaDeGramas }
 }
 
 /**
@@ -93,6 +117,39 @@ export async function custoCorrenteReceita(
   const porUnidade = total.dividedBy(receita.rendimentoPadrao)
 
   return { total, porUnidade, faltamCompras }
+}
+
+/**
+ * Custo de um recheio RATEADO por regra de 3: (custo total da receita ÷ peso
+ * total em gramas dela) × gramas usadas neste produto. Diferente de
+ * custoCorrenteReceita — o recheio é uma receita "de lote" (ex.: brigadeiro
+ * inteiro), não uma receita "por unidade final"; o rendimentoPadrao dela não
+ * entra nessa conta, só o peso.
+ */
+export async function custoCorrenteRecheio(
+  recheioReceitaId: string,
+  gramasUsadas: Decimal,
+): Promise<{
+  custoParaProduto: Decimal
+  pesoTotalG: Decimal
+  faltamCompras: string[]
+  itensForaDeGramas: string[]
+}> {
+  const receita = await prisma.receita.findUniqueOrThrow({
+    where: { id: recheioReceitaId },
+    include: { itens: { include: { ingrediente: true } } },
+  })
+
+  const ultimas = await ultimasCompras(receita.itens.map((item) => item.ingredienteId))
+  const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
+  const totalReceita = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+  const { pesoTotalG, itensForaDeGramas } = pesoTotalGramasReceita(receita.itens)
+
+  const custoParaProduto = pesoTotalG.isZero()
+    ? new Decimal(0)
+    : totalReceita.dividedBy(pesoTotalG).times(gramasUsadas)
+
+  return { custoParaProduto, pesoTotalG, faltamCompras, itensForaDeGramas }
 }
 
 /**
@@ -125,8 +182,8 @@ export async function custosCorrentesReceitas(
 
 /**
  * Custo corrente de um produto. UNITARIO delega pra custoCorrenteReceita da
- * receita vinculada + a receita de recheio quando houver (D-12 — rendimento
- * do recheio é sempre "por unidade final", soma direta sem escalar). KIT
+ * receita vinculada + a receita de recheio quando houver, rateada por grama
+ * (custoCorrenteRecheio — regra de 3 sobre recheioGramasUsadas). KIT
  * soma os custos por unidade dos componentes × qtde (D-11) — cada componente
  * é, por definição, um produto UNITARIO com receita.
  */
@@ -142,9 +199,10 @@ export async function custoCorrenteProduto(
     if (!produto.receitaId) return { custo: new Decimal(0), faltamCompras: [] }
     const base = await custoCorrenteReceita(produto.receitaId)
     if (!produto.recheioReceitaId) return { custo: base.porUnidade, faltamCompras: base.faltamCompras }
-    const recheio = await custoCorrenteReceita(produto.recheioReceitaId)
+    const gramasUsadas = produto.recheioGramasUsadas ? new Decimal(produto.recheioGramasUsadas) : new Decimal(0)
+    const recheio = await custoCorrenteRecheio(produto.recheioReceitaId, gramasUsadas)
     return {
-      custo: base.porUnidade.plus(recheio.porUnidade),
+      custo: base.porUnidade.plus(recheio.custoParaProduto),
       faltamCompras: [...base.faltamCompras, ...recheio.faltamCompras],
     }
   }
@@ -194,7 +252,8 @@ export async function margensCorrentesBatch(): Promise<
   const produtos = await prisma.produto.findMany({
     include: {
       receita: { include: { itens: true } },
-      receitaRecheio: { include: { itens: true } },
+      // precisa de ingrediente.unidadeBase pra pesoTotalGramasReceita (rateio do recheio)
+      receitaRecheio: { include: { itens: { include: { ingrediente: true } } } },
       kitItens: {
         include: { componente: { include: { receita: { include: { itens: true } } } } },
       },
@@ -221,6 +280,16 @@ export async function margensCorrentesBatch(): Promise<
     return { porUnidade: total.dividedBy(receita.rendimentoPadrao), algumEncontrado }
   }
 
+  /** Equivalente em memória de custoCorrenteRecheio — mesma regra de 3 por peso. */
+  function custoRecheioEmMemoria(receita: ReceitaComItens | null | undefined, gramasUsadas: Decimal | null) {
+    if (!receita || !gramasUsadas) return { custoParaProduto: new Decimal(0), algumEncontrado: false }
+    const { total: somaItens, algumEncontrado } = somaCustoItens(receita.itens, ultimas)
+    const total = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    const { pesoTotalG } = pesoTotalGramasReceita(receita.itens)
+    const custoParaProduto = pesoTotalG.isZero() ? new Decimal(0) : total.dividedBy(pesoTotalG).times(gramasUsadas)
+    return { custoParaProduto, algumEncontrado }
+  }
+
   return produtos.map((produto) => {
     const minima = produto.margemMinimaOverride
       ? new Decimal(produto.margemMinimaOverride)
@@ -234,8 +303,9 @@ export async function margensCorrentesBatch(): Promise<
       custoBruto = r.porUnidade
       algumEncontrado = r.algumEncontrado
       if (produto.receitaRecheio) {
-        const recheio = custoReceitaEmMemoria(produto.receitaRecheio)
-        custoBruto = custoBruto.plus(recheio.porUnidade)
+        const gramasUsadas = produto.recheioGramasUsadas ? new Decimal(produto.recheioGramasUsadas) : null
+        const recheio = custoRecheioEmMemoria(produto.receitaRecheio, gramasUsadas)
+        custoBruto = custoBruto.plus(recheio.custoParaProduto)
         if (recheio.algumEncontrado) algumEncontrado = true
       }
     } else {

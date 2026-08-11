@@ -8,7 +8,7 @@ import { requireAdmin } from '@/lib/auth/require-admin'
 import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
-import { custoCorrenteReceita } from '@/lib/custo/corrente'
+import { custoCorrenteReceita, custoCorrenteRecheio } from '@/lib/custo/corrente'
 import { ProdutoSchema, type ProdutoInput } from '@/lib/validation/produtos'
 import { CAMPANHAS } from '@/lib/campanhas/definicoes'
 
@@ -46,13 +46,13 @@ function precoAbaixoDoCustoCopy(custo: Decimal): string {
 
 /**
  * Custo do que está sendo SALVO (não o que já existe no DB) — UNITARIO vem
- * da receita indicada + recheio quando houver (D-12, soma direta, sem
- * escalar — rendimento do recheio já é "por unidade"), KIT soma os
+ * da receita indicada + recheio quando houver, rateado por grama
+ * (custoCorrenteRecheio — regra de 3 sobre recheioGramasUsadas), KIT soma os
  * componentes (D-11). Retorna custo=null quando não há base pra comparar
  * (nenhuma compra registrada em nada).
  */
 async function custoParaSalvar(
-  data: Pick<ProdutoInput, 'tipo' | 'receitaId' | 'recheioReceitaId' | 'kitItens'>,
+  data: Pick<ProdutoInput, 'tipo' | 'receitaId' | 'recheioReceitaId' | 'recheioGramasUsadas' | 'kitItens'>,
 ): Promise<{ custo: Decimal | null; erroKit?: string }> {
   if (data.tipo === 'UNITARIO') {
     if (!data.receitaId) return { custo: null }
@@ -65,9 +65,9 @@ async function custoParaSalvar(
       !!receita && receita.itens.length > 0 && faltamCompras.length === receita.itens.length
     if (semNenhumaCompra) return { custo: null }
 
-    if (!data.recheioReceitaId) return { custo: porUnidade }
-    const recheio = await custoCorrenteReceita(data.recheioReceitaId)
-    return { custo: porUnidade.plus(recheio.porUnidade) }
+    if (!data.recheioReceitaId || !data.recheioGramasUsadas) return { custo: porUnidade }
+    const recheio = await custoCorrenteRecheio(data.recheioReceitaId, data.recheioGramasUsadas)
+    return { custo: porUnidade.plus(recheio.custoParaProduto) }
   }
 
   const componentes = await prisma.produto.findMany({
@@ -132,6 +132,10 @@ export async function criarProduto(input: unknown): Promise<ProdutoActionState> 
           : null,
         receitaId: parsed.data.tipo === 'UNITARIO' ? parsed.data.receitaId : null,
         recheioReceitaId: parsed.data.tipo === 'UNITARIO' ? (parsed.data.recheioReceitaId ?? null) : null,
+        recheioGramasUsadas:
+          parsed.data.tipo === 'UNITARIO' && parsed.data.recheioReceitaId
+            ? parsed.data.recheioGramasUsadas!.toFixed(3)
+            : null,
         kitItens:
           parsed.data.tipo === 'KIT' && parsed.data.kitItens
             ? { create: parsed.data.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: i.qtde })) }
@@ -197,6 +201,10 @@ export async function editarProduto(id: string, input: unknown): Promise<Produto
             : null,
           receitaId: parsed.data.tipo === 'UNITARIO' ? parsed.data.receitaId : null,
           recheioReceitaId: parsed.data.tipo === 'UNITARIO' ? (parsed.data.recheioReceitaId ?? null) : null,
+          recheioGramasUsadas:
+            parsed.data.tipo === 'UNITARIO' && parsed.data.recheioReceitaId
+              ? parsed.data.recheioGramasUsadas!.toFixed(3)
+              : null,
         },
       }),
       ...(parsed.data.tipo === 'KIT' && parsed.data.kitItens

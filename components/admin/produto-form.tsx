@@ -36,6 +36,13 @@ function margemPercent(preco: Decimal, custo: Decimal): Decimal {
 }
 
 type OpcaoCusto = { id: string; nome: string; custoPorUnidade: string | null }
+type RecheioOpcao = {
+  id: string
+  nome: string
+  custoPorGrama: string | null
+  pesoTotalG: string
+  itensForaDeGramas: string[]
+}
 
 type ProdutoFormValues = {
   nome: string
@@ -49,12 +56,13 @@ type ProdutoFormValues = {
   margemMinimaOverride: string
   receitaId: string
   recheioReceitaId: string
+  recheioGramasUsadas: string
   kitItens: Array<{ componenteId: string; qtde: string }>
 }
 
 type ProdutoFormProps = {
   receitas: OpcaoCusto[]
-  recheios: OpcaoCusto[]
+  recheios: RecheioOpcao[]
   unitarios: OpcaoCusto[]
   margemMinimaGlobal: string
   defaults?: {
@@ -70,6 +78,7 @@ type ProdutoFormProps = {
     margemMinimaOverride: string | null
     receitaId: string | null
     recheioReceitaId: string | null
+    recheioGramasUsadas: string | null
     kitItens: Array<{ componenteId: string; qtde: number }>
     fotos: Array<{ id: string; path: string; ordem: number }>
   }
@@ -99,6 +108,7 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       margemMinimaOverride: defaults?.margemMinimaOverride ?? '',
       receitaId: defaults?.receitaId ?? '',
       recheioReceitaId: defaults?.recheioReceitaId ?? '',
+      recheioGramasUsadas: defaults?.recheioGramasUsadas ?? '',
       kitItens: defaults?.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: String(i.qtde) })) ?? [],
     },
   })
@@ -108,19 +118,25 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
   const tipo = watch('tipo')
   const receitaId = watch('receitaId')
   const recheioReceitaId = watch('recheioReceitaId')
+  const recheioGramasUsadasRaw = watch('recheioGramasUsadas')
   const kitItens = watch('kitItens')
   const precoVendaRaw = watch('precoVenda')
   const margemOverrideRaw = watch('margemMinimaOverride')
   const categoria = watch('categoria')
+
+  const recheioSelecionado = recheios.find((x) => x.id === recheioReceitaId)
+  const gramasUsadas = toDecimal(recheioGramasUsadasRaw)
 
   let custo: Decimal | null = null
   if (tipo === 'UNITARIO') {
     const r = receitas.find((x) => x.id === receitaId)
     const base = r?.custoPorUnidade ? new Decimal(r.custoPorUnidade) : null
     if (base && recheioReceitaId) {
-      const recheio = recheios.find((x) => x.id === recheioReceitaId)
-      const custoRecheio = recheio?.custoPorUnidade ? new Decimal(recheio.custoPorUnidade) : new Decimal(0)
-      custo = base.plus(custoRecheio)
+      const custoRecheio =
+        recheioSelecionado?.custoPorGrama && gramasUsadas
+          ? new Decimal(recheioSelecionado.custoPorGrama).times(gramasUsadas)
+          : null
+      custo = custoRecheio !== null ? base.plus(custoRecheio) : null
     } else {
       custo = base
     }
@@ -204,6 +220,8 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
       margemMinimaOverride: data.margemMinimaOverride,
       receitaId: data.tipo === 'UNITARIO' ? data.receitaId : undefined,
       recheioReceitaId: data.tipo === 'UNITARIO' ? data.recheioReceitaId || undefined : undefined,
+      recheioGramasUsadas:
+        data.tipo === 'UNITARIO' && data.recheioReceitaId ? data.recheioGramasUsadas || undefined : undefined,
       kitItens:
         data.tipo === 'KIT'
           ? data.kitItens.map((i) => ({ componenteId: i.componenteId, qtde: Number(i.qtde) || 1 }))
@@ -432,6 +450,35 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
                 </FormItem>
               )}
             />
+
+            {recheioReceitaId && (
+              <FormField
+                control={control}
+                name="recheioGramasUsadas"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Gramas de recheio em cada unidade</FormLabel>
+                    <FormControl>
+                      <Input inputMode="decimal" placeholder="ex.: 20" {...field} required />
+                    </FormControl>
+                    {recheioSelecionado && (
+                      <p className="text-sm text-muted-foreground">
+                        Essa receita rende {recheioSelecionado.pesoTotalG}g no total
+                        {recheioSelecionado.custoPorGrama === null && ' — sem custo suficiente pra calcular ainda'}.
+                        {recheioSelecionado.itensForaDeGramas.length > 0 && (
+                          <>
+                            {' '}
+                            Não entraram no total (não estão em gramas):{' '}
+                            {recheioSelecionado.itensForaDeGramas.join(', ')}.
+                          </>
+                        )}
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </>
         )}
 

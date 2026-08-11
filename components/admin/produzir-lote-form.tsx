@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { dataCivilFmtBR as dateFmt } from '@/lib/format/date'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -45,14 +46,22 @@ type LinhaState = {
 }
 
 /**
- * D-12: base escala pelo multiplicador (quantas receitas — D-07); recheio
- * escala pelas unidades reais que saíram (o rendimento do recheio já é "por
- * unidade final", não por fornada — ver lib/actions/lotes.ts).
+ * D-12: base escala pelo multiplicador EFETIVO (quantas receitas — D-07 —
+ * já ajustado pra fração da fornada que foi pra ESTE produto, quando a
+ * fornada foi dividida entre vários produtos/recheios diferentes); recheio
+ * escala por (gramasUsadas ÷ peso total da receita de recheio) × unidades
+ * reais que saíram — a receita de recheio é tratada como um LOTE (regra de
+ * 3), não como "por unidade final" — ver lib/actions/lotes.ts.
  */
-function escalarQtde(linha: LinhaState, mult: Decimal, rendimentoReal: string): Decimal {
-  if (linha.origem === 'base') return new Decimal(linha.qtdeBase).times(mult)
+function escalarQtde(
+  linha: LinhaState,
+  multEfetivo: Decimal,
+  fracaoRecheio: Decimal,
+  rendimentoReal: string,
+): Decimal {
+  if (linha.origem === 'base') return new Decimal(linha.qtdeBase).times(multEfetivo)
   const rendimento = toDecimal(rendimentoReal) ?? new Decimal(0)
-  return new Decimal(linha.qtdeBase).times(rendimento)
+  return new Decimal(linha.qtdeBase).times(fracaoRecheio).times(rendimento)
 }
 
 /**
@@ -69,6 +78,8 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
   const [linhas, setLinhas] = useState<LinhaState[]>([])
   const [multiplicador, setMultiplicador] = useState('1')
   const [rendimentoReal, setRendimentoReal] = useState('')
+  const [dividida, setDividida] = useState(false)
+  const [rendimentoTotalFornada, setRendimentoTotalFornada] = useState('')
   const [validade, setValidade] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -128,11 +139,32 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
     ? new Decimal(dados.receita.rendimentoPadrao).times(mult).toFixed(0)
     : ''
 
+  // Fornada dividida entre produtos (recheios diferentes da mesma massa): o
+  // multiplicador só se refere à fração da fornada que foi pra ESTE produto,
+  // não a "quantas vezes fiz a receita inteira" — regra de 3 sobre o
+  // rendimento total da fornada. Sem divisão, rendimentoTotalFornadaEfetivo
+  // === rendimentoReal e multEfetivo === mult (comportamento de sempre).
+  const rendimentoRealDecimal = toDecimal(rendimentoReal) ?? new Decimal(0)
+  const rendimentoTotalFornadaEfetivo = dividida
+    ? (toDecimal(rendimentoTotalFornada) ?? new Decimal(0))
+    : rendimentoRealDecimal
+  const multEfetivo = rendimentoTotalFornadaEfetivo.isZero()
+    ? new Decimal(0)
+    : new Decimal(
+        mult.times(rendimentoRealDecimal).dividedBy(rendimentoTotalFornadaEfetivo).toFixed(3),
+      )
+
+  // Regra de 3 do recheio (D-12): fração da receita de recheio (tratada como
+  // um lote inteiro, ex. uma receita de brigadeiro) que 1 unidade final leva.
+  const pesoTotalRecheio = dados?.recheio ? new Decimal(dados.recheio.pesoTotalG) : new Decimal(0)
+  const gramasRecheio = dados?.recheio ? new Decimal(dados.recheio.gramasUsadas) : new Decimal(0)
+  const fracaoRecheio = pesoTotalRecheio.isZero() ? new Decimal(0) : gramasRecheio.dividedBy(pesoTotalRecheio)
+
   let custoPreview: { total: Decimal; porUnidade: Decimal } | null = null
   if (dados && rendimentoReal && Number(rendimentoReal) > 0 && linhas.length > 0 && linhas.every((l) => l.compra)) {
     let total = new Decimal(0)
     for (const linha of linhas) {
-      const qtdeEscalada = escalarQtde(linha, mult, rendimentoReal)
+      const qtdeEscalada = escalarQtde(linha, multEfetivo, fracaoRecheio, rendimentoReal)
       total = total.plus(qtdeEscalada.times(new Decimal(linha.compra!.custoPorUnidadeBase)))
     }
     if (dados.receita.custoGas) total = total.plus(new Decimal(dados.receita.custoGas))
@@ -150,7 +182,15 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
       return
     }
     if (!rendimentoReal || Number(rendimentoReal) < 1) {
-      setErro('Informa quantas unidades saíram.')
+      setErro(dividida ? 'Informa quantas unidades foram pra esse produto.' : 'Informa quantas unidades saíram.')
+      return
+    }
+    if (dividida && (!rendimentoTotalFornada || Number(rendimentoTotalFornada) < Number(rendimentoReal))) {
+      setErro('Informa quantas unidades a fornada toda rendeu (tem que ser ≥ o que foi pra esse produto).')
+      return
+    }
+    if (dados.recheio && fracaoRecheio.isZero()) {
+      setErro('Esse produto tem recheio mas falta configurar quantas gramas — edita o produto antes.')
       return
     }
     if (!validade) {
@@ -161,12 +201,12 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
     const payload = {
       produtoId: produtoSelecionado.produtoId,
       receitaId: produtoSelecionado.receitaId,
-      multiplicador,
+      multiplicador: multEfetivo.toFixed(3),
       rendimentoReal: Number(rendimentoReal),
       validade,
       linhas: linhas.map((l) => ({
         ingredienteCompraId: l.compra!.id,
-        qtde: escalarQtde(l, mult, rendimentoReal).toFixed(3),
+        qtde: escalarQtde(l, multEfetivo, fracaoRecheio, rendimentoReal).toFixed(3),
       })),
     }
 
@@ -231,12 +271,50 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
                 className="h-11 w-24"
               />
             </div>
+            {dividida && (
+              <p className="text-sm text-muted-foreground">
+                quantas vezes você fez a receita da fornada inteira — o quanto disso vai pra ESTE
+                produto é calculado abaixo
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5 rounded-lg border border-border p-3">
+            <label className="group/field flex items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={dividida}
+                onCheckedChange={(checked) => {
+                  const v = checked === true
+                  setDividida(v)
+                  if (v && !rendimentoTotalFornada) setRendimentoTotalFornada(rendimentoSugerido)
+                }}
+              />
+              Fiz uma fornada só e vou dividir entre produtos diferentes (recheios diferentes)?
+            </label>
+            {dividida && (
+              <div className="space-y-1.5 pt-2">
+                <Label htmlFor="rendimentoTotalFornada">Quantas unidades a fornada toda rendeu</Label>
+                <Input
+                  id="rendimentoTotalFornada"
+                  inputMode="numeric"
+                  value={rendimentoTotalFornada}
+                  onChange={(e) => setRendimentoTotalFornada(e.target.value)}
+                  placeholder={rendimentoSugerido}
+                />
+                {rendimentoReal && rendimentoTotalFornada && (
+                  <p className="tabular-nums text-sm text-muted-foreground">
+                    Esse lote usa {multEfetivo.toFixed(3).replace('.', ',')}× da receita base ({rendimentoReal}{' '}
+                    de {rendimentoTotalFornada} unidades da fornada).
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Ingredientes que você usou</h2>
             {linhas.map((linha, index) => {
-              const qtdeEscalada = escalarQtde(linha, mult, rendimentoReal)
+              const qtdeEscalada = escalarQtde(linha, multEfetivo, fracaoRecheio, rendimentoReal)
               const primeiraDoRecheio =
                 linha.origem === 'recheio' && (index === 0 || linhas[index - 1].origem === 'base')
               return (
@@ -295,7 +373,9 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="rendimentoReal">Quantas unidades saíram de verdade</Label>
+            <Label htmlFor="rendimentoReal">
+              {dividida ? 'Quantas unidades foram pra ESTE produto' : 'Quantas unidades saíram de verdade'}
+            </Label>
             <Input
               id="rendimentoReal"
               inputMode="numeric"
@@ -304,9 +384,18 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
               placeholder={rendimentoSugerido}
             />
             <p className="text-sm text-muted-foreground">
-              a receita diz {rendimentoSugerido}, mas vale o que saiu
+              {dividida
+                ? 'as outras unidades da fornada viram lotes separados, um pra cada recheio'
+                : `a receita diz ${rendimentoSugerido}, mas vale o que saiu`}
             </p>
           </div>
+
+          {dados.recheio && fracaoRecheio.isZero() && (
+            <p role="alert" className="text-sm text-muted-foreground">
+              Esse produto tem recheio ({dados.recheio.nome}) mas não tem gramas configuradas — edita o
+              produto e informa quantas gramas de recheio entram em cada unidade antes de produzir.
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="validade">Vence em</Label>
@@ -336,7 +425,7 @@ export function ProduzirLoteForm({ receitas }: { receitas: ReceitaOpcao[] }) {
                 type="button"
                 size="lg"
                 className="w-full"
-                disabled={pending || linhas.some((l) => !l.compra)}
+                disabled={pending || linhas.some((l) => !l.compra) || (!!dados.recheio && fracaoRecheio.isZero())}
                 onClick={confirmar}
               >
                 {pending ? 'Registrando...' : 'Registrar produção'}

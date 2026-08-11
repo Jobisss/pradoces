@@ -22,7 +22,16 @@ async function asAdmin() {
   return admin
 }
 
-/** Base "massa" (custo/un conhecido) + recheio "nutella" (3g/un, custo/g conhecido). */
+/** Gramas de recheio usadas em cada unidade do produto, nos cenários abaixo. */
+const GRAMAS_USADAS = '3'
+
+/**
+ * Base "massa" (custo/un conhecido) + recheio "nutella" tratado como um LOTE
+ * (D-12 revisado): a receita de recheio é o pote inteiro (300g), não a dose
+ * de 1 unidade — o rateio por grama é feito via Produto.recheioGramasUsadas
+ * (regra de 3: custo total ÷ peso total × gramas usadas), não mais pelo
+ * rendimentoPadrao da receita de recheio.
+ */
 async function montarCenarioComRecheio() {
   const ingredienteBase = await criarIngrediente({ nome: `Farinha recheio ${Date.now()}` })
   await registrarCompra({ ingredienteId: ingredienteBase.id, tamanhoEmbalagem: 100, precoPorEmbalagem: 10 }) // 0.10/g
@@ -35,8 +44,8 @@ async function montarCenarioComRecheio() {
   await registrarCompra({ ingredienteId: nutella.id, tamanhoEmbalagem: 350, precoPorEmbalagem: 35 }) // 0.10/g
   const receitaRecheio = await criarReceita({
     rendimentoPadrao: 1,
-    itens: [{ ingredienteId: nutella.id, qtde: 3 }],
-  }) // custo/un = 3*0.10 = 0.30 (rendimento 1 = "por unidade")
+    itens: [{ ingredienteId: nutella.id, qtde: 300 }],
+  }) // custo total = 300*0.10 = 30.00; custo/g = 30/300 = 0.10/g; ×3g usadas = 0.30/un
 
   return { ingredienteBase, receitaBase, nutella, receitaRecheio }
 }
@@ -56,7 +65,10 @@ describe('custo do produto com recheio (D-12)', () => {
       receitaId: receitaBase.id,
       precoVenda: 5,
     })
-    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+    await prisma.produto.update({
+      where: { id: produto.id },
+      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    })
 
     const { custo } = await custoCorrenteProduto(produto.id)
     expect(custo.toFixed(2)).toBe('1.30') // 1.00 (base) + 0.30 (recheio)
@@ -66,11 +78,41 @@ describe('custo do produto com recheio (D-12)', () => {
     await asAdmin()
     const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
-    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+    await prisma.produto.update({
+      where: { id: produto.id },
+      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    })
 
     const margens = await margensCorrentesBatch()
     const item = margens.find((m) => m.produtoId === produto.id)!
     expect(item.custo!.toFixed(2)).toBe('1.30')
+  })
+
+  it('custo do recheio é proporcional às gramas usadas (regra de 3)', async () => {
+    await asAdmin()
+    const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
+    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 20 })
+    // 30g (10× as 3g do outro teste) — custo do recheio tem que escalar junto,
+    // não ficar preso ao rendimentoPadrao=1 da receita (bug original).
+    await prisma.produto.update({
+      where: { id: produto.id },
+      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: '30' },
+    })
+
+    const { custo } = await custoCorrenteProduto(produto.id)
+    // 1.00 (base) + 30g × 0.10/g (300g a 30.00 total) = 1.00 + 3.00 = 4.00
+    expect(custo.toFixed(2)).toBe('4.00')
+  })
+
+  it('sem recheioGramasUsadas configurado, custo do recheio não entra (fica só a base)', async () => {
+    await asAdmin()
+    const { receitaBase, receitaRecheio } = await montarCenarioComRecheio()
+    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
+    // recheioReceitaId setado, mas SEM recheioGramasUsadas (config incompleta).
+    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+
+    const { custo } = await custoCorrenteProduto(produto.id)
+    expect(custo.toFixed(2)).toBe('1.00')
   })
 
   it('PROD-09 bloqueia preço abaixo do custo TOTAL (base+recheio)', async () => {
@@ -86,6 +128,7 @@ describe('custo do produto com recheio (D-12)', () => {
       precoVenda: '1,20',
       receitaId: receitaBase.id,
       recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: GRAMAS_USADAS,
     })
     expect(bloqueado.error).toMatch(/abaixo do custo/)
 
@@ -97,6 +140,7 @@ describe('custo do produto com recheio (D-12)', () => {
       precoVenda: '3,00',
       receitaId: receitaBase.id,
       recheioReceitaId: receitaRecheio.id,
+      recheioGramasUsadas: GRAMAS_USADAS,
     })
     expect(permitido.ok).toBe(true)
   })
@@ -113,7 +157,10 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
     await asAdmin()
     const { ingredienteBase, receitaBase, nutella, receitaRecheio } = await montarCenarioComRecheio()
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
-    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+    await prisma.produto.update({
+      where: { id: produto.id },
+      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    })
 
     const compraBase = await prisma.ingredienteCompra.findFirstOrThrow({
       where: { ingredienteId: ingredienteBase.id },
@@ -153,7 +200,10 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
     await asAdmin()
     const { ingredienteBase, receitaBase, nutella, receitaRecheio } = await montarCenarioComRecheio()
     const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
-    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+    await prisma.produto.update({
+      where: { id: produto.id },
+      data: { recheioReceitaId: receitaRecheio.id, recheioGramasUsadas: GRAMAS_USADAS },
+    })
 
     const compraBase = await prisma.ingredienteCompra.findFirstOrThrow({
       where: { ingredienteId: ingredienteBase.id },
@@ -176,5 +226,28 @@ describe('produzirLote com recheio — escalas diferentes (D-12)', () => {
     })
 
     expect(result.error).toMatch(/dados mudaram/)
+  })
+
+  it('rejeita produzir lote com recheio sem recheioGramasUsadas configurado', async () => {
+    await asAdmin()
+    const { ingredienteBase, receitaBase, receitaRecheio } = await montarCenarioComRecheio()
+    const produto = await criarProduto({ tipo: 'UNITARIO', receitaId: receitaBase.id, precoVenda: 5 })
+    // recheioReceitaId setado, mas SEM recheioGramasUsadas.
+    await prisma.produto.update({ where: { id: produto.id }, data: { recheioReceitaId: receitaRecheio.id } })
+
+    const compraBase = await prisma.ingredienteCompra.findFirstOrThrow({
+      where: { ingredienteId: ingredienteBase.id },
+    })
+
+    const result = await produzirLote({
+      produtoId: produto.id,
+      receitaId: receitaBase.id,
+      multiplicador: '1',
+      rendimentoReal: 10,
+      validade: '2026-12-31',
+      linhas: [{ ingredienteCompraId: compraBase.id, qtde: '100' }],
+    })
+
+    expect(result.error).toMatch(/falta configurar/)
   })
 })

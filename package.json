@@ -79,5 +79,11 @@
     "typescript": "^5",
     "vitest": "^4.1.9",
     "zod": "^4.4.3"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.9.1": true,
+    "esbuild@0.28.1": true,
+    "prisma@7.9.1": true,
+    "unrs-resolver@1.12.2": true
   }
 }

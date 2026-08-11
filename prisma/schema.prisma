@@ -255,6 +255,12 @@ model Produto {
   // Não é @unique: a mesma receita de recheio pode atender vários produtos
   // (ex.: "Recheio de nutella" no brownie E no bolo).
   recheioReceitaId     String?      @map("recheio_receita_id") @db.Uuid
+  // Gramas de recheio usadas em CADA unidade deste produto (ex.: 20g de
+  // brigadeiro por brownie). O custo do recheio é rateado por regra de 3:
+  // (custo total da receita de recheio ÷ soma em gramas dos itens dela) ×
+  // recheioGramasUsadas — ver lib/custo/corrente.ts. Obrigatório (app-level)
+  // quando recheioReceitaId está setado.
+  recheioGramasUsadas  Decimal?     @map("recheio_gramas_usadas") @db.Decimal(10, 3)
   // PROD-06: some da vitrine pública imediatamente quando false; admin
   // continua enxergando (histórico de lotes/reservas não depende disso).
   ativo                Boolean      @default(true)

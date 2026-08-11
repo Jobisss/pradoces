@@ -8,7 +8,7 @@ import { requireAdmin } from '@/lib/auth/require-admin'
 import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
-import { ultimasCompras } from '@/lib/custo/corrente'
+import { ultimasCompras, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { computeLoteSnapshot } from '@/lib/custo/congelado'
 import { ProduzirLoteSchema } from '@/lib/validation/lotes'
 
@@ -22,9 +22,11 @@ import { ProduzirLoteSchema } from '@/lib/validation/lotes'
  * D-12 (recheio): quando o produto tem `recheioReceitaId`, os ingredientes
  * da receita de recheio entram na MESMA transação/snapshot que a base, mas
  * escalam por um eixo DIFERENTE — base escala pelo multiplicador (D-07,
- * quantas receitas foram feitas), recheio escala pelas unidades reais que
- * saíram (D-06, rendimentoReal), porque o rendimento do recheio já é
- * "por unidade final" (não por fornada).
+ * quantas receitas foram feitas), recheio escala por
+ * (recheioGramasUsadas ÷ peso total em gramas da receita de recheio) ×
+ * rendimentoReal — a receita de recheio é tratada como um LOTE (ex.: uma
+ * receita inteira de brigadeiro), rateada por regra de 3 pra dose que cada
+ * unidade final leva (ver lib/custo/corrente.ts:custoCorrenteRecheio).
  */
 
 const RATE_LIMIT_COPY = 'Muitas tentativas seguidas. Espera um minutinho e tenta de novo.'
@@ -82,9 +84,19 @@ export async function produzirLote(input: unknown): Promise<LoteActionState> {
       const recheioReceita = produto.recheioReceitaId
         ? await tx.receita.findUniqueOrThrow({
             where: { id: produto.recheioReceitaId },
-            include: { itens: true },
+            include: { itens: { include: { ingrediente: true } } },
           })
         : null
+
+      // Regra de 3: fração da receita de recheio (tratada como um LOTE, ex.:
+      // uma receita inteira de brigadeiro) que 1 unidade final consome.
+      let fracaoRecheio = new Decimal(0)
+      if (recheioReceita) {
+        if (!produto.recheioGramasUsadas) throw new Error('RECHEIO_SEM_CONFIG')
+        const { pesoTotalG } = pesoTotalGramasReceita(recheioReceita.itens)
+        if (pesoTotalG.isZero()) throw new Error('RECHEIO_SEM_CONFIG')
+        fracaoRecheio = new Decimal(produto.recheioGramasUsadas).dividedBy(pesoTotalG)
+      }
 
       const compras = await tx.ingredienteCompra.findMany({
         where: { id: { in: data.linhas.map((l) => l.ingredienteCompraId) } },
@@ -100,7 +112,7 @@ export async function produzirLote(input: unknown): Promise<LoteActionState> {
         })),
         ...(recheioReceita?.itens.map((item) => ({
           ingredienteId: item.ingredienteId,
-          qtdeBase: new Decimal(item.qtde),
+          qtdeBase: new Decimal(item.qtde).times(fracaoRecheio),
           escalaPor: 'rendimentoReal' as const,
         })) ?? []),
       ]
@@ -169,6 +181,9 @@ export async function produzirLote(input: unknown): Promise<LoteActionState> {
     if (err instanceof Error && err.message === 'DADOS_DESATUALIZADOS') {
       return { error: DADOS_DESATUALIZADOS }
     }
+    if (err instanceof Error && err.message === 'RECHEIO_SEM_CONFIG') {
+      return { error: 'Esse produto tem recheio mas falta configurar quantas gramas — edita o produto antes.' }
+    }
     return { error: GENERIC_SERVER_ERROR }
   }
 
@@ -199,7 +214,7 @@ export type DadosProducao = {
     validadeDias: number | null
     custoGas: string | null
   }
-  recheio: { id: string; nome: string } | null
+  recheio: { id: string; nome: string; gramasUsadas: string; pesoTotalG: string } | null
   linhas: Array<{
     ingredienteId: string
     nome: string
@@ -274,7 +289,14 @@ export async function dadosProducao(produtoId: string): Promise<DadosProducao | 
         validadeDias: receita.validadeDias,
         custoGas: receita.custoGas ? receita.custoGas.toFixed(4) : null,
       },
-      recheio: recheioReceita ? { id: recheioReceita.id, nome: recheioReceita.nome } : null,
+      recheio: recheioReceita
+        ? {
+            id: recheioReceita.id,
+            nome: recheioReceita.nome,
+            gramasUsadas: produto.recheioGramasUsadas ? produto.recheioGramasUsadas.toFixed(3) : '0',
+            pesoTotalG: pesoTotalGramasReceita(recheioReceita.itens).pesoTotalG.toFixed(3),
+          }
+        : null,
       linhas: [
         ...receita.itens.map((item) => serializarLinha(item, 'base')),
         ...(recheioReceita?.itens.map((item) => serializarLinha(item, 'recheio')) ?? []),
