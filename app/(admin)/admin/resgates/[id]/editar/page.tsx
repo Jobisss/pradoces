@@ -1,40 +1,29 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db/client'
-import { margensCorrentesBatch } from '@/lib/custo/corrente'
 import { ItemResgatavelForm } from '@/components/admin/item-resgatavel-form'
 
 export default async function EditarItemResgatavelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [item, produtosAtivos, margens, config] = await Promise.all([
+  const [item, produtosAtivos, config] = await Promise.all([
     prisma.itemResgatavel.findUnique({ where: { id } }),
     prisma.produto.findMany({
       where: { ativo: true, tipo: 'UNITARIO' },
       select: {
         id: true,
         nome: true,
-        variacoes: { where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: 'asc' } },
+        variacoes: { where: { ativo: true }, select: { id: true, nome: true, precoVenda: true }, orderBy: { nome: 'asc' } },
       },
       orderBy: { nome: 'asc' },
     }),
-    margensCorrentesBatch(),
     prisma.configuracao.findUnique({ where: { id: 1 } }),
   ])
   if (!item) notFound()
 
-  const margemPorVariacaoId = new Map(margens.filter((m) => m.variacaoId).map((m) => [m.variacaoId!, m]))
   const produtos = produtosAtivos.map((p) => ({
     id: p.id,
     nome: p.nome,
-    variacoes: p.variacoes.map((v) => {
-      const m = margemPorVariacaoId.get(v.id)
-      return {
-        id: v.id,
-        nome: v.nome,
-        precoVenda: m ? Number(m.precoVenda) : null,
-        margem: m?.margem ? Number(m.margem) : null,
-      }
-    }),
+    variacoes: p.variacoes.map((v) => ({ id: v.id, nome: v.nome, precoVenda: Number(v.precoVenda) })),
   }))
 
   return (

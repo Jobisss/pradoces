@@ -125,6 +125,9 @@ type VariacaoFormValues = {
   recheioGramasUsadas: string
   precoVenda: string
   margemMinimaOverride: string
+  precoPromocional: string
+  promocaoInicio: string
+  promocaoFim: string
   ativo: boolean
 }
 
@@ -167,6 +170,9 @@ type ProdutoFormProps = {
       recheioGramasUsadas: string | null
       precoVenda: string
       margemMinimaOverride: string | null
+      precoPromocional: string | null
+      promocaoInicio: string | null
+      promocaoFim: string | null
       ativo: boolean
     }>
     kitItens: Array<{ componenteId: string; componenteVariacaoId: string | null; qtde: number }>
@@ -180,6 +186,9 @@ const VARIACAO_NOVA: VariacaoFormValues = {
   recheioGramasUsadas: '',
   precoVenda: '',
   margemMinimaOverride: '',
+  precoPromocional: '',
+  promocaoInicio: '',
+  promocaoFim: '',
   ativo: true,
 }
 
@@ -308,6 +317,58 @@ function VariacaoLinha({
 
       {node}
 
+      <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium">Promoção (opcional)</p>
+          <p className="text-sm text-muted-foreground">
+            Preço com desconto só nesse período. Some da vitrine sozinha quando a data de fim passar.
+          </p>
+        </div>
+
+        <FormField
+          control={control}
+          name={`variacoes.${index}.precoPromocional`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Preço promocional (R$)</FormLabel>
+              <FormControl>
+                <Input {...field} inputMode="decimal" placeholder="0,00" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex gap-2">
+          <FormField
+            control={control}
+            name={`variacoes.${index}.promocaoInicio`}
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Início</FormLabel>
+                <FormControl>
+                  <Input {...field} type="date" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name={`variacoes.${index}.promocaoFim`}
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Fim</FormLabel>
+                <FormControl>
+                  <Input {...field} type="date" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+
       <FormField
         control={control}
         name={`variacoes.${index}.margemMinimaOverride`}
@@ -370,6 +431,9 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
             recheioGramasUsadas: v.recheioGramasUsadas ?? '',
             precoVenda: v.precoVenda,
             margemMinimaOverride: v.margemMinimaOverride ?? '',
+            precoPromocional: v.precoPromocional ?? '',
+            promocaoInicio: v.promocaoInicio ?? '',
+            promocaoFim: v.promocaoFim ?? '',
             ativo: v.ativo,
           }))
         : [VARIACAO_NOVA],
@@ -451,6 +515,9 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
               recheioGramasUsadas: v.recheioReceitaId ? v.recheioGramasUsadas || undefined : undefined,
               precoVenda: v.precoVenda,
               margemMinimaOverride: v.margemMinimaOverride || undefined,
+              precoPromocional: v.precoPromocional || undefined,
+              promocaoInicio: v.promocaoInicio || undefined,
+              promocaoFim: v.promocaoFim || undefined,
               ativo: v.ativo,
             }))
           : undefined,

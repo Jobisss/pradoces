@@ -7,6 +7,7 @@ import { requireCliente } from '@/lib/auth/require-cliente'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { saldoPontos } from '@/lib/pontos/queries'
+import { precoEfetivo } from '@/lib/pricing/promocao'
 
 /**
  * Resgate (RESG-03/04/05), cliente autenticado. Débito de pontos é
@@ -46,7 +47,16 @@ export async function resgatarItem(
     resultado = await prisma.$transaction(async (tx) => {
       const item = await tx.itemResgatavel.findUnique({
         where: { id: itemResgatavelId },
-        select: { id: true, ativo: true, custoPontos: true, produtoId: true, variacaoId: true },
+        select: {
+          id: true,
+          ativo: true,
+          custoPontos: true,
+          produtoId: true,
+          variacaoId: true,
+          variacao: {
+            select: { precoVenda: true, precoPromocional: true, promocaoInicio: true, promocaoFim: true },
+          },
+        },
       })
       if (!item || !item.ativo) throw new ResgateError('Esse item não está mais disponível.')
 
@@ -67,11 +77,17 @@ export async function resgatarItem(
       const saldo = await saldoPontos(cliente.id)
       if (saldo < item.custoPontos) throw new ResgateError('Você não tem pontos suficientes pra esse resgate.')
 
+      // "Quanto ela deixa de ganhar" trocando por pontos em vez de vender —
+      // PREÇO DE VENDA (com promoção se ativa), nunca custo. Item nomeCustom
+      // (sem produto do catálogo) não tem preço de venda pra referenciar.
+      const valorResgateCongelado = item.variacao ? precoEfetivo(item.variacao).toFixed(4) : undefined
+
       const reserva = await tx.reserva.create({
         data: {
           clienteId: cliente.id,
           tipo: 'RESGATE',
           itemResgatavelId: item.id,
+          valorResgateCongelado,
           janelaRetirada: janelaRetirada.trim(),
           observacao: observacao?.trim() || undefined,
         },

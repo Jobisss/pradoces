@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 
-type VariacaoOpcao = { id: string; nome: string; precoVenda: number | null; margem: number | null }
+type VariacaoOpcao = { id: string; nome: string; precoVenda: number | null }
 type ProdutoOpcao = { id: string; nome: string; variacoes: VariacaoOpcao[] }
 
 type FormValues = {
@@ -63,22 +63,32 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
   const variacaoSelecionada = produtoSelecionado?.variacoes.find((v) => v.id === variacaoId)
   const custoPontosNum = Number(custoPontosStr?.replace(',', '.'))
 
-  let dica: { valorPorPonto: number; cashbackPercent: number; arriscado: boolean; sugestao: number } | null = null
-  if (
-    variacaoSelecionada &&
-    variacaoSelecionada.precoVenda !== null &&
-    variacaoSelecionada.margem !== null &&
-    variacaoSelecionada.margem > 0 &&
-    Number.isFinite(custoPontosNum) &&
-    custoPontosNum > 0
-  ) {
-    const valorPorPonto = variacaoSelecionada.precoVenda / custoPontosNum
-    const cashbackPercent = valorPorPonto * pontosPorRealAtual * 100
-    // Sugestão: custoPontos que deixa o cashback em metade da margem (folga).
-    const sugestao = Math.ceil(
-      (variacaoSelecionada.precoVenda * pontosPorRealAtual * 200) / variacaoSelecionada.margem,
-    )
-    dica = { valorPorPonto, cashbackPercent, arriscado: cashbackPercent >= variacaoSelecionada.margem, sugestao }
+  // Trocar por pontos não tem custo de caixa NENHUM na hora (o doce já foi
+  // pago quando ela comprou o ingrediente) — o que ela precisa enxergar aqui
+  // é quanto ela DEIXA DE GANHAR: o preço de venda inteiro do item, já que a
+  // troca não entra R$ nenhum. Por isso essa dica é baseada 100% em
+  // `precoVenda`, nunca em custo/margem — funciona até pra variação sem
+  // nenhuma compra de ingrediente registrada ainda.
+  let dica: {
+    valorPontosEmReais: number
+    deixaDeGanhar: number
+    percentualCoberto: number
+    sugestao: number
+  } | null = null
+  if (variacaoSelecionada && variacaoSelecionada.precoVenda !== null) {
+    const precoVenda = variacaoSelecionada.precoVenda
+    // Sugestão: custoPontos igual ao que o cliente ganharia comprando esse
+    // item pagando de verdade — cobre o preço de venda inteiro.
+    const sugestao = Math.max(1, Math.ceil(precoVenda * pontosPorRealAtual))
+    if (Number.isFinite(custoPontosNum) && custoPontosNum > 0 && pontosPorRealAtual > 0) {
+      const valorPontosEmReais = custoPontosNum / pontosPorRealAtual
+      dica = {
+        valorPontosEmReais,
+        deixaDeGanhar: Math.max(0, precoVenda - valorPontosEmReais),
+        percentualCoberto: (valorPontosEmReais / precoVenda) * 100,
+        sugestao,
+      }
+    }
   }
 
   function onSubmit(data: FormValues) {
@@ -219,37 +229,33 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
           )}
         />
 
-        {modo === 'produto' &&
-          variacaoSelecionada &&
-          (variacaoSelecionada.precoVenda === null || variacaoSelecionada.margem === null) && (
-            <p className="text-sm text-muted-foreground">
-              Essa variação ainda não tem custo calculado (falta compra de ingrediente registrada) — sem
-              referência de margem pra sugerir um valor seguro.
-            </p>
-          )}
+        {modo === 'produto' && variacaoSelecionada && variacaoSelecionada.precoVenda === null && (
+          <p className="text-sm text-muted-foreground">
+            Não achei o preço de venda dessa variação — recarrega a página e tenta de novo.
+          </p>
+        )}
 
         {dica && (
-          <div
-            className={`space-y-1 rounded-lg border p-3 text-sm ${
-              dica.arriscado ? 'border-destructive text-destructive' : 'border-border text-muted-foreground'
-            }`}
-          >
+          <div className="space-y-1 rounded-lg border border-border p-3 text-sm text-muted-foreground">
             <p>
-              Isso equivale a ~{currency.format(dica.valorPorPonto)} por ponto — ~{dica.cashbackPercent.toFixed(1)}%
-              de cashback sobre o preço de venda, contra {variacaoSelecionada!.margem!.toFixed(1)}% de margem dessa
-              variação.
+              Essa troca vale {currency.format(variacaoSelecionada!.precoVenda!)} de venda — é isso que você deixa
+              de ganhar a cada resgate (não é prejuízo de caixa: o custo de fazer o doce você já teria gastado de
+              qualquer jeito).
             </p>
-            <p className={dica.arriscado ? 'font-medium' : ''}>
-              {dica.arriscado
-                ? 'Igual ou acima da margem — resgatar esse item dá prejuízo.'
-                : 'Dentro da margem, com folga pra não sair no prejuízo.'}
+            <p>
+              Pra juntar {custoPontosNum} pontos, o cliente precisou de uns {currency.format(dica.valorPontosEmReais)}{' '}
+              em compras aqui — {dica.percentualCoberto >= 100 ? (
+                'cobre o valor de venda desse item, sem deixar nada na mesa.'
+              ) : (
+                <>deixando {currency.format(dica.deixaDeGanhar)} de venda sem cobrir ({dica.percentualCoberto.toFixed(0)}%).</>
+              )}
             </p>
             <button
               type="button"
               className="text-primary underline underline-offset-2"
               onClick={() => setValue('custoPontos', String(dica!.sugestao))}
             >
-              Usar sugestão com folga: {dica.sugestao} pontos
+              Usar sugestão (cobre o preço de venda inteiro): {dica.sugestao} pontos
             </button>
           </div>
         )}

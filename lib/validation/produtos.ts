@@ -41,6 +41,20 @@ const VariacaoSchema = z
     recheioGramasUsadas: zQtdeBRL.optional().or(z.literal('').transform(() => undefined)),
     precoVenda: zDecimalBRL,
     margemMinimaOverride: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
+    // Promoção manual por sabor — os 3 campos são all-or-nothing (superRefine
+    // abaixo), espelhando o CHECK do schema (Pitfall: dupla validação
+    // client+server, nunca confiar só no client).
+    precoPromocional: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
+    promocaoInicio: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, OBRIGATORIO)
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    promocaoFim: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, OBRIGATORIO)
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     ativo: z.boolean().default(true),
   })
   .superRefine((v, ctx) => {
@@ -57,6 +71,30 @@ const VariacaoSchema = z
         message: 'Sem recheio selecionado, não informa gramas.',
         path: ['recheioGramasUsadas'],
       })
+    }
+
+    const algumaPromo = v.precoPromocional || v.promocaoInicio || v.promocaoFim
+    if (algumaPromo) {
+      if (!v.precoPromocional) {
+        ctx.addIssue({ code: 'custom', message: 'Informa o preço promocional.', path: ['precoPromocional'] })
+      } else if (v.precoPromocional.lessThanOrEqualTo(0)) {
+        ctx.addIssue({ code: 'custom', message: 'O preço promocional precisa ser maior que zero.', path: ['precoPromocional'] })
+      } else if (v.precoPromocional.greaterThanOrEqualTo(v.precoVenda)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'O preço promocional precisa ser menor que o preço normal.',
+          path: ['precoPromocional'],
+        })
+      }
+      if (!v.promocaoInicio) {
+        ctx.addIssue({ code: 'custom', message: 'Escolhe a data de início.', path: ['promocaoInicio'] })
+      }
+      if (!v.promocaoFim) {
+        ctx.addIssue({ code: 'custom', message: 'Escolhe a data de fim.', path: ['promocaoFim'] })
+      }
+      if (v.promocaoInicio && v.promocaoFim && v.promocaoFim < v.promocaoInicio) {
+        ctx.addIssue({ code: 'custom', message: 'A data de fim precisa ser depois da de início.', path: ['promocaoFim'] })
+      }
     }
   })
 

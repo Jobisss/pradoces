@@ -256,6 +256,15 @@ model Variacao {
   recheioGramasUsadas  Decimal? @map("recheio_gramas_usadas") @db.Decimal(10, 3)
   precoVenda           Decimal  @map("preco_venda") @db.Decimal(19, 4)
   margemMinimaOverride Decimal? @map("margem_minima_override") @db.Decimal(5, 2)
+  // Promoção manual (desconto por tempo limitado, definida pela mãe — não
+  // confundir com CAT-V2-02, que seria automática por vencimento de lote e
+  // continua fora do escopo). Datas CIVIS (@db.Date, mesmo padrão de
+  // lote.validade) — a janela é resolvida em lib/pricing/promocao.ts, único
+  // chokepoint usado tanto na vitrine quanto no congelamento de preço da
+  // reserva. All-or-nothing + desconto real, enforced por CHECK (ver migration).
+  precoPromocional     Decimal? @map("preco_promocional") @db.Decimal(19, 4)
+  promocaoInicio       DateTime? @map("promocao_inicio") @db.Date
+  promocaoFim          DateTime? @map("promocao_fim") @db.Date
   // "Remover" uma variação com lotes/kits/resgates históricos vira
   // ativo:false, nunca DELETE — todas as FKs abaixo que apontam pra cá são
   // onDelete: Restrict (ver lib/actions/produtos.ts).
@@ -466,6 +475,15 @@ model Reserva {
   pagoEm               DateTime?     @map("pago_em") @db.Timestamptz(6)
   // Só quando tipo=RESGATE (RESG-03) — o que vai ser entregue.
   itemResgatavelId     String?       @map("item_resgatavel_id") @db.Uuid
+  // Preço de venda (não custo!) do produto/variação no instante do resgate —
+  // "quanto a mãe deixou de ganhar" trocando por pontos em vez de vender.
+  // Congelado (mesmo padrão de taxaEntregaCongelada) pra não mudar se o
+  // preço do produto for reajustado depois. NULL em 2 casos: resgates
+  // anteriores a essa coluna existir, e item nomeCustom (sem produto do
+  // catálogo, sem preço de venda pra referenciar) — sem CHECK exigindo
+  // preenchido, porque resgates já confirmados em produção não têm esse
+  // valor e não dá pra preencher retroativamente.
+  valorResgateCongelado Decimal?     @map("valor_resgate_congelado") @db.Decimal(19, 4)
   // Comprovante público /r/<token> (RES-10) — sem login, token não sequencial.
   token                String        @unique @default(uuid())
   criadoEm             DateTime      @default(now()) @map("criado_em") @db.Timestamptz(6)

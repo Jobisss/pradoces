@@ -3,6 +3,7 @@ import Decimal from 'decimal.js'
 import { differenceInCalendarDays } from 'date-fns'
 import { prisma } from '@/lib/db/client'
 import { hojeSaoPaulo } from '@/lib/lotes/queries'
+import { precoEfetivo, promocaoAtiva } from '@/lib/pricing/promocao'
 
 /**
  * Queries do catálogo PÚBLICO (CAT-01..05). Diferença crítica pras queries
@@ -21,10 +22,12 @@ export type ProdutoCard = {
   categoria: string
   tipo: 'UNITARIO' | 'KIT'
   precoVenda: string
+  precoOriginal: string | null
   precoAPartir: boolean
   capaPath: string | null
   disponivel: boolean
   emCampanha: boolean
+  emPromocao: boolean
 }
 
 function inicioDoDiaSaoPaulo(): Date {
@@ -102,7 +105,10 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       tipo: true,
       precoVenda: true,
       fotos: { where: { ordem: 0 }, select: { path: true } },
-      variacoes: { where: { ativo: true }, select: { precoVenda: true } },
+      variacoes: {
+        where: { ativo: true },
+        select: { precoVenda: true, precoPromocional: true, promocaoInicio: true, promocaoFim: true },
+      },
       kitItens: { select: { componenteVariacaoId: true, qtde: true } },
       campanhas: { select: { campanhaId: true } },
     },
@@ -116,16 +122,27 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
     ),
   ]
   const livrePorVariacao = await estoqueLivrePorVariacao(componenteVariacaoIds)
+  const hoje = inicioDoDiaSaoPaulo()
 
   return produtos.map((p) => {
     let precoVenda = p.precoVenda
+    let precoOriginal: Decimal | null = null
     let precoAPartir = false
+    let emPromocao = false
     if (p.tipo === 'UNITARIO') {
-      const menor = p.variacoes.reduce<Decimal | null>(
-        (min, v) => (min === null || v.precoVenda.lessThan(min) ? v.precoVenda : min),
-        null,
-      )
-      precoVenda = menor
+      // Menor preço VIGENTE (já considerando promoção ativa) — a mesma
+      // variação que "ganha" o "a partir de" define se mostra o selo/riscado,
+      // pra não misturar o preço promocional de um sabor com o original de outro.
+      let menor: { efetivo: Decimal; original: Decimal; ativa: boolean } | null = null
+      for (const v of p.variacoes) {
+        const efetivo = precoEfetivo(v, hoje)
+        if (menor === null || efetivo.lessThan(menor.efetivo)) {
+          menor = { efetivo, original: v.precoVenda, ativa: promocaoAtiva(v, hoje) }
+        }
+      }
+      precoVenda = menor?.efetivo ?? null
+      precoOriginal = menor?.ativa ? menor.original : null
+      emPromocao = menor?.ativa ?? false
       precoAPartir = p.variacoes.length > 1
     }
     return {
@@ -134,16 +151,25 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       categoria: p.categoria,
       tipo: p.tipo,
       precoVenda: precoVenda ? precoVenda.toFixed(2) : '0.00',
+      precoOriginal: precoOriginal ? precoOriginal.toFixed(2) : null,
       precoAPartir,
       capaPath: p.fotos[0]?.path ?? null,
       disponivel: p.tipo === 'UNITARIO' ? disponiveis.has(p.id) : kitsMontaveis(p.kitItens, livrePorVariacao) > 0,
       emCampanha: p.campanhas.length > 0,
+      emPromocao,
     }
   })
 }
 
 export type LoteDisponivel = { id: string; validade: string; qtdeDisponivel: number; diasParaVencer: number }
-export type VariacaoDisponivel = { id: string; nome: string; precoVenda: string; lotes: LoteDisponivel[] }
+export type VariacaoDisponivel = {
+  id: string
+  nome: string
+  precoVenda: string
+  precoOriginal: string | null
+  emPromocao: boolean
+  lotes: LoteDisponivel[]
+}
 
 export type ProdutoDetalhe = {
   id: string
@@ -152,7 +178,9 @@ export type ProdutoDetalhe = {
   categoria: string
   tipo: 'UNITARIO' | 'KIT'
   precoVenda: string
+  precoOriginal: string | null
   precoAPartir: boolean
+  emPromocao: boolean
   alergenicos: string[]
   fotos: string[]
   variacoes: VariacaoDisponivel[]
@@ -174,7 +202,18 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
       alergenicos: true,
       ativo: true,
       fotos: { orderBy: { ordem: 'asc' }, select: { path: true } },
-      variacoes: { where: { ativo: true }, select: { id: true, nome: true, precoVenda: true }, orderBy: { nome: 'asc' } },
+      variacoes: {
+        where: { ativo: true },
+        select: {
+          id: true,
+          nome: true,
+          precoVenda: true,
+          precoPromocional: true,
+          promocaoInicio: true,
+          promocaoFim: true,
+        },
+        orderBy: { nome: 'asc' },
+      },
       kitItens: {
         select: {
           qtde: true,
@@ -211,25 +250,33 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
       })
       lotesPorVariacao.set(l.variacaoId, arr)
     }
-    variacoes = produto.variacoes.map((v) => ({
-      id: v.id,
-      nome: v.nome,
-      precoVenda: v.precoVenda.toFixed(2),
-      lotes: lotesPorVariacao.get(v.id) ?? [],
-    }))
+    variacoes = produto.variacoes.map((v) => {
+      const ativa = promocaoAtiva(v, hojeDate)
+      return {
+        id: v.id,
+        nome: v.nome,
+        precoVenda: precoEfetivo(v, hojeDate).toFixed(2),
+        precoOriginal: ativa ? v.precoVenda.toFixed(2) : null,
+        emPromocao: ativa,
+        lotes: lotesPorVariacao.get(v.id) ?? [],
+      }
+    })
   } else {
     const componenteVariacaoIds = produto.kitItens.map((k) => k.componenteVariacaoId).filter((v): v is string => !!v)
     const livrePorVariacao = await estoqueLivrePorVariacao(componenteVariacaoIds)
     kitDisponivel = kitsMontaveis(produto.kitItens, livrePorVariacao)
   }
 
-  const menorPreco =
+  // Igual ao card da vitrine: o "a partir de"/selo seguem a MESMA variação
+  // que tem o menor preço vigente, pra não misturar promo de um sabor com
+  // preço cheio de outro.
+  const maisBarata =
     produto.tipo === 'UNITARIO'
-      ? variacoes.reduce<Decimal | null>(
-          (min, v) => (min === null || new Decimal(v.precoVenda).lessThan(min) ? new Decimal(v.precoVenda) : min),
+      ? variacoes.reduce<VariacaoDisponivel | null>(
+          (min, v) => (min === null || new Decimal(v.precoVenda).lessThan(min.precoVenda) ? v : min),
           null,
         )
-      : produto.precoVenda
+      : null
 
   return {
     id: produto.id,
@@ -237,8 +284,10 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
     descricao: produto.descricao,
     categoria: produto.categoria,
     tipo: produto.tipo,
-    precoVenda: menorPreco ? menorPreco.toFixed(2) : '0.00',
+    precoVenda: maisBarata ? maisBarata.precoVenda : produto.precoVenda ? produto.precoVenda.toFixed(2) : '0.00',
+    precoOriginal: maisBarata?.precoOriginal ?? null,
     precoAPartir: produto.tipo === 'UNITARIO' && variacoes.length > 1,
+    emPromocao: maisBarata?.emPromocao ?? false,
     alergenicos: produto.alergenicos,
     fotos: produto.fotos.map((f) => f.path),
     variacoes,

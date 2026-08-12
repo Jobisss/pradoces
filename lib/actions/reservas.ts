@@ -9,6 +9,7 @@ import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { hojeSaoPaulo } from '@/lib/lotes/queries'
+import { precoEfetivo } from '@/lib/pricing/promocao'
 import { ReservaSchema } from '@/lib/validation/reservas'
 
 /**
@@ -160,7 +161,14 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
       const variacaoIds = [...new Set(lotes.map((l) => l.variacao_id).filter((v): v is string => !!v))]
       const variacoes = await tx.variacao.findMany({
         where: { id: { in: variacaoIds } },
-        select: { id: true, ativo: true, precoVenda: true },
+        select: {
+          id: true,
+          ativo: true,
+          precoVenda: true,
+          precoPromocional: true,
+          promocaoInicio: true,
+          promocaoFim: true,
+        },
       })
       const variacaoMap = new Map(variacoes.map((v) => [v.id, v]))
 
@@ -241,7 +249,10 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
                 return {
                   loteId: item.loteId,
                   qtde: item.qtde,
-                  precoUnitarioCongelado: variacao.precoVenda,
+                  // Promoção ativa (lib/pricing/promocao.ts) já entra congelada
+                  // aqui — pontos de fidelidade são creditados sobre o valor da
+                  // reserva, então uma promoção reduz os pontos automaticamente.
+                  precoUnitarioCongelado: precoEfetivo(variacao, hojeDate).toFixed(4),
                 }
               }),
               ...itensKitCriar,

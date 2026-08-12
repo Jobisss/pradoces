@@ -127,6 +127,10 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
             recheioGramasUsadas: v.recheioGramasUsadas ? v.recheioGramasUsadas.toFixed(3) : null,
             precoVenda: v.precoVenda.toFixed(4),
             margemMinimaOverride: v.margemMinimaOverride ? v.margemMinimaOverride.toFixed(2) : null,
+            // @db.Date -> yyyy-mm-dd (dia civil em UTC, mesma convenção de lote.validade — lib/format/date.ts).
+            precoPromocional: v.precoPromocional ? v.precoPromocional.toFixed(4) : null,
+            promocaoInicio: v.promocaoInicio ? v.promocaoInicio.toISOString().slice(0, 10) : null,
+            promocaoFim: v.promocaoFim ? v.promocaoFim.toISOString().slice(0, 10) : null,
             ativo: v.ativo,
           })),
           kitItens: produto.kitItens.map((i) => ({

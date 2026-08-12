@@ -33,9 +33,16 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             <p className="tabular-nums text-xl font-medium text-primary">{currency.format(Number(produto.precoVenda))}</p>
           )}
           {produto.tipo === 'UNITARIO' && produto.precoAPartir && (
-            <p className="tabular-nums text-sm text-muted-foreground">
-              A partir de {currency.format(Number(produto.precoVenda))}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="tabular-nums text-sm text-muted-foreground">
+                A partir de {currency.format(Number(produto.precoVenda))}
+              </p>
+              {produto.emPromocao && produto.precoOriginal && (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                  Promoção
+                </span>
+              )}
+            </div>
           )}
         </div>
 

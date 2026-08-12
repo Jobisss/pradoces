@@ -129,6 +129,12 @@ function variacaoCreateData(v: VariacaoInput) {
     recheioGramasUsadas: v.recheioGramasUsadas ? v.recheioGramasUsadas.toFixed(3) : null,
     precoVenda: v.precoVenda.toFixed(4),
     margemMinimaOverride: v.margemMinimaOverride ? v.margemMinimaOverride.toFixed(2) : null,
+    // Promoção manual — os 3 juntos ou nenhum (validado no Zod acima e no
+    // CHECK do schema); string 'yyyy-mm-dd' -> início do dia UTC, mesmo
+    // padrão de lote.validade (Pitfall 10).
+    precoPromocional: v.precoPromocional ? v.precoPromocional.toFixed(4) : null,
+    promocaoInicio: v.promocaoInicio ? new Date(`${v.promocaoInicio}T00:00:00Z`) : null,
+    promocaoFim: v.promocaoFim ? new Date(`${v.promocaoFim}T00:00:00Z`) : null,
     ativo: v.ativo,
   }
 }

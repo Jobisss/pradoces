@@ -1,10 +1,58 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { listarProdutosAtivos, listarCategoriasAtivas } from '@/lib/catalogo/produtos'
+import { listarProdutosAtivos, listarCategoriasAtivas, type ProdutoCard } from '@/lib/catalogo/produtos'
 import { WhatsappButton } from '@/components/whatsapp-button'
 import { campanhaAtiva } from '@/lib/campanhas/definicoes'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** Card de produto — reusado na vitrine principal e na seção "Também vendemos" (esgotados). */
+function CardProduto({ p, campanhaNome, esgotado }: { p: ProdutoCard; campanhaNome: string | null; esgotado: boolean }) {
+  return (
+    <Link
+      href={`/produtos/${p.id}`}
+      className="block overflow-hidden rounded-lg border border-border transition-opacity hover:opacity-90"
+    >
+      <div className={`relative aspect-square bg-muted ${esgotado ? 'opacity-60 grayscale' : ''}`}>
+        {p.capaPath ? (
+          <Image
+            src={`/media/${p.capaPath}-medio.webp`}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 50vw, 25vw"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem foto</div>
+        )}
+        {!esgotado && (
+          <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
+            {p.emPromocao && (
+              <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">Promoção</span>
+            )}
+            {p.emCampanha && campanhaNome && (
+              <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">{campanhaNome}</span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="space-y-0.5 p-2">
+        <p className="truncate text-sm font-medium text-foreground">{p.nome}</p>
+        <div className="flex flex-wrap items-baseline gap-x-1.5">
+          <p className="tabular-nums text-sm text-muted-foreground">
+            {p.precoAPartir ? 'A partir de ' : ''}
+            {currency.format(Number(p.precoVenda))}
+          </p>
+          {p.precoOriginal && !esgotado && (
+            <p className="tabular-nums text-xs text-muted-foreground line-through">
+              {currency.format(Number(p.precoOriginal))}
+            </p>
+          )}
+        </div>
+      </div>
+    </Link>
+  )
+}
 
 /**
  * Vitrine pública (CAT-01/04/08) — troca o placeholder narrativo de Phase 1.
@@ -27,6 +75,11 @@ export default async function Home({
     listarProdutosAtivos(categoria, filtroCampanha),
     listarCategoriasAtivas(),
   ])
+  // Esgotado não fica misturado no meio dos outros — vitrine principal só
+  // mostra o que dá pra reservar agora; o resto vira uma seção separada,
+  // menos chamativa, só pra mostrar que a Luizinha também faz aquilo.
+  const disponiveis = produtos.filter((p) => p.disponivel)
+  const esgotados = produtos.filter((p) => !p.disponivel)
 
   return (
     <section className="mx-auto max-w-5xl px-4 py-8 md:px-8">
@@ -87,49 +140,35 @@ export default async function Home({
           <p className="text-sm text-muted-foreground">Volta mais tarde — a Luizinha tá sempre cozinhando.</p>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-          {produtos.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/produtos/${p.id}`}
-                className="block overflow-hidden rounded-lg border border-border transition-opacity hover:opacity-90"
-              >
-                <div className="relative aspect-square bg-muted">
-                  {p.capaPath ? (
-                    <Image
-                      src={`/media/${p.capaPath}-medio.webp`}
-                      alt=""
-                      fill
-                      sizes="(max-width: 640px) 50vw, 25vw"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                      Sem foto
-                    </div>
-                  )}
-                  {!p.disponivel && (
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      Esgotado
-                    </span>
-                  )}
-                  {p.emCampanha && campanha && (
-                    <span className="absolute right-1.5 top-1.5 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                      {campanha.nome}
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-0.5 p-2">
-                  <p className="truncate text-sm font-medium text-foreground">{p.nome}</p>
-                  <p className="tabular-nums text-sm text-muted-foreground">
-                    {p.precoAPartir ? 'A partir de ' : ''}
-                    {currency.format(Number(p.precoVenda))}
-                  </p>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          {disponiveis.length > 0 ? (
+            <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+              {disponiveis.map((p) => (
+                <li key={p.id}>
+                  <CardProduto p={p} campanhaNome={campanha?.nome ?? null} esgotado={false} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Tudo esgotado por agora — dá uma olhada no que a Luizinha também faz, mais abaixo.
+            </p>
+          )}
+
+          {esgotados.length > 0 && (
+            <div className="mt-10 space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">Também vendemos</h2>
+              <p className="text-sm text-muted-foreground">Esgotado por agora — volta em breve.</p>
+              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                {esgotados.map((p) => (
+                  <li key={p.id}>
+                    <CardProduto p={p} campanhaNome={campanha?.nome ?? null} esgotado />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </section>
   )

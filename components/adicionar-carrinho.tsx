@@ -9,7 +9,14 @@ import { Button } from '@/components/ui/button'
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 type LoteOpcao = { id: string; qtdeDisponivel: number; diasParaVencer: number }
-type VariacaoOpcao = { id: string; nome: string; precoVenda: string; lotes: LoteOpcao[] }
+type VariacaoOpcao = {
+  id: string
+  nome: string
+  precoVenda: string
+  precoOriginal: string | null
+  emPromocao: boolean
+  lotes: LoteOpcao[]
+}
 
 function rotuloValidade(dias: number): string {
   if (dias === 0) return 'vence hoje'
@@ -65,7 +72,19 @@ export function AdicionarCarrinho({
 
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
-      <p className="tabular-nums text-xl font-medium text-primary">{currency.format(Number(variacao.precoVenda))}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="tabular-nums text-xl font-medium text-primary">{currency.format(Number(variacao.precoVenda))}</p>
+        {variacao.emPromocao && variacao.precoOriginal && (
+          <>
+            <p className="tabular-nums text-sm text-muted-foreground line-through">
+              {currency.format(Number(variacao.precoOriginal))}
+            </p>
+            <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+              Promoção
+            </span>
+          </>
+        )}
+      </div>
 
       {variacoes.length > 1 && (
         <div className="space-y-1.5">

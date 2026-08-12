@@ -116,6 +116,12 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                     <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium">Resgate</span>{' '}
                     {r.itemResgatavel?.produto?.nome ?? r.itemResgatavel?.nomeCustom} —{' '}
                     <span className="tabular-nums">{r.itemResgatavel?.custoPontos} pontos</span>
+                    {r.valorResgateCongelado !== null && (
+                      <span className="tabular-nums text-muted-foreground">
+                        {' '}
+                        · você deixa de ganhar {currency.format(Number(r.valorResgateCongelado))}
+                      </span>
+                    )}
                   </p>
                 ) : (
                   <ul className="space-y-1 text-sm">
