@@ -104,7 +104,7 @@ export default async function ComprovantePage({ params }: { params: Promise<{ to
               {reserva.itens.map((item, i) => (
                 <li key={i} className="flex items-center justify-between py-2 text-sm">
                   <span>
-                    {item.qtde}× {item.lote.produto.nome}{' '}
+                    {item.qtde}× {item.lote.produto.nome} — {item.lote.variacao.nome}{' '}
                     <span className="text-muted-foreground">(lote vence {dateFmt.format(item.lote.validade)})</span>
                   </span>
                   <span className="tabular-nums">

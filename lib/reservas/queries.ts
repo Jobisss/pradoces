@@ -20,7 +20,11 @@ export async function listarReservasAdmin(filtro: FiltroReserva) {
     where: { status: { in: STATUS_POR_FILTRO[filtro] } },
     include: {
       cliente: { select: { id: true, name: true, email: true, telefone: true, banned: true, banReason: true } },
-      itens: { include: { lote: { select: { validade: true, produto: { select: { nome: true } } } } } },
+      itens: {
+        include: {
+          lote: { select: { validade: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
+        },
+      },
       itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
     },
     orderBy: { criadoEm: filtro === 'pendentes' ? 'asc' : 'desc' },
@@ -93,7 +97,7 @@ export async function listarReservasCliente(clienteId: string) {
         select: {
           qtde: true,
           precoUnitarioCongelado: true,
-          lote: { select: { validade: true, produto: { select: { nome: true } } } },
+          lote: { select: { validade: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
         },
       },
       itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
@@ -125,7 +129,7 @@ export async function buscarReservaPorToken(token: string) {
         select: {
           qtde: true,
           precoUnitarioCongelado: true,
-          lote: { select: { validade: true, produto: { select: { nome: true } } } },
+          lote: { select: { validade: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
         },
       },
       itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },

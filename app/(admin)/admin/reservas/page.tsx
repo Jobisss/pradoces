@@ -127,7 +127,8 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                   <ul className="space-y-1 text-sm">
                     {r.itens.map((item, i) => (
                       <li key={i} className="tabular-nums">
-                        {item.qtde}× {item.lote.produto.nome} (lote vence {dataCivilFmtBR.format(item.lote.validade)})
+                        {item.qtde}× {item.lote.produto.nome} — {item.lote.variacao.nome} (lote vence{' '}
+                        {dataCivilFmtBR.format(item.lote.validade)})
                       </li>
                     ))}
                   </ul>
