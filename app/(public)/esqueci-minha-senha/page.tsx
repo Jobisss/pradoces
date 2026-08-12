@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useActionState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { requestPasswordReset, type AuthActionState } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,8 +13,23 @@ import { Label } from '@/components/ui/label'
  * genérica (anti-enumeração — não revela se o email existe). Em sucesso,
  * navega SEMPRE para /esqueci-minha-senha/enviado (mesmo destino p/ qualquer
  * input). Em rate-limit retorna erro e permanece na página.
+ *
+ * `?erro=1` chega aqui quando `/redefinir-senha` (bridge do link de email)
+ * recebeu um token ausente/expirado do Better Auth — mostra o mesmo aviso
+ * "link expirado" em vez de deixar a pessoa num 404 silencioso.
  */
 const initialState: AuthActionState = {}
+
+function LinkExpiradoBanner() {
+  const linkExpirado = useSearchParams().get('erro') === '1'
+  if (!linkExpirado) return null
+
+  return (
+    <p role="alert" className="text-sm text-muted-foreground">
+      Esse link expirou ou não é mais válido. Pede um novo abaixo.
+    </p>
+  )
+}
 
 export default function EsqueciSenhaPage() {
   const [state, formAction, pending] = useActionState(requestPasswordReset, initialState)
@@ -30,6 +45,12 @@ export default function EsqueciSenhaPage() {
         <header className="space-y-2">
           <h1 className="font-display text-3xl font-semibold">Recuperar minha senha</h1>
         </header>
+
+        {!state.error && (
+          <Suspense fallback={null}>
+            <LinkExpiradoBanner />
+          </Suspense>
+        )}
 
         {state.error && (
           <p role="alert" className="text-sm text-muted-foreground">

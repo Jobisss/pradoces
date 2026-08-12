@@ -1,29 +1,27 @@
 import { render } from '@react-email/render'
-import { Html, Body, Container, Heading, Text, Button } from '@react-email/components'
 import { resend } from './resend'
+import { EmailLayout, EmailBodyText, EmailButton, EmailFinePrint } from './components/layout'
 
 /**
  * Email-verification template + send function (AUTH-04).
  *
- * Copy is the literal pt-BR voice from UI-SPEC (§Auth flow copy / PATTERNS §2.10).
- * The "24 horas" promise in the footer is enforced by
- * `emailVerification.expiresIn = 60 * 60 * 24` in `lib/auth/server.ts`.
- *
- * First React Email template of the project — Phase 4 templates
- * (send-reservation-confirmed, send-points-earned) follow this same skeleton.
+ * Copy é a voz pt-BR literal da UI-SPEC (§Auth flow copy / PATTERNS §2.10).
+ * O "24 horas" no rodapé é garantido por `emailVerification.expiresIn =
+ * 60 * 60 * 24` em `lib/auth/server.ts`. Visual usa `EmailLayout` (paleta do
+ * brand kit) — mesmo shell de `send-password-reset.tsx`.
  */
 function VerifyEmail({ url }: { url: string }) {
   return (
-    <Html>
-      <Body>
-        <Container>
-          <Heading>Confirma seu email pra terminar o cadastro</Heading>
-          <Text>A gente só quer ter certeza que esse email é seu mesmo.</Text>
-          <Button href={url}>Confirmar email</Button>
-          <Text>O link vale por 24 horas. Se já passou, é só fazer cadastro de novo.</Text>
-        </Container>
-      </Body>
-    </Html>
+    <EmailLayout
+      preview="Confirma seu email pra terminar o cadastro"
+      heading="Confirma seu email pra terminar o cadastro"
+    >
+      <EmailBodyText>A gente só quer ter certeza que esse email é seu mesmo.</EmailBodyText>
+      <EmailButton href={url}>Confirmar email</EmailButton>
+      <EmailFinePrint>
+        O link vale por 24 horas. Se já passou, é só fazer cadastro de novo.
+      </EmailFinePrint>
+    </EmailLayout>
   )
 }
 
