@@ -401,9 +401,36 @@ model Lote {
   receita      Receita              @relation(fields: [receitaId], references: [id], onDelete: Restrict)
   usos         LoteUsoIngrediente[]
   reservaItens ReservaItem[]
+  baixas       LoteBaixa[]
 
   @@index([validade])
   @@map("lotes")
+}
+
+enum LoteBaixaMotivo {
+  VENCIDO
+  DANIFICADO
+  OUTRO
+}
+
+// Baixa manual de estoque SEM venda (ex.: lote venceu antes de vender tudo,
+// ou estragou) — reduz qtde_disponivel igual uma confirmação de reserva
+// reduziria, só que sem Reserva/ReservaItem por trás (não é receita). Custo
+// perdido não precisa de snapshot próprio: custoPorUnidadeCongelado do Lote
+// já é imutável desde a criação (nunca sofre UPDATE), então "quanto custou o
+// que foi jogado fora" é derivado na leitura (qtde × custoPorUnidadeCongelado).
+model LoteBaixa {
+  id         String          @id @default(uuid()) @db.Uuid
+  loteId     String          @map("lote_id") @db.Uuid
+  qtde       Int
+  motivo     LoteBaixaMotivo
+  observacao String?
+  criadoEm   DateTime        @default(now()) @map("criado_em") @db.Timestamptz(6)
+
+  lote Lote @relation(fields: [loteId], references: [id], onDelete: Cascade)
+
+  @@index([loteId])
+  @@map("lote_baixas")
 }
 
 // ============ Phase 4: Reserva + Pontos ============

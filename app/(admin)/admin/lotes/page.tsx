@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { TriangleAlert, PackageX } from 'lucide-react'
 import { listarLotes, type FiltroLote } from '@/lib/lotes/queries'
 import { Button } from '@/components/ui/button'
+import { LoteBaixaAcao } from '@/components/admin/lote-baixa-acao'
 import { dataCivilFmtBR, instanteFmtBR } from '@/lib/format/date'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -61,33 +62,44 @@ export default async function LotesPage({
         )
       ) : (
         <ul className="divide-y divide-border">
-          {lotes.map((lote) => (
-            <li key={lote.id} className="space-y-1 py-3">
-              <p className="tabular-nums text-base">
-                {lote.produto.nome}
-                {lote.variacao ? ` — ${lote.variacao.nome}` : ''} — lote de{' '}
-                {instanteFmtBR.format(lote.produzidoEm)} · vence {dataCivilFmtBR.format(lote.validade)} ·{' '}
-                {lote.qtdeDisponivel} disponíveis
-              </p>
-              <div className="flex items-center gap-3">
-                <p className="tabular-nums text-sm text-muted-foreground">
-                  custou {currency.format(lote.custoPorUnidadeCongelado.toNumber())}/un
+          {lotes.map((lote) => {
+            const livre = lote.qtdeDisponivel - lote.qtdeReservada
+            const totalBaixado = lote.baixas?.reduce((s, b) => s + b.qtde, 0) ?? 0
+            return (
+              <li key={lote.id} className="space-y-1 py-3">
+                <p className="tabular-nums text-base">
+                  {lote.produto.nome}
+                  {lote.variacao ? ` — ${lote.variacao.nome}` : ''} — lote de{' '}
+                  {instanteFmtBR.format(lote.produzidoEm)} · vence {dataCivilFmtBR.format(lote.validade)} ·{' '}
+                  {lote.qtdeDisponivel} disponíveis
                 </p>
-                {filtro === 'vencidos' && (
-                  <span className="flex items-center gap-1 rounded-full border border-destructive px-2 py-0.5 text-xs text-destructive">
-                    <TriangleAlert className="size-3" aria-hidden />
-                    Vencido
-                  </span>
-                )}
-                {lote.qtdeDisponivel === 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    <PackageX className="size-3" aria-hidden />
-                    Esgotado
-                  </span>
-                )}
-              </div>
-            </li>
-          ))}
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="tabular-nums text-sm text-muted-foreground">
+                    custou {currency.format(lote.custoPorUnidadeCongelado.toNumber())}/un
+                  </p>
+                  {filtro === 'vencidos' && (
+                    <span className="flex items-center gap-1 rounded-full border border-destructive px-2 py-0.5 text-xs text-destructive">
+                      <TriangleAlert className="size-3" aria-hidden />
+                      Vencido
+                    </span>
+                  )}
+                  {lote.qtdeDisponivel === 0 && (
+                    <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      <PackageX className="size-3" aria-hidden />
+                      Esgotado
+                    </span>
+                  )}
+                  {totalBaixado > 0 && (
+                    <span className="tabular-nums text-xs text-muted-foreground">
+                      {totalBaixado} baixado{totalBaixado === 1 ? '' : 's'} (
+                      {currency.format(lote.custoPorUnidadeCongelado.times(totalBaixado).toNumber())} de custo)
+                    </span>
+                  )}
+                  <LoteBaixaAcao loteId={lote.id} livre={livre} />
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

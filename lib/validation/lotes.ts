@@ -29,3 +29,18 @@ export const ProduzirLotesSchema = z.object({
 })
 
 export type ProduzirLotesInput = z.infer<typeof ProduzirLotesSchema>
+
+/** Baixa manual de estoque sem venda (ex.: venceu antes de vender, estragou). */
+export const BaixarLoteSchema = z.object({
+  loteId: z.string().uuid(),
+  qtde: z.coerce.number().int().min(1, 'Precisa baixar pelo menos 1 unidade.'),
+  motivo: z.enum(['VENCIDO', 'DANIFICADO', 'OUTRO']),
+  observacao: z
+    .string()
+    .trim()
+    .max(500, 'Máximo de 500 caracteres.')
+    .optional()
+    .transform((s) => (s ? s : undefined)),
+})
+
+export type BaixarLoteInput = z.infer<typeof BaixarLoteSchema>

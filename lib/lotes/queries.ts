@@ -22,7 +22,11 @@ export async function listarLotes(filtro: FiltroLote) {
   if (filtro === 'vencidos') {
     return prisma.lote.findMany({
       where: { validade: { lt: new Date(`${hoje}T00:00:00Z`) } },
-      include: { produto: { select: { nome: true } }, variacao: { select: { nome: true } } },
+      include: {
+        produto: { select: { nome: true } },
+        variacao: { select: { nome: true } },
+        baixas: { select: { qtde: true } },
+      },
       orderBy: { validade: 'desc' },
     })
   }
@@ -30,14 +34,22 @@ export async function listarLotes(filtro: FiltroLote) {
   if (filtro === 'esgotados') {
     return prisma.lote.findMany({
       where: { qtdeDisponivel: 0, validade: { gte: new Date(`${hoje}T00:00:00Z`) } },
-      include: { produto: { select: { nome: true } }, variacao: { select: { nome: true } } },
+      include: {
+        produto: { select: { nome: true } },
+        variacao: { select: { nome: true } },
+        baixas: { select: { qtde: true } },
+      },
       orderBy: { validade: 'asc' },
     })
   }
 
   return prisma.lote.findMany({
     where: { validade: { gte: new Date(`${hoje}T00:00:00Z`) }, qtdeDisponivel: { gt: 0 } },
-    include: { produto: { select: { nome: true } }, variacao: { select: { nome: true } } },
+    include: {
+      produto: { select: { nome: true } },
+      variacao: { select: { nome: true } },
+      baixas: { select: { qtde: true } },
+    },
     orderBy: { validade: 'asc' },
   })
 }

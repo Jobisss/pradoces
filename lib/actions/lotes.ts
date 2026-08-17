@@ -10,7 +10,7 @@ import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { ultimasCompras, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { computeLoteSnapshot } from '@/lib/custo/congelado'
-import { ProduzirLotesSchema } from '@/lib/validation/lotes'
+import { ProduzirLotesSchema, BaixarLoteSchema } from '@/lib/validation/lotes'
 
 /**
  * Produção de lote (LOTE-01..04), admin-only — o coração da fase. O custo é
@@ -232,6 +232,79 @@ export async function produzirLotes(input: unknown): Promise<LotesActionState> {
       custoPorUnidade: r.custoPorUnidadeCongelado,
     })),
   }
+}
+
+class LoteBaixaError extends Error {}
+
+const LOTE_NAO_ENCONTRADO = 'Lote não encontrado — recarrega a página.'
+
+/**
+ * Baixa manual de estoque SEM venda — lote venceu antes de vender tudo, ou
+ * estragou/danificou. Reduz qtde_disponivel igual uma confirmação de reserva
+ * reduziria, mas sem criar Reserva/ReservaItem (não é receita). Só as
+ * unidades LIVRES (qtdeDisponivel − qtdeReservada) podem ser baixadas —
+ * nunca as que já estão em soft-hold de uma reserva pendente de outro
+ * cliente. O CHECK `lotes_reservada_nao_excede_disponivel` já existente é a
+ * defesa final contra essa mesma invariante.
+ */
+export async function darBaixaLote(input: unknown): Promise<LotesActionState> {
+  const { ip, ua } = await clientContext()
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let admin: Awaited<ReturnType<typeof requireAdmin>>
+  try {
+    admin = await requireAdmin()
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  const parsed = BaixarLoteSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
+  }
+  const data = parsed.data
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const lote = await tx.lote.findUnique({
+        where: { id: data.loteId },
+        select: { qtdeDisponivel: true, qtdeReservada: true },
+      })
+      if (!lote) throw new LoteBaixaError(LOTE_NAO_ENCONTRADO)
+
+      const livre = lote.qtdeDisponivel - lote.qtdeReservada
+      if (data.qtde > livre) {
+        throw new LoteBaixaError(
+          livre > 0
+            ? `Só tem ${livre} unidade${livre === 1 ? '' : 's'} livre${livre === 1 ? '' : 's'} pra baixa nesse lote — o resto já está reservado.`
+            : 'Esse lote não tem unidades livres pra baixa — o que sobrou já está reservado.',
+        )
+      }
+
+      await tx.lote.update({ where: { id: data.loteId }, data: { qtdeDisponivel: { decrement: data.qtde } } })
+      await tx.loteBaixa.create({
+        data: { loteId: data.loteId, qtde: data.qtde, motivo: data.motivo, observacao: data.observacao },
+      })
+    })
+  } catch (err) {
+    if (err instanceof LoteBaixaError) return { error: err.message }
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  await logAudit({
+    actorType: 'admin',
+    actorId: admin.id,
+    action: 'lote_baixa_manual',
+    entityType: 'lote',
+    entityId: data.loteId,
+    metadata: { qtde: data.qtde, motivo: data.motivo, observacao: data.observacao },
+    rawIp: ip,
+    rawUa: ua,
+  })
+
+  revalidatePath('/admin/lotes')
+  return { ok: true }
 }
 
 export type DadosProducao = {
