@@ -1,4 +1,5 @@
 import 'server-only'
+import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
 import type { ReservaStatus } from '@prisma/client'
 
@@ -159,4 +160,95 @@ export async function buscarReservaPorToken(token: string) {
       },
     },
   })
+}
+
+/**
+ * ADM — "quem ainda me deve": reservas confirmadas/retiradas que a mãe ainda não
+ * marcou como pagas, agrupadas por quem deve.
+ *
+ * `pago` é checklist manual (o pagamento é combinado no WhatsApp/pix, nunca pelo
+ * site — ver schema.prisma), então este relatório é a única forma de ver o total
+ * em aberto sem varrer a fila reserva por reserva.
+ *
+ * Resgate fica de fora: é pago em pontos, `pago` nunca é marcado nele. Cancelada
+ * e não-retirada também: não há o que cobrar.
+ *
+ * Convidado (sem cadastro) também deve — cada reserva de convidado vira um grupo
+ * próprio, porque sem clienteId não existe identidade pra somar duas reservas da
+ * mesma pessoa com segurança (dois "Maria" podem ser duas Marias).
+ */
+export type GrupoAReceber = {
+  chave: string
+  clienteId: string | null
+  nome: string
+  contato: string | null
+  total: Decimal
+  reservas: Awaited<ReturnType<typeof buscarReservasAReceber>>
+}
+
+async function buscarReservasAReceber() {
+  return prisma.reserva.findMany({
+    where: {
+      tipo: 'PADRAO',
+      pago: false,
+      status: { in: ['CONFIRMADA', 'AGUARDANDO_RETIRADA', 'RETIRADA'] },
+    },
+    select: {
+      id: true,
+      token: true,
+      status: true,
+      criadoEm: true,
+      janelaRetirada: true,
+      deliveryMode: true,
+      taxaEntregaCongelada: true,
+      clienteId: true,
+      nomeConvidado: true,
+      telefoneConvidado: true,
+      emailConvidado: true,
+      cliente: { select: { id: true, name: true, telefone: true, email: true } },
+      itens: {
+        select: {
+          qtde: true,
+          precoUnitarioCongelado: true,
+          lote: { select: { produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
+        },
+      },
+    },
+    orderBy: { criadoEm: 'asc' },
+  })
+}
+
+export function totalDaReserva(r: {
+  itens: { qtde: number; precoUnitarioCongelado: Decimal }[]
+  taxaEntregaCongelada: Decimal | null
+}): Decimal {
+  const produtos = r.itens.reduce((soma, i) => soma.plus(i.precoUnitarioCongelado.times(i.qtde)), new Decimal(0))
+  return r.taxaEntregaCongelada ? produtos.plus(r.taxaEntregaCongelada) : produtos
+}
+
+export async function listarAReceber(): Promise<{ totalGeral: Decimal; grupos: GrupoAReceber[] }> {
+  const reservas = await buscarReservasAReceber()
+
+  const grupos = new Map<string, GrupoAReceber>()
+  for (const r of reservas) {
+    // Convidado não agrupa por pessoa: a chave é a própria reserva.
+    const chave = r.clienteId ?? `convidado:${r.id}`
+    const grupo = grupos.get(chave) ?? {
+      chave,
+      clienteId: r.clienteId,
+      nome: r.cliente?.name ?? r.nomeConvidado ?? '—',
+      contato: r.cliente?.telefone ?? r.telefoneConvidado ?? r.cliente?.email ?? r.emailConvidado ?? null,
+      total: new Decimal(0),
+      reservas: [],
+    }
+    grupo.total = grupo.total.plus(totalDaReserva(r))
+    grupo.reservas.push(r)
+    grupos.set(chave, grupo)
+  }
+
+  return {
+    totalGeral: [...grupos.values()].reduce((soma, g) => soma.plus(g.total), new Decimal(0)),
+    // Maior devedor primeiro — é a ordem em que ela vai querer cobrar.
+    grupos: [...grupos.values()].sort((a, b) => b.total.comparedTo(a.total)),
+  }
 }

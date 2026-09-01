@@ -27,7 +27,7 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
     <div className="space-y-6">
       <h1 className="font-display text-3xl font-semibold">Reservas</h1>
 
-      <nav className="flex gap-2">
+      <nav className="flex flex-wrap gap-2">
         {FILTROS_RESERVA.map((f) => (
           <Link
             key={f}
@@ -39,6 +39,13 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
             {FILTRO_LABEL[f]}
           </Link>
         ))}
+        {/* Rota própria (não um filtro): agrupa por devedor em vez de listar reserva a reserva. */}
+        <Link
+          href="/admin/reservas/a-receber"
+          className="flex h-11 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground"
+        >
+          A receber
+        </Link>
       </nav>
 
       {reservas.length === 0 ? (
