@@ -45,3 +45,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dumps do pg_dump feitos por scripts/deploy.sh antes de cada migration —
+# ficam só na VPS, nunca no repo
+/backups/

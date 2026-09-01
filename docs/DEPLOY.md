@@ -70,8 +70,33 @@ direto evita essa flag e usa as variáveis já injetadas pelo `--env-file
 publica só `127.0.0.1:3002` (3000/3001 já usados por outros apps no host); o
 Postgres não tem porta exposta ao host.
 
-Re-deploy após mudança de código: `docker compose up -d --build` de novo
-(reaplica só a imagem `app`; `db` mantém o volume `pgdata` intacto).
+## 1b. Re-deploy (dia a dia)
+
+Depois do primeiro provisionamento, todo deploy é um comando só:
+
+```bash
+./scripts/deploy.sh
+```
+
+Ele automatiza exatamente a sequência acima, nessa ordem: `git pull --ff-only`
+→ `pg_dump` pra `backups/` → `prisma migrate status` (mostra e pede confirmação)
+→ `migrate deploy` → `docker compose up -d --build` → verifica se o app voltou
+respondendo 200 em `127.0.0.1:3002`.
+
+Migrations ANTES do rebuild de propósito: como toda migration daqui é aditiva, o
+código antigo continua rodando contra o schema novo durante os segundos de build.
+O contrário (código novo, schema velho) quebraria a aplicação.
+
+O script nunca faz `migrate reset`, `db push --force-reset` nem `compose down -v`
+(ver CLAUDE.md § PRODUCTION MODE), e aborta se o `pg_dump` falhar — não migra sem
+backup. Os dumps ficam em `backups/` (gitignored), últimos 10 mantidos.
+
+Flags: `--yes` (sem prompt, pra cron), `--no-pull` (usa o código já no disco),
+`--no-backup` (não recomendado). `--help` pra ver tudo.
+
+Se preferir na mão: `docker compose up -d --build` reaplica só a imagem `app`
+(o `db` mantém o volume `pgdata` intacto), mas aí as migrations ficam por sua
+conta — usa os dois `docker run` do bloco acima.
 
 ## 2. nginx
 
