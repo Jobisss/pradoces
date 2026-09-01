@@ -4,6 +4,7 @@ import { TriangleAlert } from 'lucide-react'
 import { buscarClienteAdmin, relatorioCliente } from '@/lib/clientes/queries'
 import { ClienteGestao } from '@/components/admin/cliente-gestao'
 import { STATUS_LABEL } from '@/lib/reservas/labels'
+import { nomeItemResgatavel } from '@/lib/resgate/nome'
 import { instanteFmtBR } from '@/lib/format/date'
 import { Badge } from '@/components/ui/badge'
 
@@ -241,12 +242,7 @@ export default async function ClienteAdminPage({
 
                 {r.tipo === 'RESGATE' ? (
                   <p className="tabular-nums text-sm">
-                    {r.itemResgatavel
-                      ? r.itemResgatavel.produto
-                        ? `${r.itemResgatavel.produto.nome}${r.itemResgatavel.variacao ? ` — ${r.itemResgatavel.variacao.nome}` : ''}`
-                        : r.itemResgatavel.nomeCustom
-                      : '—'}{' '}
-                    — {r.itemResgatavel?.custoPontos} pontos
+                    {nomeItemResgatavel(r.itemResgatavel)} — {r.itemResgatavel?.custoPontos} pontos
                   </p>
                 ) : (
                   <>

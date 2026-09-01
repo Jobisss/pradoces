@@ -1,5 +1,6 @@
 import 'server-only'
 import { prisma } from '@/lib/db/client'
+import { nomeItemResgatavel } from '@/lib/resgate/nome'
 
 /**
  * ADM-02/03 — reservas ainda não retiradas, agrupadas por `janelaRetirada`
@@ -53,9 +54,7 @@ export async function painelDoDia(): Promise<GrupoJanela[]> {
 
   const grupos = new Map<string, ReservaDoDia[]>()
   for (const r of reservas) {
-    const nomeResgate = r.itemResgatavel?.produto
-      ? `${r.itemResgatavel.produto.nome}${r.itemResgatavel.variacao ? ` — ${r.itemResgatavel.variacao.nome}` : ''}`
-      : (r.itemResgatavel?.nomeCustom ?? '—')
+    const nomeResgate = nomeItemResgatavel(r.itemResgatavel)
     const itens: ItemSeparacao[] =
       r.itens.length > 0
         ? r.itens.map((i) => ({

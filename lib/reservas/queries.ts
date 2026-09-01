@@ -25,7 +25,15 @@ export async function listarReservasAdmin(filtro: FiltroReserva) {
           lote: { select: { validade: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
         },
       },
-      itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
+      itemResgatavel: {
+        select: {
+          nomeCustom: true,
+          custoPontos: true,
+          produto: { select: { nome: true } },
+          // Sem a variação a mãe não sabe qual sabor separar (lib/resgate/nome.ts).
+          variacao: { select: { nome: true } },
+        },
+      },
     },
     orderBy: { criadoEm: filtro === 'pendentes' ? 'asc' : 'desc' },
   })
@@ -100,7 +108,15 @@ export async function listarReservasCliente(clienteId: string) {
           lote: { select: { validade: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
         },
       },
-      itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
+      itemResgatavel: {
+        select: {
+          nomeCustom: true,
+          custoPontos: true,
+          produto: { select: { nome: true } },
+          // Sem a variação a mãe não sabe qual sabor separar (lib/resgate/nome.ts).
+          variacao: { select: { nome: true } },
+        },
+      },
     },
     orderBy: { criadoEm: 'desc' },
   })
@@ -132,7 +148,15 @@ export async function buscarReservaPorToken(token: string) {
           lote: { select: { validade: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } } },
         },
       },
-      itemResgatavel: { select: { nomeCustom: true, custoPontos: true, produto: { select: { nome: true } } } },
+      itemResgatavel: {
+        select: {
+          nomeCustom: true,
+          custoPontos: true,
+          produto: { select: { nome: true } },
+          // Sem a variação a mãe não sabe qual sabor separar (lib/resgate/nome.ts).
+          variacao: { select: { nome: true } },
+        },
+      },
     },
   })
 }

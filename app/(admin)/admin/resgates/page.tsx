@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { listarItensResgataveisAdmin } from '@/lib/resgate/queries'
+import { nomeItemResgatavel } from '@/lib/resgate/nome'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -29,7 +30,7 @@ export default async function ResgatesPage() {
                   href={`/admin/resgates/${item.id}/editar`}
                   className="text-base font-medium underline-offset-2 hover:underline"
                 >
-                  {item.produto?.nome ?? item.nomeCustom}
+                  {nomeItemResgatavel(item)}
                 </Link>
                 <p className="tabular-nums text-sm text-muted-foreground">{item.custoPontos} pontos</p>
               </div>

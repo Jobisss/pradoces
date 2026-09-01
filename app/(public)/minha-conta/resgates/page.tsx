@@ -1,6 +1,7 @@
 import { headers as nextHeaders } from 'next/headers'
 import { auth } from '@/lib/auth/server'
 import { listarItensResgataveisDisponiveis } from '@/lib/resgate/queries'
+import { nomeItemResgatavel } from '@/lib/resgate/nome'
 import { saldoPontos } from '@/lib/pontos/queries'
 import { MinhaContaNav } from '@/components/minha-conta-nav'
 import { ResgatarItemBotao } from '@/components/resgatar-item-botao'
@@ -27,12 +28,12 @@ export default async function ResgatesPage() {
           {itens.map((item) => (
             <li key={item.id} className="flex items-center justify-between py-3">
               <div>
-                <p className="text-base font-medium">{item.produto?.nome ?? item.nomeCustom}</p>
+                <p className="text-base font-medium">{nomeItemResgatavel(item)}</p>
                 <p className="tabular-nums text-sm text-muted-foreground">{item.custoPontos} pts</p>
               </div>
               <ResgatarItemBotao
                 itemId={item.id}
-                nome={item.produto?.nome ?? item.nomeCustom ?? 'esse item'}
+                nome={nomeItemResgatavel(item)}
                 custoPontos={item.custoPontos}
                 saldoAtual={saldo}
               />

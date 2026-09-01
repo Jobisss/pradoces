@@ -4,6 +4,7 @@ import { listarReservasAdmin, FILTROS_RESERVA, type FiltroReserva } from '@/lib/
 import { dataCivilFmtBR, instanteFmtBR } from '@/lib/format/date'
 import { ReservaAcoes } from '@/components/admin/reserva-acoes'
 import { STATUS_LABEL } from '@/lib/reservas/labels'
+import { nomeItemResgatavel } from '@/lib/resgate/nome'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -112,7 +113,7 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                 {r.tipo === 'RESGATE' ? (
                   <p className="text-sm">
                     <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium">Resgate</span>{' '}
-                    {r.itemResgatavel?.produto?.nome ?? r.itemResgatavel?.nomeCustom} —{' '}
+                    {nomeItemResgatavel(r.itemResgatavel)} —{' '}
                     <span className="tabular-nums">{r.itemResgatavel?.custoPontos} pontos</span>
                     {r.valorResgateCongelado !== null && (
                       <span className="tabular-nums text-muted-foreground">
