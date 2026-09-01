@@ -121,35 +121,55 @@ else
   titulo "Backup PULADO (--no-backup)"
 fi
 
-# ---------- 4. Imagem migradora ----------
-# O container `app` é o estágio `runner` do Dockerfile: minimalista de propósito,
-# sem CLI do prisma, sem prisma.config.ts, sem scripts/. O estágio `builder` tem
-# tudo isso — vira uma imagem descartável só pras migrations (docs/DEPLOY.md §1).
-titulo "Construindo imagem migradora"
-docker build --quiet --target builder -t "$TAG_MIGRATOR" . >/dev/null
-ok "Imagem $TAG_MIGRATOR pronta"
+# ---------- 4. Migrations ----------
+titulo "Migrations"
 
-# A network vem do container `db` que já está de pé — mais confiável que adivinhar
-# "<nome-do-diretório>_default" (o nome muda com COMPOSE_PROJECT_NAME).
-ID_DB="$(docker compose ps -q db)"
-NETWORK="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' "$ID_DB")"
-[[ -n "$NETWORK" ]] || { erro "Não consegui descobrir a network do compose."; exit 1; }
-echo "  network: $NETWORK"
+# Descobre o que falta SEM construir imagem nenhuma: compara os diretórios de
+# prisma/migrations/ com o que a tabela de controle do Prisma diz que já rodou.
+# Na maioria dos deploys (mudança só de código) isso dá vazio e pula o passo
+# inteiro — construir a imagem migradora só pra ouvir "up to date" é desperdício.
+# Se a consulta falhar por qualquer motivo (banco novo sem a tabela, permissão),
+# a lista vem vazia e o fluxo cai no caminho completo, que é o lado seguro.
+LOCAIS="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f
+' 2>/dev/null | sort)"
+APLICADAS="$(docker compose exec -T db psql -U postgres -d doces -tAc   'select migration_name from _prisma_migrations where finished_at is not null' 2>/dev/null | sort || true)"
 
-migrator() {
-  docker run --rm --network "$NETWORK" --env-file .env.production "$TAG_MIGRATOR" "$@"
-}
-
-# ---------- 5. Migrations ----------
-titulo "Migrations pendentes"
-# `migrate status` sai com código != 0 quando há pendências — isso é informação,
-# não erro, então não deixa o `set -e` derrubar o script aqui.
-STATUS="$(migrator npx prisma migrate status 2>&1 || true)"
-echo "$STATUS" | sed 's/^/    /'
-
-if echo "$STATUS" | grep -q "Database schema is up to date"; then
-  ok "Nenhuma migration pendente"
+if [[ -n "$APLICADAS" ]]; then
+  PENDENTES="$(comm -23 <(echo "$LOCAIS") <(echo "$APLICADAS"))"
 else
+  # Sem resposta do banco não dá pra afirmar que está tudo aplicado.
+  PENDENTES="$LOCAIS"
+fi
+
+if [[ -z "${PENDENTES//[[:space:]]/}" ]]; then
+  ok "Nenhuma migration pendente — pulando a imagem migradora"
+else
+  echo "  pendentes:"
+  echo "$PENDENTES" | sed 's/^/    - /'
+
+  # O container `app` é o estágio `runner` do Dockerfile: minimalista de
+  # propósito, sem CLI do prisma, sem prisma.config.ts, sem scripts/. O estágio
+  # `builder` tem tudo isso — vira uma imagem descartável só pras migrations
+  # (docs/DEPLOY.md §1). As camadas são as MESMAS que o `compose up --build` do
+  # passo 5 usa, então isso não é um build a mais: sai do cache.
+  echo "  construindo imagem migradora..."
+  docker build --quiet --target builder -t "$TAG_MIGRATOR" . >/dev/null
+
+  # A network vem do container `db` que já está de pé — mais confiável que
+  # adivinhar "<nome-do-diretório>_default" (muda com COMPOSE_PROJECT_NAME).
+  ID_DB="$(docker compose ps -q db)"
+  NETWORK="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' "$ID_DB")"
+  [[ -n "$NETWORK" ]] || { erro "Não consegui descobrir a network do compose."; exit 1; }
+  echo "  network: $NETWORK"
+
+  migrator() {
+    docker run --rm --network "$NETWORK" --env-file .env.production "$TAG_MIGRATOR" "$@"
+  }
+
+  # `migrate status` sai com código != 0 quando há pendências — isso é
+  # informação, não erro, então não deixa o `set -e` derrubar o script aqui.
+  migrator npx prisma migrate status 2>&1 | sed 's/^/    /' || true
+
   if (( CONFIRMAR )); then
     echo
     read -r -p "Aplicar essas migrations em PRODUÇÃO? [s/N] " resposta
@@ -159,14 +179,14 @@ else
   ok "Migrations aplicadas"
 fi
 
-# ---------- 6. Rebuild do app ----------
+# ---------- 5. Rebuild do app ----------
 # Só agora: as migrations são aditivas, então o código antigo continua rodando
 # contra o schema novo. O contrário (código novo, schema velho) quebraria.
 titulo "Rebuild e restart do app"
 docker compose up -d --build
 ok "Container app recriado"
 
-# ---------- 7. Verificação ----------
+# ---------- 6. Verificação ----------
 titulo "Verificação"
 for _ in $(seq 1 30); do
   CODIGO="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$URL_LOCAL" || true)"

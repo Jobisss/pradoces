@@ -79,9 +79,21 @@ Depois do primeiro provisionamento, todo deploy é um comando só:
 ```
 
 Ele automatiza exatamente a sequência acima, nessa ordem: `git pull --ff-only`
-→ `pg_dump` pra `backups/` → `prisma migrate status` (mostra e pede confirmação)
-→ `migrate deploy` → `docker compose up -d --build` → verifica se o app voltou
-respondendo 200 em `127.0.0.1:3002`.
+→ `pg_dump` pra `backups/` → migrations (mostra e pede confirmação) → `docker
+compose up -d --build` → verifica se o app voltou respondendo 200 em
+`127.0.0.1:3002`.
+
+Quando não há migration pendente — o caso da maioria dos deploys, que mexem só
+em código — ele pula o bloco de migrations inteiro, incluindo a construção da
+imagem migradora. A checagem é feita comparando os diretórios de
+`prisma/migrations/` com a tabela `_prisma_migrations` do Postgres, direto pelo
+container `db`, sem precisar de imagem nenhuma. Se a consulta falhar (banco
+novo, sem a tabela ainda), cai no caminho completo — o lado seguro.
+
+Quando há migration, a imagem migradora ainda é construída, mas não é um build
+a mais: o `Dockerfile` é multi-stage (`deps → builder → runner`) e o
+`compose up --build` do passo seguinte constrói o `builder` de qualquer jeito
+pra chegar no `runner`. As camadas são as mesmas e saem do cache.
 
 Migrations ANTES do rebuild de propósito: como toda migration daqui é aditiva, o
 código antigo continua rodando contra o schema novo durante os segundos de build.
