@@ -9,6 +9,7 @@ import { requireAdmin } from '@/lib/auth/require-admin'
 import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
+import { pontosDeVenda, expiracaoDoCredito } from '@/lib/pontos/calculo'
 
 /**
  * Confirmação de reserva (RES-06/07/13/14, PT-01..04), admin-only — o
@@ -82,16 +83,13 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
       const pontosPorReal = config?.pontosPorReal ?? new Decimal(1)
       const expiracaoMeses = config?.pontosExpiracaoMeses ?? 12
 
-      // PT-04 (teto de 500 pts/reserva) removido a pedido da usuária —
-      // credita o valor cheio, sem clamp.
       const valorTotal = reserva.itens.reduce(
         (soma, item) => soma.plus(item.precoUnitarioCongelado.times(item.qtde)),
         new Decimal(0),
       )
-      const pontos = valorTotal.times(pontosPorReal).floor().toNumber()
-
-      const expiraEm = new Date(confirmadaEm)
-      expiraEm.setMonth(expiraEm.getMonth() + expiracaoMeses)
+      // Mesma conta da venda no balcão (lib/actions/lotes.ts) — ver lib/pontos/calculo.ts.
+      const pontos = pontosDeVenda(valorTotal, pontosPorReal)
+      const expiraEm = expiracaoDoCredito(confirmadaEm, expiracaoMeses)
 
       // Reserva de convidado (sem cadastro) não credita pontos — só passa a
       // contar depois que a conta for vinculada (lib/auth/server.ts,

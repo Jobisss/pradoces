@@ -235,3 +235,19 @@ export async function relatorioCliente(clienteId: string, email: string, desde?:
     convidadasNaoVinculadas,
   }
 }
+
+/**
+ * Só o necessário pro seletor de cliente da venda no balcão
+ * (components/admin/lote-venda-acao.tsx) — sem saldo de pontos, que ali não é
+ * usado e custaria um groupBy por render da lista de lotes.
+ *
+ * Cliente bloqueado sai da lista: se ela bloqueou, não é pra sair registrando
+ * venda nova no nome dele sem querer.
+ */
+export async function listarClientesParaSelecao() {
+  return prisma.user.findMany({
+    where: { deletedAt: null, role: 'customer', banned: false },
+    select: { id: true, name: true, email: true, isVip: true },
+    orderBy: { name: 'asc' },
+  })
+}

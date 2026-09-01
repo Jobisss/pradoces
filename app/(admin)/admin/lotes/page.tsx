@@ -3,6 +3,8 @@ import { TriangleAlert, PackageX } from 'lucide-react'
 import { listarLotes, type FiltroLote } from '@/lib/lotes/queries'
 import { Button } from '@/components/ui/button'
 import { LoteBaixaAcao } from '@/components/admin/lote-baixa-acao'
+import { LoteVendaAcao } from '@/components/admin/lote-venda-acao'
+import { listarClientesParaSelecao } from '@/lib/clientes/queries'
 import { dataCivilFmtBR, instanteFmtBR } from '@/lib/format/date'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -22,7 +24,9 @@ export default async function LotesPage({
   const filtro: FiltroLote =
     filtroParam === 'vencidos' || filtroParam === 'esgotados' ? filtroParam : 'vigentes'
 
-  const lotes = await listarLotes(filtro)
+  // Um findMany só pra alimentar TODOS os seletores de venda da página — a
+  // alternativa seria uma query por lote renderizado.
+  const [lotes, clientes] = await Promise.all([listarLotes(filtro), listarClientesParaSelecao()])
 
   return (
     <div className="space-y-6">
@@ -95,6 +99,7 @@ export default async function LotesPage({
                       {currency.format(lote.custoPorUnidadeCongelado.times(totalBaixado).toNumber())} de custo)
                     </span>
                   )}
+                  <LoteVendaAcao loteId={lote.id} livre={livre} clientes={clientes} />
                   <LoteBaixaAcao loteId={lote.id} livre={livre} />
                 </div>
               </li>

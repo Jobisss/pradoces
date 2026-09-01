@@ -44,3 +44,23 @@ export const BaixarLoteSchema = z.object({
 })
 
 export type BaixarLoteInput = z.infer<typeof BaixarLoteSchema>
+
+/**
+ * Venda direta no balcão: a mãe entrega o doce na hora, sem o cliente ter feito
+ * reserva pelo site. Um lote e uma quantidade por vez — é como ela pensa
+ * ("tirei 3 desse pote aqui pra fulana"), e cada chamada vira uma venda própria.
+ */
+export const VenderLoteSchema = z.object({
+  loteId: z.string().uuid(),
+  clienteId: z.string().uuid({ message: 'Escolhe pra qual cliente foi.' }),
+  qtde: z.coerce.number().int().min(1, 'Precisa vender pelo menos 1 unidade.'),
+  pago: z.boolean(),
+  observacao: z
+    .string()
+    .trim()
+    .max(500, 'Máximo de 500 caracteres.')
+    .optional()
+    .transform((s) => (s ? s : undefined)),
+})
+
+export type VenderLoteInput = z.infer<typeof VenderLoteSchema>

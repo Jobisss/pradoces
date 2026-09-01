@@ -10,7 +10,9 @@ import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { ultimasCompras, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { computeLoteSnapshot } from '@/lib/custo/congelado'
-import { ProduzirLotesSchema, BaixarLoteSchema } from '@/lib/validation/lotes'
+import { ProduzirLotesSchema, BaixarLoteSchema, VenderLoteSchema } from '@/lib/validation/lotes'
+import { precoEfetivo } from '@/lib/pricing/promocao'
+import { pontosDeVenda, expiracaoDoCredito } from '@/lib/pontos/calculo'
 
 /**
  * Produção de lote (LOTE-01..04), admin-only — o coração da fase. O custo é
@@ -463,4 +465,170 @@ export async function comprasDoIngrediente(
   } catch {
     return []
   }
+}
+
+const CLIENTE_NAO_ENCONTRADO = 'Esse cliente não existe mais — recarrega a página.'
+
+class VendaLoteError extends Error {}
+
+export type VendaLoteActionState = {
+  error?: string
+  fieldErrors?: Record<string, string[] | undefined>
+  ok?: boolean
+  /** Pro toast: o que foi cobrado e quantos pontos entraram. */
+  resumo?: { total: string; pontos: number }
+}
+
+/**
+ * Venda direta no balcão (admin), sem reserva prévia: a mãe tira N unidades de
+ * um lote, entrega pra um cliente cadastrado e o sistema faz o resto.
+ *
+ * Vira uma `Reserva` PADRAO já em RETIRADA — não um registro novo à parte. Isso
+ * é de propósito: faturamento (lib/admin/relatorios.ts), relatório por cliente,
+ * "a receber" e o comprovante público /r/<token> já leem Reserva, então a venda
+ * de balcão entra em todos eles de graça e o lucro real continua saindo do
+ * `custoPorUnidadeCongelado` do lote. Um modelo separado exigiria reescrever
+ * cada um desses relatórios pra somar duas fontes.
+ *
+ * `confirmadaEm` e `retiradaEm` são AGORA porque a venda já aconteceu — e é
+ * `confirmadaEm` que data o faturamento no relatório.
+ *
+ * Estoque: decrementa só `qtdeDisponivel`. Diferente de confirmar uma reserva,
+ * aqui nunca houve soft-hold em `qtdeReservada` pra liberar. Por isso a
+ * checagem é contra as unidades LIVRES (disponível − reservada): vender o que
+ * já está separado pra outra pessoa deixaria a reserva dela impossível de
+ * atender.
+ *
+ * Preço: `precoEfetivo` da variação no instante da venda, respeitando promoção
+ * e VIP — mesmo chokepoint da reserva feita pelo site (lib/actions/reservas.ts).
+ * Congelado no ReservaItem, então reajuste posterior não mexe nessa venda.
+ */
+export async function venderLoteParaCliente(input: unknown): Promise<VendaLoteActionState> {
+  const { ip, ua } = await clientContext()
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let admin: Awaited<ReturnType<typeof requireAdmin>>
+  try {
+    admin = await requireAdmin()
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  const parsed = VenderLoteSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
+  }
+  const data = parsed.data
+
+  let resultado: { reservaId: string; total: Decimal; pontos: number } | null = null
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const lote = await tx.lote.findUnique({
+        where: { id: data.loteId },
+        select: {
+          id: true,
+          qtdeDisponivel: true,
+          qtdeReservada: true,
+          variacao: {
+            select: {
+              precoVenda: true,
+              precoPromocional: true,
+              promocaoInicio: true,
+              promocaoFim: true,
+              promocaoVip: true,
+            },
+          },
+        },
+      })
+      if (!lote) throw new VendaLoteError(LOTE_NAO_ENCONTRADO)
+
+      const cliente = await tx.user.findFirst({
+        where: { id: data.clienteId, deletedAt: null },
+        select: { id: true, isVip: true },
+      })
+      if (!cliente) throw new VendaLoteError(CLIENTE_NAO_ENCONTRADO)
+
+      const livre = lote.qtdeDisponivel - lote.qtdeReservada
+      if (data.qtde > livre) {
+        throw new VendaLoteError(
+          livre > 0
+            ? `Só tem ${livre} unidade${livre === 1 ? '' : 's'} livre${livre === 1 ? '' : 's'} nesse lote — o resto já está reservado.`
+            : 'Esse lote não tem unidades livres — o que sobrou já está reservado.',
+        )
+      }
+
+      const agora = new Date()
+      const precoUnitario = precoEfetivo(lote.variacao, cliente.isVip)
+      const total = precoUnitario.times(data.qtde)
+
+      const reserva = await tx.reserva.create({
+        data: {
+          clienteId: cliente.id,
+          tipo: 'PADRAO',
+          status: 'RETIRADA',
+          deliveryMode: 'PICKUP_ONLY',
+          janelaRetirada: 'Venda no balcão',
+          observacao: data.observacao,
+          pago: data.pago,
+          pagoEm: data.pago ? agora : null,
+          confirmadaEm: agora,
+          retiradaEm: agora,
+          itens: {
+            create: [{ loteId: lote.id, qtde: data.qtde, precoUnitarioCongelado: precoUnitario.toFixed(4) }],
+          },
+        },
+        select: { id: true },
+      })
+
+      // Só qtdeDisponivel: nunca houve soft-hold em qtdeReservada nesse fluxo.
+      // Os CHECKs (>= 0) do banco são a defesa final contra corrida.
+      await tx.lote.update({ where: { id: lote.id }, data: { qtdeDisponivel: { decrement: data.qtde } } })
+
+      const config = await tx.configuracao.findUnique({ where: { id: 1 } })
+      const pontos = pontosDeVenda(total, config?.pontosPorReal ?? new Decimal(1))
+      if (pontos > 0) {
+        await tx.pontosTransacao.create({
+          data: {
+            clienteId: cliente.id,
+            valor: pontos,
+            motivo: 'RESERVA_CONFIRMADA',
+            reservaId: reserva.id,
+            expiraEm: expiracaoDoCredito(agora, config?.pontosExpiracaoMeses ?? 12),
+          },
+        })
+      }
+
+      resultado = { reservaId: reserva.id, total, pontos }
+    })
+  } catch (err) {
+    if (err instanceof VendaLoteError) return { error: err.message }
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  if (!resultado) return { error: GENERIC_SERVER_ERROR }
+  const { reservaId, total, pontos } = resultado as { reservaId: string; total: Decimal; pontos: number }
+
+  await logAudit({
+    actorType: 'admin',
+    actorId: admin.id,
+    action: 'venda_balcao',
+    entityType: 'reserva',
+    entityId: reservaId,
+    metadata: { loteId: data.loteId, clienteId: data.clienteId, qtde: data.qtde, total: total.toFixed(2), pontos },
+    rawIp: ip,
+    rawUa: ua,
+  })
+
+  revalidatePath('/admin/lotes')
+  revalidatePath('/admin/reservas')
+  revalidatePath('/admin/reservas/a-receber')
+  revalidatePath('/admin/clientes')
+  revalidatePath('/admin/relatorios')
+  revalidatePath('/admin/painel-do-dia')
+  revalidatePath('/minha-conta/reservas')
+  revalidatePath('/minha-conta/pontos')
+
+  return { ok: true, resumo: { total: total.toFixed(2), pontos } }
 }
