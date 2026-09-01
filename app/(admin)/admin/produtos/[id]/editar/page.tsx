@@ -131,6 +131,7 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
             precoPromocional: v.precoPromocional ? v.precoPromocional.toFixed(4) : null,
             promocaoInicio: v.promocaoInicio ? v.promocaoInicio.toISOString().slice(0, 10) : null,
             promocaoFim: v.promocaoFim ? v.promocaoFim.toISOString().slice(0, 10) : null,
+            promocaoVip: v.promocaoVip,
             ativo: v.ativo,
           })),
           kitItens: produto.kitItens.map((i) => ({

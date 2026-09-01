@@ -80,15 +80,15 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
 
       const config = await tx.configuracao.findUnique({ where: { id: 1 } })
       const pontosPorReal = config?.pontosPorReal ?? new Decimal(1)
-      const cap = config?.pontosCapPorReserva ?? 500
       const expiracaoMeses = config?.pontosExpiracaoMeses ?? 12
 
+      // PT-04 (teto de 500 pts/reserva) removido a pedido da usuária —
+      // credita o valor cheio, sem clamp.
       const valorTotal = reserva.itens.reduce(
         (soma, item) => soma.plus(item.precoUnitarioCongelado.times(item.qtde)),
         new Decimal(0),
       )
-      const pontosCalculados = valorTotal.times(pontosPorReal).floor()
-      const pontos = Decimal.min(pontosCalculados, cap).toNumber()
+      const pontos = valorTotal.times(pontosPorReal).floor().toNumber()
 
       const expiraEm = new Date(confirmadaEm)
       expiraEm.setMonth(expiraEm.getMonth() + expiracaoMeses)
@@ -205,6 +205,109 @@ export async function rejeitarReserva(reservaId: string): Promise<ReservaAdminAc
 
   revalidatePath('/admin/reservas')
   revalidatePath('/minha-conta/reservas')
+  return { ok: true }
+}
+
+/**
+ * Cancela uma reserva já CONFIRMADA/AGUARDANDO_RETIRADA a pedido do cliente
+ * (ex.: ligou avisando que não vai poder retirar) — devolve o estoque
+ * (`qtdeDisponivel`, já que a confirmação decrementou de verdade) e estorna
+ * pontos (crédito da confirmação, ou débito do resgate se for RESGATE), mesmo
+ * espelho de `cancelarReserva` (lib/actions/reservas.ts, self-service do
+ * cliente). PENDENTE já tem seu próprio botão ("Recusar" -> rejeitarReserva,
+ * que só libera o soft-hold em qtdeReservada — nunca decrementou
+ * qtdeDisponivel, não tem o que devolver aí). "Apagar reserva" continua
+ * existindo pra lixo/duplicata/teste e continua NÃO revertendo nada de
+ * propósito (ver comentário em apagarReserva) — esta é a ação certa quando o
+ * pedido é cancelamento de verdade de algo já confirmado.
+ */
+export async function cancelarReservaAdmin(reservaId: string): Promise<ReservaAdminActionState> {
+  const { ip, ua } = await clientContext()
+  const rl = await rateLimitAuth.consume(ip).catch(() => null)
+  if (rl === null) return { error: RATE_LIMIT_COPY }
+
+  let admin: Awaited<ReturnType<typeof requireAdmin>>
+  try {
+    admin = await requireAdmin()
+  } catch {
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const reserva = await tx.reserva.findUnique({
+        where: { id: reservaId },
+        select: {
+          id: true,
+          status: true,
+          tipo: true,
+          clienteId: true,
+          itens: { select: { loteId: true, qtde: true } },
+        },
+      })
+      if (!reserva) throw new ReservaAdminError(GENERIC_SERVER_ERROR)
+      if (!['CONFIRMADA', 'AGUARDANDO_RETIRADA'].includes(reserva.status)) {
+        throw new ReservaAdminError(JA_PROCESSADA)
+      }
+
+      if (reserva.tipo === 'RESGATE') {
+        // Resgate só existe pra cliente logado — reserva de convidado nunca é RESGATE.
+        const debito = reserva.clienteId
+          ? await tx.pontosTransacao.findFirst({ where: { reservaId: reserva.id, motivo: 'RESGATE' } })
+          : null
+        if (debito && reserva.clienteId) {
+          await tx.pontosTransacao.create({
+            data: {
+              clienteId: reserva.clienteId,
+              valor: -debito.valor,
+              motivo: 'RESGATE_REJEITADO',
+              reservaId: reserva.id,
+            },
+          })
+        }
+      } else {
+        for (const item of reserva.itens) {
+          await tx.lote.update({ where: { id: item.loteId }, data: { qtdeDisponivel: { increment: item.qtde } } })
+        }
+
+        // Reserva de convidado (sem clienteId) nunca teve PontosTransacao — nada pra estornar.
+        if (reserva.clienteId) {
+          const creditos = await tx.pontosTransacao.findMany({
+            where: { reservaId: reserva.id, motivo: 'RESERVA_CONFIRMADA' },
+          })
+          for (const credito of creditos) {
+            await tx.pontosTransacao.create({
+              data: {
+                clienteId: reserva.clienteId,
+                valor: -credito.valor,
+                motivo: 'CANCELAMENTO',
+                reservaId: reserva.id,
+              },
+            })
+          }
+        }
+      }
+
+      await tx.reserva.update({ where: { id: reservaId }, data: { status: 'CANCELADA', canceladaEm: new Date() } })
+    })
+  } catch (e) {
+    if (e instanceof ReservaAdminError) return { error: e.message }
+    return { error: GENERIC_SERVER_ERROR }
+  }
+
+  await logAudit({
+    actorType: 'admin',
+    actorId: admin.id,
+    action: 'reserva_cancelada_admin',
+    entityType: 'reserva',
+    entityId: reservaId,
+    rawIp: ip,
+    rawUa: ua,
+  })
+
+  revalidatePath('/admin/reservas')
+  revalidatePath('/minha-conta/reservas')
+  revalidatePath('/minha-conta/pontos')
   return { ok: true }
 }
 

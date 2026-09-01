@@ -9,6 +9,11 @@ import { hojeSaoPaulo } from '@/lib/lotes/queries'
  * domingo", não em hora exata, então `promocaoInicio`/`promocaoFim` são
  * `@db.Date` e a comparação usa início do dia, igual ao resto do catálogo.
  *
+ * `promocaoVip=true` restringe a promoção a cliente marcado como VIP
+ * (User.isVip, /admin/clientes) — por isso todo call site precisa informar
+ * `isVip` explicitamente (sem default: esquecer e cair num valor errado
+ * vazaria promoção VIP pra todo mundo, ou esconderia dela quem é VIP).
+ *
  * Único chokepoint que resolve "qual preço vale agora" — usado tanto pra
  * exibir na vitrine quanto pra congelar em `ReservaItem.precoUnitarioCongelado`
  * (lib/actions/reservas.ts). Pontos de fidelidade não precisam de lógica
@@ -21,13 +26,15 @@ export type VariacaoComPromo = {
   precoPromocional: Decimal | string | null
   promocaoInicio: Date | null
   promocaoFim: Date | null
+  promocaoVip: boolean
 }
 
 export function inicioDoDiaSaoPaulo(referencia: string = hojeSaoPaulo()): Date {
   return new Date(`${referencia}T00:00:00Z`)
 }
 
-export function promocaoAtiva(v: VariacaoComPromo, hoje: Date = inicioDoDiaSaoPaulo()): boolean {
+export function promocaoAtiva(v: VariacaoComPromo, isVip: boolean, hoje: Date = inicioDoDiaSaoPaulo()): boolean {
+  if (v.promocaoVip && !isVip) return false
   return (
     v.precoPromocional !== null &&
     v.promocaoInicio !== null &&
@@ -37,7 +44,7 @@ export function promocaoAtiva(v: VariacaoComPromo, hoje: Date = inicioDoDiaSaoPa
   )
 }
 
-/** Preço que vale agora — promocional se a janela estiver ativa, senão o normal. */
-export function precoEfetivo(v: VariacaoComPromo, hoje?: Date): Decimal {
-  return new Decimal(promocaoAtiva(v, hoje) ? v.precoPromocional! : v.precoVenda)
+/** Preço que vale agora — promocional se a janela (e o VIP, quando exigido) estiver ativa, senão o normal. */
+export function precoEfetivo(v: VariacaoComPromo, isVip: boolean, hoje?: Date): Decimal {
+  return new Decimal(promocaoAtiva(v, isVip, hoje) ? v.precoPromocional! : v.precoVenda)
 }

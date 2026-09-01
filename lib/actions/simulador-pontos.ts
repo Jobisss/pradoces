@@ -28,7 +28,6 @@ export async function simularTaxaPontos(_prev: unknown, formData: FormData): Pro
 
   const parsed = SimuladorPontosSchema.safeParse({
     pontosPorReal: String(formData.get('pontosPorReal') ?? ''),
-    capPorReserva: String(formData.get('capPorReserva') ?? ''),
   })
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
@@ -40,11 +39,11 @@ export async function simularTaxaPontos(_prev: unknown, formData: FormData): Pro
     select: { itens: { select: { qtde: true, precoUnitarioCongelado: true } } },
   })
 
+  // PT-04 (teto por reserva) removido a pedido da usuária — soma o valor cheio.
   let totalPontos = new Decimal(0)
   for (const reserva of reservas) {
     const valor = reserva.itens.reduce((soma, i) => soma.plus(i.precoUnitarioCongelado.times(i.qtde)), new Decimal(0))
-    const pontos = valor.times(parsed.data.pontosPorReal).floor()
-    totalPontos = totalPontos.plus(Decimal.min(pontos, parsed.data.capPorReserva))
+    totalPontos = totalPontos.plus(valor.times(parsed.data.pontosPorReal).floor())
   }
 
   // Valor real de resgate por ponto = média de (preço de venda ÷ custoPontos)

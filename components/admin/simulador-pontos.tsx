@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const initialState: SimuladorResultado = {}
 
-export function SimuladorPontos({ pontosPorRealAtual, capAtual }: { pontosPorRealAtual: string; capAtual: string }) {
+export function SimuladorPontos({ pontosPorRealAtual }: { pontosPorRealAtual: string }) {
   const [state, formAction, pending] = useActionState(simularTaxaPontos, initialState)
 
   return (
@@ -31,11 +31,6 @@ export function SimuladorPontos({ pontosPorRealAtual, capAtual }: { pontosPorRea
         <div className="space-y-1.5">
           <Label htmlFor="sim-pontosPorReal">Pontos por real (hipotético)</Label>
           <Input id="sim-pontosPorReal" name="pontosPorReal" inputMode="decimal" defaultValue={pontosPorRealAtual} required />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="sim-capPorReserva">Teto por reserva (hipotético)</Label>
-          <Input id="sim-capPorReserva" name="capPorReserva" inputMode="numeric" defaultValue={capAtual} required />
         </div>
 
         <Button type="submit" variant="outline" disabled={pending}>

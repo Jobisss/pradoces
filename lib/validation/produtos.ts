@@ -55,6 +55,8 @@ const VariacaoSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/, OBRIGATORIO)
       .optional()
       .or(z.literal('').transform(() => undefined)),
+    // Restringe a promoção acima a cliente marcado como VIP (/admin/clientes) — sem efeito sem promoção.
+    promocaoVip: z.boolean().default(false),
     ativo: z.boolean().default(true),
   })
   .superRefine((v, ctx) => {

@@ -108,6 +108,7 @@ export const auth = betterAuth({
       telefone: { type: 'string', required: false },
       role: { type: 'string', required: false, defaultValue: 'customer' },
       isAdult: { type: 'boolean', required: false, defaultValue: false },
+      isVip: { type: 'boolean', required: false, defaultValue: false },
       termsVersion: { type: 'string', required: false },
       termsAcceptedAt: { type: 'date', required: false },
       privacyVersion: { type: 'string', required: false },

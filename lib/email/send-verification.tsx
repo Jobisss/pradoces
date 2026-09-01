@@ -25,8 +25,23 @@ function VerifyEmail({ url }: { url: string }) {
   )
 }
 
+/**
+ * O `url` que o Better Auth monta aqui aponta pro PRÓPRIO endpoint dele
+ * (`/api/auth/verify-email?token=...`), que ao confirmar redireciona pra
+ * `callbackURL` (default `/`, já que `signUpEmail` não passa um) — cai na
+ * home sem contexto nenhum, sem dizer que já pode entrar. Já existe uma
+ * landing pronta em `/auth/confirmar-email/[token]` (chama
+ * `auth.api.verifyEmail` ela mesma e mostra "Entrar agora"), só nunca foi
+ * usada — o link do email troca pra apontar direto pra ela.
+ */
+function linkDeConfirmacao(urlBetterAuth: string): string {
+  const token = new URL(urlBetterAuth).searchParams.get('token')
+  if (!token) return urlBetterAuth // formato inesperado — nunca deveria acontecer, mas não quebra o envio
+  return `${new URL(urlBetterAuth).origin}/auth/confirmar-email/${token}`
+}
+
 export async function sendVerificationEmail({ to, url }: { to: string; url: string }) {
-  const html = await render(<VerifyEmail url={url} />)
+  const html = await render(<VerifyEmail url={linkDeConfirmacao(url)} />)
   return resend.emails.send({
     from: 'Luizinha Confeitaria <nao-responda@luizinha-confeitaria.com.br>',
     to,

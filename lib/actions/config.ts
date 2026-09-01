@@ -38,7 +38,6 @@ export async function salvarMargemGlobal(
   const parsed = ConfigSchema.safeParse({
     margemMinimaPadrao: String(formData.get('margemMinimaPadrao') ?? ''),
     pontosPorReal: String(formData.get('pontosPorReal') ?? ''),
-    pontosCapPorReserva: String(formData.get('pontosCapPorReserva') ?? ''),
     pontosExpiracaoMeses: String(formData.get('pontosExpiracaoMeses') ?? ''),
     janelaCancelamentoHoras: String(formData.get('janelaCancelamentoHoras') ?? ''),
     taxaEntregaPadrao: String(formData.get('taxaEntregaPadrao') ?? ''),
@@ -58,7 +57,6 @@ export async function salvarMargemGlobal(
   const data = {
     margemMinimaPadrao: parsed.data.margemMinimaPadrao.toFixed(2),
     pontosPorReal: parsed.data.pontosPorReal.toFixed(2),
-    pontosCapPorReserva: parsed.data.pontosCapPorReserva,
     pontosExpiracaoMeses: parsed.data.pontosExpiracaoMeses,
     janelaCancelamentoHoras: parsed.data.janelaCancelamentoHoras,
     taxaEntregaPadrao: parsed.data.taxaEntregaPadrao.toFixed(2),

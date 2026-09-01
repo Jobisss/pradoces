@@ -128,6 +128,7 @@ type VariacaoFormValues = {
   precoPromocional: string
   promocaoInicio: string
   promocaoFim: string
+  promocaoVip: boolean
   ativo: boolean
 }
 
@@ -173,6 +174,7 @@ type ProdutoFormProps = {
       precoPromocional: string | null
       promocaoInicio: string | null
       promocaoFim: string | null
+      promocaoVip: boolean
       ativo: boolean
     }>
     kitItens: Array<{ componenteId: string; componenteVariacaoId: string | null; qtde: number }>
@@ -189,6 +191,7 @@ const VARIACAO_NOVA: VariacaoFormValues = {
   precoPromocional: '',
   promocaoInicio: '',
   promocaoFim: '',
+  promocaoVip: false,
   ativo: true,
 }
 
@@ -367,6 +370,19 @@ function VariacaoLinha({
             )}
           />
         </div>
+
+        <FormField
+          control={control}
+          name={`variacoes.${index}.promocaoVip`}
+          render={({ field }) => (
+            <FormItem className="group/field flex flex-row items-center gap-2 space-y-0">
+              <FormControl>
+                <Checkbox checked={field.value} onCheckedChange={(v) => field.onChange(v === true)} />
+              </FormControl>
+              <FormLabel className="font-normal">Só pra cliente VIP</FormLabel>
+            </FormItem>
+          )}
+        />
       </div>
 
       <FormField
@@ -434,6 +450,7 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
             precoPromocional: v.precoPromocional ?? '',
             promocaoInicio: v.promocaoInicio ?? '',
             promocaoFim: v.promocaoFim ?? '',
+            promocaoVip: v.promocaoVip,
             ativo: v.ativo,
           }))
         : [VARIACAO_NOVA],
@@ -518,6 +535,7 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
               precoPromocional: v.precoPromocional || undefined,
               promocaoInicio: v.promocaoInicio || undefined,
               promocaoFim: v.promocaoFim || undefined,
+              promocaoVip: v.promocaoVip,
               ativo: v.ativo,
             }))
           : undefined,

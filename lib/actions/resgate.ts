@@ -54,7 +54,13 @@ export async function resgatarItem(
           produtoId: true,
           variacaoId: true,
           variacao: {
-            select: { precoVenda: true, precoPromocional: true, promocaoInicio: true, promocaoFim: true },
+            select: {
+              precoVenda: true,
+              precoPromocional: true,
+              promocaoInicio: true,
+              promocaoFim: true,
+              promocaoVip: true,
+            },
           },
         },
       })
@@ -80,7 +86,9 @@ export async function resgatarItem(
       // "Quanto ela deixa de ganhar" trocando por pontos em vez de vender —
       // PREÇO DE VENDA (com promoção se ativa), nunca custo. Item nomeCustom
       // (sem produto do catálogo) não tem preço de venda pra referenciar.
-      const valorResgateCongelado = item.variacao ? precoEfetivo(item.variacao).toFixed(4) : undefined
+      const valorResgateCongelado = item.variacao
+        ? precoEfetivo(item.variacao, cliente.isVip ?? false).toFixed(4)
+        : undefined
 
       const reserva = await tx.reserva.create({
         data: {

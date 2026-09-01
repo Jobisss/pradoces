@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   confirmarReserva,
   rejeitarReserva,
+  cancelarReservaAdmin,
   avancarStatusReserva,
   marcarNoShow,
   bloquearCliente,
@@ -133,6 +134,17 @@ export function ReservaAcoes({
             >
               Não retirou
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-9 text-destructive"
+              disabled={pending}
+              onClick={() =>
+                rodar(() => cancelarReservaAdmin(reservaId), 'Reserva cancelada — estoque e pontos devolvidos.')
+              }
+            >
+              Cancelar reserva
+            </Button>
           </>
         )}
 
@@ -203,9 +215,15 @@ export function ReservaAcoes({
             <DialogHeader>
               <DialogTitle>Apagar essa reserva pra sempre?</DialogTitle>
               <DialogDescription>
-                Isso remove o registro do sistema — não dá pra desfazer. Se o pedido já foi confirmado, os
-                itens vendidos e os pontos já creditados/debitados NÃO são revertidos automaticamente, só o
-                registro da reserva some.
+                {status === 'CONFIRMADA' || status === 'AGUARDANDO_RETIRADA' ? (
+                  <>
+                    Isso remove o registro do sistema — não dá pra desfazer, e os itens vendidos e os pontos já
+                    creditados NÃO voltam sozinhos. Se é pra cancelar o pedido de verdade (estoque e pontos de
+                    volta), usa o botão <strong>Cancelar reserva</strong> em vez desse.
+                  </>
+                ) : (
+                  'Isso remove o registro do sistema — não dá pra desfazer.'
+                )}
               </DialogDescription>
             </DialogHeader>
 

@@ -168,6 +168,7 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
           precoPromocional: true,
           promocaoInicio: true,
           promocaoFim: true,
+          promocaoVip: true,
         },
       })
       const variacaoMap = new Map(variacoes.map((v) => [v.id, v]))
@@ -252,7 +253,7 @@ export async function criarReserva(input: unknown): Promise<ReservaActionState> 
                   // Promoção ativa (lib/pricing/promocao.ts) já entra congelada
                   // aqui — pontos de fidelidade são creditados sobre o valor da
                   // reserva, então uma promoção reduz os pontos automaticamente.
-                  precoUnitarioCongelado: precoEfetivo(variacao, hojeDate).toFixed(4),
+                  precoUnitarioCongelado: precoEfetivo(variacao, cliente?.isVip ?? false, hojeDate).toFixed(4),
                 }
               }),
               ...itensKitCriar,

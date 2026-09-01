@@ -38,6 +38,10 @@ model User {
   telefone          String?
   role              Role      @default(customer)
   isAdult           Boolean   @default(false) @map("is_adult")
+  // Marcado manualmente pelo admin (/admin/clientes) — dá acesso a
+  // promoções marcadas como exclusivas (Variacao.promocaoVip), sem regra
+  // automática (a mãe decide quem é VIP, não um cálculo).
+  isVip             Boolean   @default(false) @map("is_vip")
   termsVersion      String?   @map("terms_version")
   termsAcceptedAt   DateTime? @map("terms_accepted_at") @db.Timestamptz(6)
   privacyVersion    String?   @map("privacy_version")
@@ -265,6 +269,9 @@ model Variacao {
   precoPromocional     Decimal? @map("preco_promocional") @db.Decimal(19, 4)
   promocaoInicio       DateTime? @map("promocao_inicio") @db.Date
   promocaoFim          DateTime? @map("promocao_fim") @db.Date
+  // Quando true, a promoção acima só fica ativa pra cliente marcado como VIP
+  // (User.isVip) — sem efeito nenhum se não houver promoção configurada.
+  promocaoVip          Boolean  @default(false) @map("promocao_vip")
   // "Remover" uma variação com lotes/kits/resgates históricos vira
   // ativo:false, nunca DELETE — todas as FKs abaixo que apontam pra cá são
   // onDelete: Restrict (ver lib/actions/produtos.ts).
@@ -660,7 +667,10 @@ model Configuracao {
   margemMinimaPadrao      Decimal @default(30) @map("margem_minima_padrao") @db.Decimal(5, 2)
   // PT-01: pontos creditados = valor da reserva confirmada × essa taxa.
   pontosPorReal           Decimal @default(1) @map("pontos_por_real") @db.Decimal(6, 2)
-  // PT-04: anti-abuse — teto de pontos creditados numa única reserva.
+  // PT-04 removido a pedido da usuária (sem teto de pontos por reserva) —
+  // coluna morta, mantida só pra não rodar DROP COLUMN numa tabela de config
+  // já viva em produção (PRODUCTION MODE, ver CLAUDE.md). Nenhum código lê
+  // isso mais.
   pontosCapPorReserva     Int     @default(500) @map("pontos_cap_por_reserva")
   // PT-05: crédito expira N meses após a confirmação da reserva.
   pontosExpiracaoMeses    Int     @default(12) @map("pontos_expiracao_meses")

@@ -135,6 +135,7 @@ function variacaoCreateData(v: VariacaoInput) {
     precoPromocional: v.precoPromocional ? v.precoPromocional.toFixed(4) : null,
     promocaoInicio: v.promocaoInicio ? new Date(`${v.promocaoInicio}T00:00:00Z`) : null,
     promocaoFim: v.promocaoFim ? new Date(`${v.promocaoFim}T00:00:00Z`) : null,
+    promocaoVip: v.promocaoVip,
     ativo: v.ativo,
   }
 }

@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth/server'
  */
 export async function requireCliente() {
   const session = await auth.api.getSession({ headers: await nextHeaders() })
-  const user = session?.user as { id: string; banned?: boolean | null } | undefined
+  const user = session?.user as { id: string; banned?: boolean | null; isVip?: boolean } | undefined
   if (!user) throw new Error('UNAUTHORIZED')
   if (user.banned) throw new Error('BLOQUEADO')
   return user
@@ -22,7 +22,7 @@ export async function requireCliente() {
  */
 export async function getClienteOpcional() {
   const session = await auth.api.getSession({ headers: await nextHeaders() })
-  const user = session?.user as { id: string; banned?: boolean | null } | undefined
+  const user = session?.user as { id: string; banned?: boolean | null; isVip?: boolean } | undefined
   if (!user) return null
   if (user.banned) throw new Error('BLOQUEADO')
   return user

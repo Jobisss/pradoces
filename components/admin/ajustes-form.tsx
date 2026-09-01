@@ -22,7 +22,6 @@ const PIX_TIPO_LABEL: Record<string, string> = {
 type AjustesFormProps = {
   margemAtual: string
   pontosPorRealAtual: string
-  pontosCapAtual: string
   pontosExpiracaoAtual: string
   janelaCancelamentoAtual: string
   taxaEntregaAtual: string
@@ -37,7 +36,6 @@ type AjustesFormProps = {
 export function AjustesForm({
   margemAtual,
   pontosPorRealAtual,
-  pontosCapAtual,
   pontosExpiracaoAtual,
   janelaCancelamentoAtual,
   taxaEntregaAtual,
@@ -88,11 +86,6 @@ export function AjustesForm({
           <Label htmlFor="pontosPorReal">Pontos por real reservado</Label>
           <Input id="pontosPorReal" name="pontosPorReal" inputMode="decimal" defaultValue={pontosPorRealAtual} required />
           <p className="text-sm text-muted-foreground">Hoje: R$ 1,00 vira {Number(pontosPorRealAtual)} ponto(s).</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pontosCapPorReserva">Teto de pontos por reserva</Label>
-          <Input id="pontosCapPorReserva" name="pontosCapPorReserva" inputMode="numeric" defaultValue={pontosCapAtual} required />
         </div>
 
         <div className="space-y-1.5">

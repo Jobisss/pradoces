@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/admin/painel-do-dia', label: 'Painel do dia' },
   { href: '/admin/reservas', label: 'Reservas' },
   { href: '/admin/resgates', label: 'Resgates' },
+  { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/sorteios', label: 'Sorteios' },
   { href: '/admin/ingredientes', label: 'Ingredientes' },
   { href: '/admin/receitas', label: 'Receitas' },

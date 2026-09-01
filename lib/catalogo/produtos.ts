@@ -1,9 +1,22 @@
 import 'server-only'
 import Decimal from 'decimal.js'
 import { differenceInCalendarDays } from 'date-fns'
+import { headers as nextHeaders } from 'next/headers'
 import { prisma } from '@/lib/db/client'
+import { auth } from '@/lib/auth/server'
 import { hojeSaoPaulo } from '@/lib/lotes/queries'
 import { precoEfetivo, promocaoAtiva } from '@/lib/pricing/promocao'
+
+/**
+ * Quem tá vendo a vitrine é VIP? Sessão é opcional aqui (a vitrine é
+ * pública) e cliente bloqueado continua enxergando o catálogo normalmente
+ * (só reservar é bloqueado em outro lugar) — por isso não usa
+ * getClienteOpcional (que lança em banned), lê a sessão direto.
+ */
+async function isVipViewer(): Promise<boolean> {
+  const session = await auth.api.getSession({ headers: await nextHeaders() })
+  return (session?.user as { isVip?: boolean } | undefined)?.isVip ?? false
+}
 
 /**
  * Queries do catálogo PÚBLICO (CAT-01..05). Diferença crítica pras queries
@@ -107,7 +120,13 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       fotos: { where: { ordem: 0 }, select: { path: true } },
       variacoes: {
         where: { ativo: true },
-        select: { precoVenda: true, precoPromocional: true, promocaoInicio: true, promocaoFim: true },
+        select: {
+          precoVenda: true,
+          precoPromocional: true,
+          promocaoInicio: true,
+          promocaoFim: true,
+          promocaoVip: true,
+        },
       },
       kitItens: { select: { componenteVariacaoId: true, qtde: true } },
       campanhas: { select: { campanhaId: true } },
@@ -123,6 +142,7 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
   ]
   const livrePorVariacao = await estoqueLivrePorVariacao(componenteVariacaoIds)
   const hoje = inicioDoDiaSaoPaulo()
+  const isVip = await isVipViewer()
 
   return produtos.map((p) => {
     let precoVenda = p.precoVenda
@@ -135,9 +155,9 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       // pra não misturar o preço promocional de um sabor com o original de outro.
       let menor: { efetivo: Decimal; original: Decimal; ativa: boolean } | null = null
       for (const v of p.variacoes) {
-        const efetivo = precoEfetivo(v, hoje)
+        const efetivo = precoEfetivo(v, isVip, hoje)
         if (menor === null || efetivo.lessThan(menor.efetivo)) {
-          menor = { efetivo, original: v.precoVenda, ativa: promocaoAtiva(v, hoje) }
+          menor = { efetivo, original: v.precoVenda, ativa: promocaoAtiva(v, isVip, hoje) }
         }
       }
       precoVenda = menor?.efetivo ?? null
@@ -211,6 +231,7 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
           precoPromocional: true,
           promocaoInicio: true,
           promocaoFim: true,
+          promocaoVip: true,
         },
         orderBy: { nome: 'asc' },
       },
@@ -230,6 +251,7 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
   let kitDisponivel = 0
   if (produto.tipo === 'UNITARIO') {
     const hojeDate = inicioDoDiaSaoPaulo()
+    const isVip = await isVipViewer()
     const variacaoIds = produto.variacoes.map((v) => v.id)
     const rows = variacaoIds.length
       ? await prisma.lote.findMany({
@@ -251,11 +273,11 @@ export async function buscarProdutoPublico(id: string): Promise<ProdutoDetalhe |
       lotesPorVariacao.set(l.variacaoId, arr)
     }
     variacoes = produto.variacoes.map((v) => {
-      const ativa = promocaoAtiva(v, hojeDate)
+      const ativa = promocaoAtiva(v, isVip, hojeDate)
       return {
         id: v.id,
         nome: v.nome,
-        precoVenda: precoEfetivo(v, hojeDate).toFixed(2),
+        precoVenda: precoEfetivo(v, isVip, hojeDate).toFixed(2),
         precoOriginal: ativa ? v.precoVenda.toFixed(2) : null,
         emPromocao: ativa,
         lotes: lotesPorVariacao.get(v.id) ?? [],
