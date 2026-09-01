@@ -3,6 +3,7 @@ import { TriangleAlert } from 'lucide-react'
 import { listarReservasAdmin, FILTROS_RESERVA, type FiltroReserva } from '@/lib/reservas/queries'
 import { dataCivilFmtBR, instanteFmtBR } from '@/lib/format/date'
 import { ReservaAcoes } from '@/components/admin/reserva-acoes'
+import { STATUS_LABEL } from '@/lib/reservas/labels'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -10,15 +11,6 @@ const FILTRO_LABEL: Record<FiltroReserva, string> = {
   pendentes: 'Pendentes',
   confirmadas: 'Confirmadas',
   historico: 'Histórico',
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  PENDENTE: 'Pendente',
-  CONFIRMADA: 'Confirmada',
-  AGUARDANDO_RETIRADA: 'Pronta pra retirar',
-  RETIRADA: 'Retirada',
-  CANCELADA: 'Cancelada',
-  NO_SHOW: 'Não retirada',
 }
 
 /** RES-06/07/13/14 — fila de reservas + confirmação. */
@@ -63,7 +55,13 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="flex items-center gap-2 text-base font-medium">
-                      {r.cliente?.name ?? r.nomeConvidado ?? '—'}
+                      {r.cliente ? (
+                        <Link href={`/admin/clientes/${r.cliente.id}`} className="underline-offset-2 hover:underline">
+                          {r.cliente.name}
+                        </Link>
+                      ) : (
+                        (r.nomeConvidado ?? '—')
+                      )}
                       {!r.cliente && (
                         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
                           Convidado

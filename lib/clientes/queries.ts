@@ -1,4 +1,5 @@
 import 'server-only'
+import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
 
 /** Admin (/admin/clientes) — busca por nome/email, saldo de pontos SUM'ado sem N+1 (mesmo padrão de listarReservasAdmin). */
@@ -65,5 +66,172 @@ export async function buscarClienteAdmin(id: string) {
     saldoPontos: saldoTotal._sum.valor ?? 0,
     saldoBonusAdmin: ajustesAdmin.reduce((soma, a) => soma + a.valor, 0),
     ajustesAdmin,
+  }
+}
+
+/**
+ * Relatório completo de UM cliente (/admin/clientes/[id]).
+ *
+ * Critério de "faturado" é o MESMO de lib/admin/relatorios.ts (tipo PADRAO,
+ * status CONFIRMADA/AGUARDANDO_RETIRADA/RETIRADA, datado por confirmadaEm) —
+ * de propósito, pra o total daqui bater com o relatório geral. Resgate não é
+ * receita em R$: entra só no bloco de pontos.
+ *
+ * Taxa de entrega conta no "quanto esse cliente gastou" (foi dinheiro que
+ * entrou), mas fica FORA do lucro por produto — custo de entrega não está
+ * modelado em lugar nenhum, então somar a taxa no lucro inflaria a margem.
+ * Por isso os dois números aparecem separados.
+ *
+ * Uma query de reservas (com itens+lote pro custo congelado) + uma de pontos:
+ * agregação em JS mesmo, volume de clientela de bairro (mesma decisão de
+ * listarReservasAdmin).
+ */
+export type RelatorioCliente = Awaited<ReturnType<typeof relatorioCliente>>
+
+const STATUS_FATURADO = ['CONFIRMADA', 'AGUARDANDO_RETIRADA', 'RETIRADA'] as const
+
+export async function relatorioCliente(clienteId: string, email: string, desde?: Date, ate?: Date) {
+  const [reservas, pontos, convidadasNaoVinculadas] = await Promise.all([
+    prisma.reserva.findMany({
+      where: { clienteId },
+      select: {
+        id: true,
+        token: true,
+        tipo: true,
+        status: true,
+        pago: true,
+        deliveryMode: true,
+        taxaEntregaCongelada: true,
+        valorResgateCongelado: true,
+        janelaRetirada: true,
+        criadoEm: true,
+        confirmadaEm: true,
+        itens: {
+          select: {
+            qtde: true,
+            precoUnitarioCongelado: true,
+            lote: {
+              select: {
+                custoPorUnidadeCongelado: true,
+                produtoId: true,
+                variacaoId: true,
+                produto: { select: { nome: true } },
+                variacao: { select: { nome: true } },
+              },
+            },
+          },
+        },
+        itemResgatavel: {
+          select: { custoPontos: true, nomeCustom: true, produto: { select: { nome: true } }, variacao: { select: { nome: true } } },
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    }),
+    prisma.pontosTransacao.findMany({
+      where: { clienteId },
+      select: { valor: true, motivo: true, criadoEm: true },
+    }),
+    // Reserva feita como convidado com o mesmo email e que nunca foi vinculada
+    // (a vinculação só roda na verificação do email — ver lib/auth/server.ts).
+    // Não entra em nenhum número abaixo; é só um aviso de "tem histórico solto".
+    prisma.reserva.count({ where: { clienteId: null, emailConvidado: email } }),
+  ])
+
+  // Período (opcional) filtra em JS pra não precisar de 2 queries: faturamento
+  // é datado por confirmadaEm (igual relatorios.ts), o resto por criadoEm.
+  const dentroDoPeriodo = (data: Date | null) => {
+    if (!data) return false
+    if (desde && data < desde) return false
+    if (ate && data >= ate) return false
+    return true
+  }
+  const noPeriodo = desde || ate ? reservas.filter((r) => dentroDoPeriodo(r.criadoEm)) : reservas
+
+  const faturadas = reservas.filter(
+    (r) =>
+      r.tipo === 'PADRAO' &&
+      (STATUS_FATURADO as readonly string[]).includes(r.status) &&
+      (desde || ate ? dentroDoPeriodo(r.confirmadaEm) : true),
+  )
+
+  const porVariacao = new Map<string, { nome: string; qtde: number; receita: Decimal; custo: Decimal }>()
+  let receitaProdutos = new Decimal(0)
+  let custoProdutos = new Decimal(0)
+  let taxasEntrega = new Decimal(0)
+
+  for (const r of faturadas) {
+    if (r.taxaEntregaCongelada) taxasEntrega = taxasEntrega.plus(r.taxaEntregaCongelada)
+    for (const item of r.itens) {
+      const receita = item.precoUnitarioCongelado.times(item.qtde)
+      const custo = item.lote.custoPorUnidadeCongelado.times(item.qtde)
+      receitaProdutos = receitaProdutos.plus(receita)
+      custoProdutos = custoProdutos.plus(custo)
+
+      const chave = item.lote.variacaoId ?? item.lote.produtoId
+      const nome = item.lote.variacao
+        ? `${item.lote.produto.nome} — ${item.lote.variacao.nome}`
+        : item.lote.produto.nome
+      const atual = porVariacao.get(chave) ?? { nome, qtde: 0, receita: new Decimal(0), custo: new Decimal(0) }
+      atual.qtde += item.qtde
+      atual.receita = atual.receita.plus(receita)
+      atual.custo = atual.custo.plus(custo)
+      porVariacao.set(chave, atual)
+    }
+  }
+
+  const totalGasto = receitaProdutos.plus(taxasEntrega)
+  const contagemPorStatus = noPeriodo.reduce<Record<string, number>>((acc, r) => {
+    acc[r.status] = (acc[r.status] ?? 0) + 1
+    return acc
+  }, {})
+
+  const pontosPorMotivo = pontos.reduce<Record<string, number>>((acc, p) => {
+    acc[p.motivo] = (acc[p.motivo] ?? 0) + p.valor
+    return acc
+  }, {})
+  const resgates = reservas.filter((r) => r.tipo === 'RESGATE')
+  const valorResgatado = resgates.reduce(
+    (soma, r) => (r.valorResgateCongelado ? soma.plus(r.valorResgateCongelado) : soma),
+    new Decimal(0),
+  )
+
+  return {
+    faturado: {
+      nReservas: faturadas.length,
+      receitaProdutos,
+      taxasEntrega,
+      totalGasto,
+      custo: custoProdutos,
+      // Lucro é só produto (receita−custo congelado): a taxa de entrega não
+      // entra porque o custo de entregar não é rastreado em lugar nenhum.
+      lucro: receitaProdutos.minus(custoProdutos),
+      ticketMedio: faturadas.length === 0 ? new Decimal(0) : totalGasto.dividedBy(faturadas.length),
+    },
+    contagemPorStatus,
+    noShows: contagemPorStatus.NO_SHOW ?? 0,
+    canceladas: contagemPorStatus.CANCELADA ?? 0,
+    // reservas já vem ordenado por criadoEm desc.
+    ultimaReserva: reservas[0]?.criadoEm ?? null,
+    primeiraReserva: reservas.at(-1)?.criadoEm ?? null,
+    favoritos: [...porVariacao.values()].sort((a, b) => b.qtde - a.qtde).slice(0, 5),
+    timeline: noPeriodo,
+    pontos: {
+      ganhos: (pontosPorMotivo.RESERVA_CONFIRMADA ?? 0) + (pontosPorMotivo.SORTEIO ?? 0),
+      gastos: pontosPorMotivo.RESGATE ?? 0,
+      ajustes: pontosPorMotivo.AJUSTE_ADMIN ?? 0,
+      estornos: (pontosPorMotivo.CANCELAMENTO ?? 0) + (pontosPorMotivo.RESGATE_REJEITADO ?? 0),
+      expirados: pontosPorMotivo.EXPIRACAO ?? 0,
+      nResgates: resgates.length,
+      // "Quanto a mãe deixou de faturar trocando produto por pontos" — só
+      // resgates que têm valorResgateCongelado (NULL nos antigos, ver schema).
+      valorResgatado,
+    },
+    // Confirmada/retirada e ainda marcada como não paga (o `pago` é checklist
+    // manual — ver schema). Cancelada/no-show não entra: não há o que cobrar.
+    // Resgate fica de fora: é pago em pontos, `pago` nunca é marcado nele.
+    pendencias: reservas.filter(
+      (r) => !r.pago && r.tipo === 'PADRAO' && (STATUS_FATURADO as readonly string[]).includes(r.status),
+    ),
+    convidadasNaoVinculadas,
   }
 }
