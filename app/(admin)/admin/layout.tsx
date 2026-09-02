@@ -1,6 +1,7 @@
 import { headers as nextHeaders } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth/server'
+import { prisma } from '@/lib/db/client'
 import { AdminNav } from '@/components/admin/admin-nav'
 
 /**
@@ -31,5 +32,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/admin/entrar')
   }
 
-  return <AdminNav signOut={signOut}>{children}</AdminNav>
+  // Contador do menu (ADM-01): é o único aviso de reserva nova que sobrevive
+  // depois que ela navega pra dentro de outra tela.
+  const reservasPendentes = await prisma.reserva.count({ where: { status: 'PENDENTE' } })
+
+  return (
+    <AdminNav signOut={signOut} reservasPendentes={reservasPendentes}>
+      {children}
+    </AdminNav>
+  )
 }

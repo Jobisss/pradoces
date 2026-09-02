@@ -41,6 +41,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-success: var(--success);
+  --color-warn: var(--warn);
   --color-accent-soft: var(--accent-soft);
   --color-caramelo: var(--caramelo);
   --color-ring: var(--ring);
@@ -132,9 +133,26 @@
   /* Reservado para Phase 4 (confirmações) */
   --success: #15803D;
 
-  /* Charts — neutros, sem UI em Phase 1 (forward-compat) */
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
+  /*
+   * Severidade intermediária do painel ("essa semana"): margem caindo, lote
+   * com prazo folgado, cliente sumido. Caramelo escurecido até passar AA
+   * como TEXTO (7.9:1 no branco) — o caramelo puro é 2.6:1 e só serve de
+   * traço. Fica entre o muted-foreground (informativo) e o destructive
+   * (urgente), que era a lacuna: sem ele tudo virava vermelho ou cinza.
+   */
+  --warn: #7A4A12;
+
+  /*
+   * Charts. chart-1/chart-2 são o par de séries do histórico mensal em
+   * /admin/relatorios (lucro empilhado sobre custo). Não são o rosa e o
+   * caramelo crus do kit: esse par falha o piso de separação pra visão
+   * normal (ΔE 14) e some pra quem tem daltonismo. Estes dois vêm da mesma
+   * família caramelo/chocolate mas passam com ΔE 23 em deutan, protan e
+   * tritan. O tom claro fica em 2.6:1 contra o branco, então NUNCA carrega
+   * significado sozinho — sempre com legenda e valor escrito ao lado.
+   */
+  --chart-1: #8A4B22;
+  --chart-2: #D98E5A;
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
