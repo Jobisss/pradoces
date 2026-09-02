@@ -1,4 +1,5 @@
 import 'server-only'
+import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
 import { hojeSaoPaulo } from '@/lib/lotes/queries'
 
@@ -7,6 +8,12 @@ export type EstoqueProduto = {
   variacaoId: string | null
   nome: string
   qtdeTotal: number
+  /** Já prometido a alguém — o que sobra livre é qtdeTotal − qtdeReservada. */
+  qtdeReservada: number
+  /** Custo congelado parado nesse estoque (qtde × custo/un de cada lote). */
+  custoParado: Decimal
+  /** Unidades em lote que vence em ≤2 dias — é o que precisa sair primeiro. */
+  qtdeVencendo: number
   vencendoEmBreve: boolean
   proximaValidade: string | null
 }
@@ -23,6 +30,8 @@ export async function snapshotEstoque(): Promise<EstoqueProduto[]> {
       produtoId: true,
       variacaoId: true,
       qtdeDisponivel: true,
+      qtdeReservada: true,
+      custoPorUnidadeCongelado: true,
       validade: true,
       produto: { select: { nome: true } },
       variacao: { select: { nome: true } },
@@ -36,17 +45,24 @@ export async function snapshotEstoque(): Promise<EstoqueProduto[]> {
     const nome = l.variacao ? `${l.produto.nome} — ${l.variacao.nome}` : l.produto.nome
     const atual = porChave.get(chave)
     const vence = l.validade <= em2Dias
+    const custoLote = new Decimal(l.custoPorUnidadeCongelado.toString()).times(l.qtdeDisponivel)
     if (!atual) {
       porChave.set(chave, {
         produtoId: l.produtoId,
         variacaoId: l.variacaoId,
         nome,
         qtdeTotal: l.qtdeDisponivel,
+        qtdeReservada: l.qtdeReservada,
+        custoParado: custoLote,
+        qtdeVencendo: vence ? l.qtdeDisponivel : 0,
         vencendoEmBreve: vence,
         proximaValidade: l.validade.toISOString(),
       })
     } else {
       atual.qtdeTotal += l.qtdeDisponivel
+      atual.qtdeReservada += l.qtdeReservada
+      atual.custoParado = atual.custoParado.plus(custoLote)
+      if (vence) atual.qtdeVencendo += l.qtdeDisponivel
       atual.vencendoEmBreve = atual.vencendoEmBreve || vence
     }
   }
