@@ -41,6 +41,15 @@ export type ProdutoCard = {
   disponivel: boolean
   emCampanha: boolean
   emPromocao: boolean
+  /**
+   * Linha de apoio do card na vitrine. Em UNITARIO são os sabores das
+   * variações ativas; em KIT é a composição ("6 Brigadeiro", "2 Brownie").
+   *
+   * Existe porque "A partir de R$ 12,00" levanta uma pergunta — de QUAL sabor? —
+   * que o card não respondia, bem no meio da decisão de compra. Vazia quando
+   * não há o que dizer (UNITARIO de sabor único), e aí o card não mostra a linha.
+   */
+  sabores: string[]
 }
 
 function inicioDoDiaSaoPaulo(): Date {
@@ -121,14 +130,18 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       variacoes: {
         where: { ativo: true },
         select: {
+          nome: true,
           precoVenda: true,
           precoPromocional: true,
           promocaoInicio: true,
           promocaoFim: true,
           promocaoVip: true,
         },
+        orderBy: { nome: 'asc' },
       },
-      kitItens: { select: { componenteVariacaoId: true, qtde: true } },
+      kitItens: {
+        select: { componenteVariacaoId: true, qtde: true, componente: { select: { nome: true } } },
+      },
       campanhas: { select: { campanhaId: true } },
     },
     orderBy: { nome: 'asc' },
@@ -177,6 +190,14 @@ export async function listarProdutosAtivos(categoria?: string, campanhaId?: stri
       disponivel: p.tipo === 'UNITARIO' ? disponiveis.has(p.id) : kitsMontaveis(p.kitItens, livrePorVariacao) > 0,
       emCampanha: p.campanhas.length > 0,
       emPromocao,
+      // Sabor único não vira linha: repetir "Tradicional" embaixo de todo card
+      // é ruído, e a vitrine inteira fica com a mesma parede de texto.
+      sabores:
+        p.tipo === 'KIT'
+          ? p.kitItens.map((k) => `${k.qtde} ${k.componente.nome}`)
+          : p.variacoes.length > 1
+            ? p.variacoes.map((v) => v.nome)
+            : [],
     }
   })
 }

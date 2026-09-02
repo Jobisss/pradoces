@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Geist:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #FFF3E6; color: #6B3E26;
+           font-family: Geist, "Segoe UI", system-ui, sans-serif;
+           -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #6B3E26; } a:hover { color: #4E2C1A; }
+    .fr { font-family: Fraunces, Georgia, serif; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 20px;
+            border-radius: 10px; font-size: 16px; font-weight: 500; white-space: nowrap;
+            flex-shrink: 0; text-decoration: none; }
+    /* Moldura de 390px = viewport de iPhone. O conteúdo dentro NÃO encolhe:
+       logo, carrinho e botões são todos shrink-0 no código real. */
+    .tela { width: 390px; border: 1px solid #E8D5C2; border-radius: 14px; overflow: hidden;
+            background: #FFF3E6; box-shadow: 0 10px 30px -14px rgba(107,62,38,.3) }
+    .barra { display: flex; height: 56px; align-items: center; justify-content: space-between;
+             border-bottom: 1px solid #FFD6E2; background: #FFFFFF; padding: 0 16px }
+    .medida { font-size: 13px; color: #7A5138; font-variant-numeric: tabular-nums }
+    .tag { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+           padding: 4px 11px; font-size: 12.5px; font-weight: 600 }
+  </style>
+</helmet>
+
+<div style="padding: 32px; background: #FFF3E6">
+
+  <h2 class="fr" style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.01em">
+    O header estoura no celular
+  </h2>
+  <p style="margin: 8px 0 0; max-width: 68ch; font-size: 15px; line-height: 1.55; color: #7A5138">
+    Medido no browser com as classes reais resolvidas e a fonte Geist carregada.
+    Nada no header encolhe — logo, carrinho e botões são todos <code>shrink-0</code> —
+    então o excedente vira <strong style="font-weight: 600">scroll horizontal no site inteiro</strong>,
+    em toda página, pra todo visitante deslogado.
+  </p>
+
+  <div style="display: flex; gap: 40px; margin-top: 28px; flex-wrap: wrap">
+
+    <!-- ───── HOJE ───── -->
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
+        <span class="tag" style="background: #FBE3E3; color: #B91C1C">Hoje</span>
+        <span class="medida">precisa de 446px · sobra −56px</span>
+      </div>
+
+      <div class="tela">
+        <div class="barra">
+          <img src="logo-header.png" alt="Luizinha Confeitaria" style="height: 40px; width: auto; flex-shrink: 0">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div style="display: flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center;
+                        justify-content: center; border: 1px solid #FFD6E2; border-radius: 10px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.8"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/>
+                <path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+            </div>
+            <a class="pill" href="#" style="border: 1px solid #FFD6E2; background: #FFF3E6">Entrar</a>
+            <a class="pill" href="#" style="background: #F7B6C6; color: #6B3E26">Criar minha conta</a>
+          </div>
+        </div>
+        <div style="padding: 18px 16px 22px; background: #FFF3E6">
+          <div style="height: 11px; width: 70%; border-radius: 4px; background: #F2E0CE"></div>
+          <div style="height: 11px; width: 45%; border-radius: 4px; background: #F2E0CE; margin-top: 9px"></div>
+        </div>
+      </div>
+
+      <!-- Régua do estouro -->
+      <div style="position: relative; width: 390px; margin-top: 10px">
+        <div style="height: 6px; border-radius: 3px; background: #E8D5C2"></div>
+        <div style="position: absolute; top: 0; left: 0; height: 6px; width: 100%;
+                    border-radius: 3px 0 0 3px; background: #F7B6C6"></div>
+        <div style="position: absolute; top: -3px; right: -46px; height: 12px; width: 46px;
+                    border-radius: 0 6px 6px 0; background: repeating-linear-gradient(135deg,#B91C1C 0 4px,#D45252 4px 8px)"></div>
+        <div style="display: flex; justify-content: space-between; margin-top: 7px">
+          <span class="medida">viewport 390px</span>
+          <span class="medida" style="color: #B91C1C; font-weight: 600">+56px pra fora</span>
+        </div>
+      </div>
+
+      <div style="width: 390px; margin-top: 16px; font-size: 13.5px; line-height: 1.6; color: #7A5138">
+        logo 92 &nbsp;+&nbsp; carrinho 44 &nbsp;+&nbsp; “Entrar” 88 &nbsp;+&nbsp;
+        <strong style="font-weight: 600; color: #6B3E26">“Criar minha conta” 174</strong>
+        &nbsp;+&nbsp; gaps e padding 48
+      </div>
+    </div>
+
+    <!-- ───── PROPOSTA ───── -->
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px">
+        <span class="tag" style="background: #DDF0E2; color: #15803D">Proposta</span>
+        <span class="medida">precisa de 272px · sobra +118px</span>
+      </div>
+
+      <div class="tela">
+        <div class="barra">
+          <img src="logo-header.png" alt="Luizinha Confeitaria" style="height: 40px; width: auto; flex-shrink: 0">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div style="position: relative; display: flex; width: 44px; height: 44px; flex-shrink: 0;
+                        align-items: center; justify-content: center; border: 1px solid #FFD6E2;
+                        border-radius: 10px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.8"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/>
+                <path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+              <span style="position: absolute; top: -5px; right: -5px; display: flex; width: 20px; height: 20px;
+                           align-items: center; justify-content: center; border-radius: 999px;
+                           background: #F7B6C6; color: #6B3E26; font-size: 12px; font-weight: 600">2</span>
+            </div>
+            <a class="pill" href="#" style="border: 1px solid #FFD6E2; background: #FFF3E6">Entrar</a>
+          </div>
+        </div>
+        <div style="padding: 18px 16px 22px; background: #FFF3E6">
+          <div style="height: 11px; width: 70%; border-radius: 4px; background: #F2E0CE"></div>
+          <div style="height: 11px; width: 45%; border-radius: 4px; background: #F2E0CE; margin-top: 9px"></div>
+        </div>
+      </div>
+
+      <div style="position: relative; width: 390px; margin-top: 10px">
+        <div style="height: 6px; border-radius: 3px; background: #E8D5C2"></div>
+        <div style="position: absolute; top: 0; left: 0; height: 6px; width: 69.7%;
+                    border-radius: 3px; background: #F7B6C6"></div>
+        <div style="display: flex; justify-content: space-between; margin-top: 7px">
+          <span class="medida">viewport 390px</span>
+          <span class="medida" style="color: #15803D; font-weight: 600">118px de folga</span>
+        </div>
+      </div>
+
+      <div style="width: 390px; margin-top: 16px; font-size: 13.5px; line-height: 1.6; color: #7A5138">
+        “Criar minha conta” sai abaixo de <code>sm</code> e volta no desktop. O caminho não some:
+        <code>/entrar</code> já linka pra <code>/cadastro</code>, e o convite pra criar conta
+        ganha lugar melhor na faixa de fidelidade da home.
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":920,"height":560}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",   "title": "Home — desktop", "x": 0,    "y": 0,    "w": 1280, "h": 3080, "print": "flow" },
+    { "file": "Mobile.dc.html", "title": "Home — celular", "x": 1400, "y": 0,    "w": 390,  "h": 3140, "print": "flow" },
+    { "file": "Card.dc.html",   "title": "Card — antes e depois", "x": 0,    "y": 3440, "w": 1080, "h": 880 },
+    { "file": "Header.dc.html", "title": "Header — o estouro no celular", "x": 1180, "y": 3440, "w": 920, "h": 560 }
+  ],
+  "annotations": [
+    {
+      "id": "leia-primeiro",
+      "x": 0,
+      "y": -230,
+      "w": 660,
+      "text": "As ilustrações dos doces são PLACEHOLDER — no site elas viram foto real (4:5). Estão aqui só pra dar pra julgar composição e hierarquia.\n\nOs nomes, sabores e preços também são exemplo.\n\nOnde falta fato de verdade eu deixei entre colchetes: [BAIRRO] e [REFERÊNCIA] na seção de retirada."
+    },
+    {
+      "id": "vem-do-banco",
+      "x": 720,
+      "y": -230,
+      "w": 560,
+      "text": "Números da faixa de fidelidade (1 ponto por real, 12 meses) estão escritos aqui só pra você ler — no código eles vêm da tabela Configuracao, que a mãe edita no admin.\n\nEntrega, Pix e endereço de retirada nascem desligados: cada bloco desses só renderiza se estiver configurado."
+    },
+    {
+      "id": "chip-colunas",
+      "x": 1400,
+      "y": 2880,
+      "w": 390,
+      "text": "A home de desktop tem um controle \"Grade\" em cima do artboard: alterna entre 3 e 4 colunas.\n\nEle está aí por causa da trava que a gente registrou — 3 colunas com catálogo grande deixa a página longa e empurra fidelidade e como-funciona pra baixo. Dá pra sentir os dois antes de fechar no código."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

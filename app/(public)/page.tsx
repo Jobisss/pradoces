@@ -1,67 +1,29 @@
-import Link from 'next/link'
-import Image from 'next/image'
-import { listarProdutosAtivos, listarCategoriasAtivas, type ProdutoCard } from '@/lib/catalogo/produtos'
-import { WhatsappButton } from '@/components/whatsapp-button'
+import { headers as nextHeaders } from 'next/headers'
+import { auth } from '@/lib/auth/server'
+import { listarProdutosAtivos, listarCategoriasAtivas } from '@/lib/catalogo/produtos'
+import { configPublica } from '@/lib/config/publica'
 import { campanhaAtiva } from '@/lib/campanhas/definicoes'
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
-/** Card de produto — reusado na vitrine principal e na seção "Também vendemos" (esgotados). */
-function CardProduto({ p, campanhaNome, esgotado }: { p: ProdutoCard; campanhaNome: string | null; esgotado: boolean }) {
-  return (
-    <Link
-      href={`/produtos/${p.id}`}
-      className="block overflow-hidden rounded-lg border border-border transition-opacity hover:opacity-90"
-    >
-      <div className={`relative aspect-square bg-muted ${esgotado ? 'opacity-60 grayscale' : ''}`}>
-        {p.capaPath ? (
-          <Image
-            src={`/media/${p.capaPath}-medio.webp`}
-            alt=""
-            fill
-            sizes="(max-width: 640px) 50vw, 25vw"
-            className="object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem foto</div>
-        )}
-        {!esgotado && (
-          <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-1">
-            {p.emPromocao && (
-              <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">Promoção</span>
-            )}
-            {p.emCampanha && campanhaNome && (
-              <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">{campanhaNome}</span>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="space-y-0.5 p-2">
-        <p className="truncate text-sm font-medium text-foreground">{p.nome}</p>
-        <div className="flex flex-wrap items-baseline gap-x-1.5">
-          <p className="tabular-nums text-sm text-muted-foreground">
-            {p.precoAPartir ? 'A partir de ' : ''}
-            {currency.format(Number(p.precoVenda))}
-          </p>
-          {p.precoOriginal && !esgotado && (
-            <p className="tabular-nums text-xs text-muted-foreground line-through">
-              {currency.format(Number(p.precoOriginal))}
-            </p>
-          )}
-        </div>
-      </div>
-    </Link>
-  )
-}
+import { ProdutoCard } from '@/components/produto-card'
+import { Abertura } from '@/components/home/abertura'
+import { Filtros } from '@/components/home/filtros'
+import { Fidelidade } from '@/components/home/fidelidade'
+import { ComoFunciona } from '@/components/home/como-funciona'
+import { OndeRetirar } from '@/components/home/onde-retirar'
+import { TambemVendemos } from '@/components/home/tambem-vendemos'
+import { IconeCupcake } from '@/components/home/motivos'
 
 /**
- * Vitrine pública (CAT-01/04/08) — troca o placeholder narrativo de Phase 1.
- * Mobile-first: cards em grid de 2 colunas no celular, touch target da foto
- * inteira (>44px em qualquer tela), preço sempre visível sem precisar clicar.
+ * Vitrine pública (CAT-01/04/08).
  *
- * SAZON-04 (CAT-01): quando há campanha vigente, um link deixa filtrar só os
- * produtos vinculados a ela — filtro é opt-in (`?campanha=1`), não força a
- * vitrine inteira a esconder o resto do catálogo.
+ * A ordem das seções é a decisão central da página: PRODUTO PRIMEIRO. A leitora
+ * principal é a vizinha que já compra e chega pelo link do WhatsApp querendo ver
+ * o que tem hoje — ela encontra o estoque sem rolar. O visitante que nunca
+ * comprou rola naturalmente e encontra, abaixo, o que precisa pra decidir:
+ * fidelidade, como funciona a reserva, e onde retirar. Duas audiências em
+ * camadas, sem obrigar a primeira a passar pelo discurso da segunda toda visita.
+ *
+ * SAZON-04: o filtro de campanha é opt-in (`?campanha=1`) — nunca esconde o
+ * resto do catálogo por conta própria.
  */
 export default async function Home({
   searchParams,
@@ -71,105 +33,90 @@ export default async function Home({
   const { categoria, campanha: filtroCampanhaParam } = await searchParams
   const campanha = campanhaAtiva()
   const filtroCampanha = filtroCampanhaParam === '1' && campanha ? campanha.id : undefined
-  const [produtos, categorias] = await Promise.all([
+
+  // Tudo em paralelo: são quatro idas independentes ao banco e serializar
+  // atrasaria o TTFB da página mais visitada do site sem ganho nenhum.
+  const [produtos, categorias, config, session] = await Promise.all([
     listarProdutosAtivos(categoria, filtroCampanha),
     listarCategoriasAtivas(),
+    configPublica(),
+    auth.api.getSession({ headers: await nextHeaders() }),
   ])
-  // Esgotado não fica misturado no meio dos outros — vitrine principal só
-  // mostra o que dá pra reservar agora; o resto vira uma seção separada,
-  // menos chamativa, só pra mostrar que a Luizinha também faz aquilo.
+
+  // Esgotado não fica misturado no meio dos outros — a vitrine principal só
+  // mostra o que dá pra reservar agora; o resto vira lista compacta no pé.
   const disponiveis = produtos.filter((p) => p.disponivel)
   const esgotados = produtos.filter((p) => !p.disponivel)
 
+  const filtrando = Boolean(categoria || filtroCampanha)
+
   return (
-    <section className="mx-auto max-w-5xl px-4 py-8 md:px-8">
-      <div className="mb-6 space-y-2">
-        <p className="font-display text-3xl font-medium text-foreground md:text-4xl">Luizinha Confeitaria</p>
-        <p className="text-base text-muted-foreground">
-          Doces caseiros pra reservar e retirar. Confirma tudo com a Luizinha pelo WhatsApp.
-        </p>
-        <WhatsappButton />
-      </div>
+    <>
+      <Abertura />
 
-      {campanha && (
-        <div className="mb-4">
-          <Link
-            href={filtroCampanha ? '/' : '/?campanha=1'}
-            className={`inline-flex h-11 items-center rounded-lg px-4 text-sm font-medium ${
-              filtroCampanha ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground'
-            }`}
-          >
-            {filtroCampanha ? 'Ver todos os doces' : `Ver só os doces de ${campanha.nome}`}
-          </Link>
-        </div>
-      )}
+      <section className="mx-auto max-w-5xl px-4 pt-6 md:px-8 md:pt-8">
+        <Filtros
+          categorias={categorias}
+          categoriaAtiva={categoria}
+          campanhaNome={campanha?.nome ?? null}
+          filtroCampanhaLigado={Boolean(filtroCampanha)}
+        />
 
-      {categorias.length > 1 && (
-        <nav className="mb-6 flex flex-wrap gap-2" aria-label="Filtrar por categoria">
-          <Link
-            href="/"
-            className={`flex h-11 items-center rounded-lg px-4 text-sm font-medium ${
-              !categoria ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground'
-            }`}
-          >
-            Todas
-          </Link>
-          {categorias.map((c) => (
-            <Link
-              key={c}
-              href={`/?categoria=${encodeURIComponent(c)}`}
-              className={`flex h-11 items-center rounded-lg px-4 text-sm font-medium ${
-                categoria === c ? 'bg-primary text-primary-foreground' : 'border border-border text-foreground'
-              }`}
-            >
-              {c}
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      {produtos.length === 0 ? (
-        <div className="space-y-1 py-12 text-center">
-          <p className="text-base font-medium">
-            {filtroCampanha
-              ? `Nenhum doce de ${campanha?.nome} por enquanto`
-              : categoria
-                ? 'Nada nessa categoria por enquanto'
-                : 'Ainda não tem doces por aqui'}
-          </p>
-          <p className="text-sm text-muted-foreground">Volta mais tarde — a Luizinha tá sempre cozinhando.</p>
-        </div>
-      ) : (
-        <>
-          {disponiveis.length > 0 ? (
-            <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {disponiveis.map((p) => (
-                <li key={p.id}>
-                  <CardProduto p={p} campanhaNome={campanha?.nome ?? null} esgotado={false} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Tudo esgotado por agora — dá uma olhada no que a Luizinha também faz, mais abaixo.
+        {produtos.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-16 text-center">
+            <IconeCupcake className="size-14 text-accent-soft" />
+            <p className="text-base font-medium text-foreground">
+              {filtroCampanha
+                ? `Nenhum doce de ${campanha?.nome} por enquanto`
+                : categoria
+                  ? 'Nada nessa categoria por enquanto'
+                  : 'Ainda não tem doces por aqui'}
             </p>
-          )}
+            <p className="text-sm text-muted-foreground">
+              Volta mais tarde — a Luizinha tá sempre cozinhando.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-6 flex items-baseline justify-between gap-4 md:mt-8">
+              <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                {filtrando ? 'O que encontramos' : 'O que tem hoje'}
+              </h2>
+              {disponiveis.length > 0 && (
+                <span className="shrink-0 text-sm text-muted-foreground">
+                  {disponiveis.length} {disponiveis.length === 1 ? 'doce' : 'doces'}
+                  <span className="hidden sm:inline"> pra reservar</span>
+                </span>
+              )}
+            </div>
 
-          {esgotados.length > 0 && (
-            <div className="mt-10 space-y-3">
-              <h2 className="text-lg font-semibold text-foreground">Também vendemos</h2>
-              <p className="text-sm text-muted-foreground">Esgotado por agora — volta em breve.</p>
-              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                {esgotados.map((p) => (
+            {disponiveis.length > 0 ? (
+              <ul className="mt-4 grid grid-cols-2 gap-3 md:mt-5 md:grid-cols-3 md:gap-6">
+                {disponiveis.map((p) => (
                   <li key={p.id}>
-                    <CardProduto p={p} campanhaNome={campanha?.nome ?? null} esgotado />
+                    <ProdutoCard p={p} />
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-        </>
-      )}
-    </section>
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-12 text-center">
+                <IconeCupcake className="size-12 text-accent-soft" />
+                <p className="text-sm text-muted-foreground">
+                  Tudo esgotado por agora — dá uma olhada no que a Luizinha também faz, mais abaixo.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <div className="mt-12 md:mt-16">
+        <Fidelidade config={config} logado={Boolean(session)} />
+      </div>
+
+      <ComoFunciona config={config} />
+      <OndeRetirar />
+      <TambemVendemos produtos={esgotados} />
+    </>
   )
 }

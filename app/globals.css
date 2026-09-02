@@ -42,6 +42,7 @@
   --color-chart-1: var(--chart-1);
   --color-success: var(--success);
   --color-accent-soft: var(--accent-soft);
+  --color-caramelo: var(--caramelo);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -59,6 +60,16 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /*
+   * Elevação da vitrine. A profundidade do card vem de CONTRASTE DE SUPERFÍCIE
+   * — branco (--card) sobre o creme (--background) com sombra — e não de borda:
+   * uma borda de 1px rosa-claro no fundo creme some em vez de separar.
+   * Sombra tingida de chocolate (107,62,38), não preta, senão suja o creme.
+   */
+  --shadow-doce: 0 1px 2px rgb(107 62 38 / 0.05), 0 10px 26px -10px rgb(107 62 38 / 0.18);
+  --shadow-doce-alta: 0 2px 4px rgb(107 62 38 / 0.06), 0 18px 34px -12px rgb(107 62 38 / 0.24);
+  --shadow-doce-baixa: 0 1px 2px rgb(107 62 38 / 0.05), 0 8px 20px -12px rgb(107 62 38 / 0.16);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -99,6 +110,13 @@
 
   /* Accent soft decorativo — NUNCA texto (rosa do kit) */
   --accent-soft: #F7B6C6;
+
+  /*
+   * Caramelo do brand kit. Estava só documentado no BRAND.md e nunca virou
+   * token — a textura de motivos da home precisava dele (rosa sobre creme some).
+   * 2.6:1 contra branco: traço e ilustração APENAS, nunca texto.
+   */
+  --caramelo: #C49A7A;
 
   /* Ações destrutivas only */
   --destructive: #B91C1C;

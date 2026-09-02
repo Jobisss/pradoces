@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Geist:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #FFF3E6; color: #6B3E26;
+           font-family: Geist, "Segoe UI", system-ui, sans-serif;
+           -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #6B3E26; } a:hover { color: #4E2C1A; }
+    .fr { font-family: Fraunces, Georgia, serif; }
+    .tag { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 11px;
+           font-size: 12.5px; font-weight: 600 }
+    /* Largura real do card no desktop: (1024 − 64 de padding − 48 de gap) / 3 = 304px */
+    .col { width: 304px }
+    .novo { background: #FFFFFF; border-radius: 14px; overflow: hidden;
+            box-shadow: 0 1px 2px rgba(107,62,38,.05), 0 10px 26px -10px rgba(107,62,38,.18) }
+    .foto { position: relative; display: flex; align-items: center; justify-content: center }
+    .nota { font-size: 13.5px; line-height: 1.55; color: #7A5138 }
+  </style>
+</helmet>
+
+<div style="padding: 32px; background: #FFF3E6">
+
+  <h2 class="fr" style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.01em">
+    O card, que é o que mais se repete
+  </h2>
+  <p style="margin: 8px 0 0; max-width: 74ch; font-size: 15px; line-height: 1.55; color: #7A5138">
+    Mesma largura real dos dois lados (304px, a coluna do desktop em 3 colunas).
+    A profundidade vem de <strong style="font-weight: 600">contraste de superfície</strong> —
+    branco sobre creme, com sombra — não de borda.
+  </p>
+
+  <div style="display: flex; gap: 44px; margin-top: 28px; align-items: flex-start; flex-wrap: wrap">
+
+    <!-- ───── HOJE ───── -->
+    <div class="col">
+      <div style="margin-bottom: 12px"><span class="tag" style="background: #F1E5D8; color: #7A5138">Hoje</span></div>
+
+      <div style="border: 1px solid #FFD6E2; border-radius: 10px; overflow: hidden">
+        <div class="foto" style="aspect-ratio: 1 / 1; background: #F1E5D8">
+          <svg width="46%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <rect x="18" y="42" width="84" height="52" rx="7" fill="#5A3320"/>
+            <rect x="18" y="42" width="84" height="15" rx="7" fill="#7A4A2E"/>
+            <circle cx="40" cy="68" r="5" fill="#3E2214"/><circle cx="66" cy="78" r="4" fill="#3E2214"/>
+            <circle cx="82" cy="63" r="4.5" fill="#3E2214"/>
+          </svg>
+        </div>
+        <div style="padding: 8px">
+          <p style="margin: 0; font-size: 14px; font-weight: 500; overflow: hidden;
+                    text-overflow: ellipsis; white-space: nowrap">Brownie recheado</p>
+          <p style="margin: 2px 0 0; font-size: 14px; color: #7A5138;
+                    font-variant-numeric: tabular-nums">A partir de R$ 12,00</p>
+        </div>
+      </div>
+
+      <ul class="nota" style="margin: 16px 0 0; padding-left: 18px">
+        <li>foto quadrada, <code>p-2</code>, texto colado na borda</li>
+        <li>moldura de 1px no fundo creme — some, não separa</li>
+        <li>preço em <code>muted-foreground</code>, mesmo peso do nome</li>
+        <li>“A partir de R$ 12,00” não diz <em>de quê</em></li>
+        <li>hover é só <code>opacity-90</code></li>
+      </ul>
+    </div>
+
+    <!-- ───── PROPOSTA ───── -->
+    <div class="col">
+      <div style="margin-bottom: 12px"><span class="tag" style="background: #FFD6E2; color: #6B3E26">Proposta</span></div>
+
+      <div class="novo">
+        <div class="foto" style="aspect-ratio: 4 / 5; background: #F6E4D4">
+          <svg width="58%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <rect x="18" y="42" width="84" height="52" rx="7" fill="#5A3320"/>
+            <rect x="18" y="42" width="84" height="15" rx="7" fill="#7A4A2E"/>
+            <circle cx="40" cy="68" r="5" fill="#3E2214"/><circle cx="66" cy="78" r="4" fill="#3E2214"/>
+            <circle cx="82" cy="63" r="4.5" fill="#3E2214"/><circle cx="53" cy="86" r="3.5" fill="#3E2214"/>
+            <path d="M26 50h68" stroke="#8E5B39" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div style="padding: 16px">
+          <p style="margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3">Brownie recheado</p>
+          <p style="margin: 5px 0 0; font-size: 13.5px; color: #7A5138">Ninho · Doce de leite · Nutella</p>
+          <div style="margin-top: 12px; display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 13px; color: #7A5138">A partir de</span>
+            <span style="font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums">R$ 12,00</span>
+          </div>
+        </div>
+      </div>
+
+      <ul class="nota" style="margin: 16px 0 0; padding-left: 18px">
+        <li>foto <strong style="font-weight: 600">4:5</strong> — retrato favorece doce</li>
+        <li>branco sobre creme + sombra, borda sai</li>
+        <li>preço em chocolate cheio, 19px, acima do nome em peso</li>
+        <li><strong style="font-weight: 600">linha de sabores</strong> — responde o “a partir de”</li>
+        <li>hover levanta 2px e adensa a sombra</li>
+      </ul>
+    </div>
+
+    <!-- ───── ESTADOS ───── -->
+    <div style="width: 304px">
+      <div style="margin-bottom: 12px"><span class="tag" style="background: #FFD6E2; color: #6B3E26">Estados</span></div>
+
+      <!-- promoção -->
+      <div class="novo" style="margin-bottom: 16px">
+        <div class="foto" style="aspect-ratio: 16 / 9; background: #FFE6EE">
+          <svg width="24%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <path d="M30 74h60l-6 26a6 6 0 0 1-6 5H42a6 6 0 0 1-6-5z" fill="#F7B6C6"/>
+            <circle cx="60" cy="55" r="24" fill="#4A2A18"/>
+            <g fill="#FFF3E6"><circle cx="50" cy="60" r="2.4"/><circle cx="66" cy="48" r="2.4"/>
+            <circle cx="70" cy="63" r="2.4"/></g>
+          </svg>
+          <span style="position: absolute; top: 10px; right: 10px; background: #6B3E26; color: #FFF3E6;
+                       border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600">Promoção</span>
+        </div>
+        <div style="padding: 14px 16px">
+          <p style="margin: 0; font-size: 16px; font-weight: 600">Brigadeiro gourmet</p>
+          <div style="margin-top: 8px; display: flex; align-items: baseline; gap: 8px">
+            <span style="font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums">R$ 3,50</span>
+            <span style="font-size: 13.5px; color: #7A5138; text-decoration: line-through;
+                         font-variant-numeric: tabular-nums">R$ 4,50</span>
+          </div>
+        </div>
+      </div>
+      <p class="nota" style="margin: 0 0 22px">
+        Selo em chocolate, não em rosa — o rosa já é o fundo do card de docinho e sumiria.
+      </p>
+
+      <!-- esgotado, agora linha -->
+      <div style="display: flex; align-items: center; gap: 14px; padding: 10px 0;
+                  border-top: 1px solid #F0DECB; border-bottom: 1px solid #F0DECB">
+        <div style="width: 52px; height: 52px; flex-shrink: 0; border-radius: 10px; background: #F1E5D8;
+                    display: flex; align-items: center; justify-content: center; filter: grayscale(1); opacity: .62">
+          <svg width="30" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <circle cx="60" cy="60" r="34" fill="#C49A7A"/>
+            <circle cx="48" cy="52" r="5" fill="#5A3320"/><circle cx="72" cy="58" r="5" fill="#5A3320"/>
+            <circle cx="58" cy="74" r="5" fill="#5A3320"/>
+          </svg>
+        </div>
+        <p style="margin: 0; flex: 1; min-width: 0; font-size: 15.5px; font-weight: 500; color: #7A5138">
+          Cookie recheado
+        </p>
+        <span class="tag" style="background: #F1E5D8; color: #8A5A40; font-weight: 500">Esgotado</span>
+      </div>
+      <p class="nota" style="margin: 12px 0 0">
+        Esgotado deixa de ser card e vira linha: guarda o repertório sem gastar a melhor
+        área da página com o que não gera reserva.
+      </p>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1080,"height":880}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

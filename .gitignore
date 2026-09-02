@@ -49,3 +49,8 @@ next-env.d.ts
 # dumps do pg_dump feitos por scripts/deploy.sh antes de cada migration —
 # ficam só na VPS, nunca no repo
 /backups/
+
+# canvas de design gerado pelo /design — 2.5 MB porque o editor vai embutido
+# no arquivo. As fontes (.dc.html, canvas.json) são versionadas; o HTML montado
+# se regenera a partir delas com scripts do skill, então não vai pro repo.
+/.planning/design/**/home-luizinha.html

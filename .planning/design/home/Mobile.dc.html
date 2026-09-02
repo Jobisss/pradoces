@@ -1,0 +1,466 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Geist:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; background: #FFF3E6; color: #6B3E26;
+           font-family: Geist, "Segoe UI", system-ui, sans-serif;
+           -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #6B3E26; }
+    a:hover { color: #4E2C1A; }
+    .wrap { padding: 0 16px; }
+    .fr { font-family: Fraunces, Georgia, "Times New Roman", serif; }
+    .card { background: #FFFFFF; border-radius: 14px; overflow: hidden;
+            box-shadow: 0 1px 2px rgba(107,62,38,.05), 0 10px 26px -10px rgba(107,62,38,.18); }
+    .foto { position: relative; aspect-ratio: 4 / 5; display: flex;
+            align-items: center; justify-content: center; }
+    /* Todo alvo tocável fica em 44px — UI-SPEC, clientela 50+. */
+    .pill { display: inline-flex; align-items: center; gap: 6px; height: 44px;
+            padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 500;
+            white-space: nowrap; text-decoration: none; flex-shrink: 0; }
+  </style>
+</helmet>
+
+<div style="min-height: 100%; background: #FFF3E6">
+
+  <!-- ═══ 1. HEADER CORRIGIDO — no celular sobra só "Entrar".
+           92 (logo) + 44 (carrinho) + 88 (Entrar) + 16 (gaps) + 32 (padding) = 272px
+           num viewport de 390. Antes precisava de 446px e estourava. ═══ -->
+  <div style="position: sticky; top: 0; z-index: 40; display: flex; height: 56px;
+              align-items: center; justify-content: space-between;
+              border-bottom: 1px solid #FFD6E2; background: rgba(255,255,255,.94);
+              backdrop-filter: blur(8px); padding: 0 16px">
+    <div style="display: flex; align-items: center; flex-shrink: 0">
+      <img src="logo-header.png" alt="Luizinha Confeitaria" style="height: 40px; width: auto; display: block">
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <div style="position: relative; display: flex; width: 44px; height: 44px; flex-shrink: 0;
+                  align-items: center; justify-content: center; border: 1px solid #FFD6E2;
+                  border-radius: 10px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/>
+          <path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <span style="position: absolute; top: -5px; right: -5px; display: flex; width: 20px; height: 20px;
+                     align-items: center; justify-content: center; border-radius: 999px;
+                     background: #F7B6C6; color: #6B3E26; font-size: 12px; font-weight: 600">2</span>
+      </div>
+      <a class="pill" href="#" style="border: 1px solid #FFD6E2; background: #FFF3E6">Entrar</a>
+    </div>
+  </div>
+
+  <!-- ═══ 3. ABERTURA ═══ -->
+  <div style="position: relative; overflow: hidden; border-bottom: 1px solid #FFD6E2;
+              background: linear-gradient(180deg, #FFF7EE 0%, #FFF3E6 100%)">
+    <svg style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: .085" aria-hidden="true">
+      <defs>
+        <pattern id="motivosHeroM" width="132" height="118" patternUnits="userSpaceOnUse" patternTransform="rotate(-8)">
+          <g fill="none" stroke="#C49A7A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 37c-8-7-13.5-11.5-13.5-18a7.7 7.7 0 0 1 13.5-4.5A7.7 7.7 0 0 1 35.5 19c0 6.5-5.5 11-13.5 18z"/>
+            <ellipse cx="95" cy="33" rx="8" ry="6.8"/>
+            <circle cx="85" cy="20" r="3.2"/><circle cx="95" cy="16" r="3.2"/><circle cx="105" cy="20" r="3.2"/>
+            <rect x="44" y="80" width="28" height="21" rx="4"/><path d="M44 87h28M58 80v21"/>
+          </g>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#motivosHeroM)"/>
+    </svg>
+
+    <div class="wrap" style="position: relative; padding-top: 36px; padding-bottom: 32px">
+      <p class="fr" style="margin: 0; font-size: 34px; line-height: 1.1; font-weight: 600;
+                           letter-spacing: -.015em; text-wrap: pretty">
+        Doce de verdade, feito na cozinha da Luizinha.
+      </p>
+      <p style="margin: 14px 0 0; font-size: 16.5px; line-height: 1.55; color: #7A5138">
+        Brownie, brigadeiro e bolo saindo do forno em quantidade pequena — do jeito que
+        dá pra caprichar em cada um.
+      </p>
+      <a class="pill" href="#" style="margin-top: 20px; height: 50px; width: 100%; padding: 0 20px;
+                                      background: #F7B6C6; color: #6B3E26; font-size: 16px;
+                                      font-weight: 600; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 11.5a8.4 8.4 0 0 1-12.1 7.5L3 21l2-5.8A8.4 8.4 0 1 1 21 11.5z"/>
+        </svg>
+        Falar com a confeiteira
+      </a>
+    </div>
+  </div>
+
+  <!-- ═══ 4. FILTROS — faixa única rolável. Antes eram DUAS fileiras empilhadas
+           (campanha numa, categorias noutra) antes do primeiro doce. ═══ -->
+  <div style="position: relative; padding: 18px 0 2px">
+    <div style="display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 6px; scrollbar-width: none">
+      <a class="pill" href="#" style="background: #6B3E26; color: #FFF3E6; font-weight: 600">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3.5c-4.5 3.5-7 6-7 9.5a7 7 0 0 0 14 0c0-3.5-2.5-6-7-9.5z"/>
+        </svg>
+        Festa Junina
+      </a>
+      <a class="pill" href="#" style="background: #F7B6C6; color: #6B3E26; font-weight: 600">Todas</a>
+      <a class="pill" href="#" style="border: 1px solid #FFD6E2; background: #FFFFFF">Brownies</a>
+      <a class="pill" href="#" style="border: 1px solid #FFD6E2; background: #FFFFFF">Docinhos</a>
+      <a class="pill" href="#" style="border: 1px solid #FFD6E2; background: #FFFFFF">Bolos</a>
+    </div>
+    <!-- Fade à direita: sinaliza que a faixa continua, sem gastar altura com seta. -->
+    <div style="position: absolute; top: 18px; right: 0; width: 40px; height: 50px; pointer-events: none;
+                background: linear-gradient(90deg, rgba(255,243,230,0) 0%, #FFF3E6 78%)"></div>
+  </div>
+
+  <!-- ═══ 5. VITRINE — 2 colunas ═══ -->
+  <div class="wrap" style="padding-top: 16px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
+      <h2 class="fr" style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.01em">O que tem hoje</h2>
+      <span style="font-size: 14px; color: #7A5138">6 doces</span>
+      <!-- Mesmo catálogo do desktop: 6 cards, 2 por linha. -->
+
+    </div>
+  </div>
+
+  <div class="wrap" style="padding-top: 14px; padding-bottom: 36px">
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+
+      <a class="card" href="#" style="display: block; text-decoration: none">
+        <div class="foto" style="background: #F6E4D4">
+          <svg width="62%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <rect x="18" y="42" width="84" height="52" rx="7" fill="#5A3320"/>
+            <rect x="18" y="42" width="84" height="15" rx="7" fill="#7A4A2E"/>
+            <circle cx="40" cy="68" r="5" fill="#3E2214"/><circle cx="66" cy="78" r="4" fill="#3E2214"/>
+            <circle cx="82" cy="63" r="4.5" fill="#3E2214"/><circle cx="53" cy="86" r="3.5" fill="#3E2214"/>
+            <path d="M26 50h68" stroke="#8E5B39" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div style="padding: 12px">
+          <p style="margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3">Brownie recheado</p>
+          <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #7A5138">Ninho · Doce de leite · Nutella</p>
+          <div style="margin-top: 9px">
+            <span style="font-size: 12px; color: #7A5138">A partir de</span>
+            <span style="display: block; font-size: 17px; font-weight: 600;
+                         font-variant-numeric: tabular-nums">R$ 12,00</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="#" style="display: block; text-decoration: none">
+        <div class="foto" style="background: #FFE6EE">
+          <svg width="62%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <path d="M30 74h60l-6 26a6 6 0 0 1-6 5H42a6 6 0 0 1-6-5z" fill="#F7B6C6"/>
+            <path d="M42 79v22M60 79v22M78 79v22" stroke="#E79BAE" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="60" cy="55" r="24" fill="#4A2A18"/>
+            <circle cx="52" cy="47" r="7" fill="#6B3E26" opacity=".55"/>
+            <g fill="#FFF3E6"><circle cx="50" cy="60" r="2.4"/><circle cx="66" cy="48" r="2.4"/>
+            <circle cx="70" cy="63" r="2.4"/><circle cx="58" cy="68" r="2.4"/><circle cx="60" cy="42" r="2.4"/></g>
+          </svg>
+          <span style="position: absolute; top: 8px; right: 8px; background: #6B3E26; color: #FFF3E6;
+                       border-radius: 999px; padding: 4px 9px; font-size: 11.5px; font-weight: 600">Promoção</span>
+        </div>
+        <div style="padding: 12px">
+          <p style="margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3">Brigadeiro gourmet</p>
+          <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #7A5138">Tradicional · Morango · Paçoca</p>
+          <div style="margin-top: 9px; display: flex; align-items: baseline; gap: 6px">
+            <span style="font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums">R$ 3,50</span>
+            <span style="font-size: 12.5px; color: #7A5138; text-decoration: line-through;
+                         font-variant-numeric: tabular-nums">R$ 4,50</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="#" style="display: block; text-decoration: none">
+        <div class="foto" style="background: #F3E7DA">
+          <svg width="56%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <rect x="34" y="26" width="52" height="12" rx="4" fill="#C49A7A"/>
+            <path d="M36 38h48v56a8 8 0 0 1-8 8H44a8 8 0 0 1-8-8z" fill="#FFFFFF" stroke="#E4D3C2" stroke-width="2"/>
+            <path d="M38 46h44v11H38zM38 68h44v11H38z" fill="#5A3320"/>
+            <path d="M38 57h44v11H38zM38 79h44v10H38z" fill="#FFE0CB"/>
+          </svg>
+        </div>
+        <div style="padding: 12px">
+          <p style="margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3">Bolo de pote</p>
+          <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #7A5138">Prestígio · Ninho com morango</p>
+          <div style="margin-top: 9px">
+            <span style="font-size: 12px; color: #7A5138">A partir de</span>
+            <span style="display: block; font-size: 17px; font-weight: 600;
+                         font-variant-numeric: tabular-nums">R$ 15,00</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="#" style="display: block; text-decoration: none">
+        <div class="foto" style="background: #F6E4D4">
+          <svg width="60%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <rect x="24" y="46" width="72" height="44" rx="6" fill="#4A2A18"/>
+            <g fill="#FFF3E6" opacity=".92">
+              <rect x="34" y="56" width="13" height="9" rx="2"/><rect x="56" y="52" width="11" height="8" rx="2"/>
+              <rect x="74" y="62" width="12" height="9" rx="2"/><rect x="42" y="72" width="12" height="8" rx="2"/>
+              <rect x="64" y="74" width="11" height="8" rx="2"/>
+            </g>
+            <rect x="24" y="46" width="72" height="8" rx="4" fill="#6B3E26"/>
+          </svg>
+        </div>
+        <div style="padding: 12px">
+          <p style="margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3">Palha italiana</p>
+          <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #7A5138">Tradicional · Oreo</p>
+          <div style="margin-top: 9px">
+            <span style="font-size: 12px; color: #7A5138">A partir de</span>
+            <span style="display: block; font-size: 17px; font-weight: 600;
+                         font-variant-numeric: tabular-nums">R$ 8,00</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="#" style="display: block; text-decoration: none">
+        <div class="foto" style="background: #FFE6EE">
+          <svg width="58%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <path d="M36 70h48l-5 28a6 6 0 0 1-6 5H47a6 6 0 0 1-6-5z" fill="#E8C6A8"/>
+            <path d="M47 75v22M60 75v22M73 75v22" stroke="#D3AC8C" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M60 24c10 0 16 7 16 14 6 1 9 6 9 11 0 8-7 12-16 12H51c-9 0-16-4-16-12 0-5 3-10 9-11 0-7 6-14 16-14z" fill="#F7B6C6"/>
+            <circle cx="60" cy="24" r="6" fill="#E0788F"/>
+          </svg>
+        </div>
+        <div style="padding: 12px">
+          <p style="margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3">Cupcake decorado</p>
+          <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #7A5138">Baunilha · Chocolate · Red velvet</p>
+          <div style="margin-top: 9px">
+            <span style="font-size: 12px; color: #7A5138">A partir de</span>
+            <span style="display: block; font-size: 17px; font-weight: 600;
+                         font-variant-numeric: tabular-nums">R$ 9,00</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="card" href="#" style="display: block; text-decoration: none">
+        <div class="foto" style="background: #F3E7DA">
+          <svg width="64%" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <rect x="20" y="52" width="80" height="46" rx="7" fill="#E8C6A8"/>
+            <rect x="20" y="52" width="80" height="12" rx="6" fill="#C49A7A"/>
+            <path d="M54 52v46M66 52v46" stroke="#F7B6C6" stroke-width="7"/>
+            <path d="M60 52c-8-4-14-10-9-16 4-5 9 2 9 8 0-6 5-13 9-8 5 6-1 12-9 16z" fill="#F7B6C6"/>
+            <circle cx="36" cy="76" r="6" fill="#5A3320"/><circle cx="86" cy="76" r="6" fill="#5A3320"/>
+          </svg>
+          <span style="position: absolute; top: 8px; right: 8px; background: #FFFFFF; color: #6B3E26;
+                       border: 1px solid #FFD6E2; border-radius: 999px; padding: 4px 9px;
+                       font-size: 11.5px; font-weight: 600">Kit</span>
+        </div>
+        <div style="padding: 12px">
+          <p style="margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.3">Caixa pra presente</p>
+          <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: #7A5138">6 brigadeiros + 2 brownies</p>
+          <div style="margin-top: 9px">
+            <span style="display: block; margin-top: 17px; font-size: 17px; font-weight: 600;
+                         font-variant-numeric: tabular-nums">R$ 42,00</span>
+          </div>
+        </div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ═══ 6. FIDELIDADE ═══ -->
+  <div style="position: relative; overflow: hidden; background: #FFD6E2;
+              border-top: 1px solid #F4C3D2; border-bottom: 1px solid #F4C3D2">
+    <svg style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: .16" aria-hidden="true">
+      <defs>
+        <pattern id="motivosPontosM" width="118" height="104" patternUnits="userSpaceOnUse" patternTransform="rotate(10)">
+          <g fill="none" stroke="#C4778D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="28" cy="32" rx="7.5" ry="6.4"/>
+            <circle cx="19" cy="20" r="3"/><circle cx="28" cy="16" r="3"/><circle cx="37" cy="20" r="3"/>
+            <path d="M86 38c-7.5-6-12-10.5-12-16.5a7 7 0 0 1 12-4.2 7 7 0 0 1 12 4.2c0 6-4.5 10.5-12 16.5z"/>
+            <rect x="56" y="74" width="26" height="20" rx="4"/><path d="M56 81h26"/>
+          </g>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#motivosPontosM)"/>
+    </svg>
+
+    <div class="wrap" style="position: relative; padding-top: 36px; padding-bottom: 36px">
+      <h2 class="fr" style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 600;
+                            letter-spacing: -.012em; text-wrap: pretty">
+        Cada real vira ponto. Ponto vira doce.
+      </h2>
+      <p style="margin: 12px 0 0; font-size: 16px; line-height: 1.55; color: #6B3E26">
+        A cada <strong style="font-weight: 600">R$ 1</strong> reservado você junta
+        <strong style="font-weight: 600">1 ponto</strong>. Quando der, troca por doce de graça —
+        sem sorteio, sem pegadinha. Valem por <strong style="font-weight: 600">12 meses</strong>.
+      </p>
+      <a class="pill" href="#" style="margin-top: 18px; height: 50px; width: 100%; background: #6B3E26;
+                                      color: #FFF3E6; font-size: 16px; font-weight: 600; justify-content: center">
+        Criar minha conta
+      </a>
+      <p style="margin: 8px 0 0; font-size: 13px; color: #8A5A40; text-align: center">Leva menos de um minuto</p>
+    </div>
+  </div>
+
+  <!-- ═══ 7. COMO FUNCIONA ═══ -->
+  <div class="wrap" style="padding-top: 40px">
+    <h2 class="fr" style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.01em">Como funciona</h2>
+    <p style="margin: 7px 0 0; font-size: 15px; color: #7A5138">
+      Aqui você reserva. Não é loja, é a Luizinha separando o seu.
+    </p>
+
+    <div style="margin-top: 18px; display: flex; flex-direction: column; gap: 10px">
+
+      <div style="display: flex; gap: 14px; background: #FFFFFF; border-radius: 14px; padding: 16px;
+                  box-shadow: 0 1px 2px rgba(107,62,38,.05), 0 8px 20px -12px rgba(107,62,38,.16)">
+        <div style="display: flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center;
+                    justify-content: center; border-radius: 999px; background: #FFE6EE">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+        </div>
+        <div style="min-width: 0">
+          <p class="fr" style="margin: 0; font-size: 18px; font-weight: 600">1. Escolhe e reserva</p>
+          <p style="margin: 5px 0 0; font-size: 14.5px; line-height: 1.5; color: #7A5138">
+            Monta o pedido aqui. Você não paga nada agora — só segura o doce.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; background: #FFFFFF; border-radius: 14px; padding: 16px;
+                  box-shadow: 0 1px 2px rgba(107,62,38,.05), 0 8px 20px -12px rgba(107,62,38,.16)">
+        <div style="display: flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center;
+                    justify-content: center; border-radius: 999px; background: #FFE6EE">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 11.5a8.4 8.4 0 0 1-12.1 7.5L3 21l2-5.8A8.4 8.4 0 1 1 21 11.5z"/>
+            <path d="M12 13.6c-2.2-1.8-3.6-3-3.6-4.5a2 2 0 0 1 3.6-1.1 2 2 0 0 1 3.6 1.1c0 1.5-1.4 2.7-3.6 4.5z"/>
+          </svg>
+        </div>
+        <div style="min-width: 0">
+          <p class="fr" style="margin: 0; font-size: 18px; font-weight: 600">2. Ela confirma no WhatsApp</p>
+          <p style="margin: 5px 0 0; font-size: 14.5px; line-height: 1.5; color: #7A5138">
+            A Luizinha responde com o dia e a hora certinha pra buscar.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 14px; background: #FFFFFF; border-radius: 14px; padding: 16px;
+                  box-shadow: 0 1px 2px rgba(107,62,38,.05), 0 8px 20px -12px rgba(107,62,38,.16)">
+        <div style="display: flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center;
+                    justify-content: center; border-radius: 999px; background: #FFE6EE">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <ellipse cx="12" cy="16" rx="5" ry="4.2"/>
+            <circle cx="6" cy="8.5" r="2.2"/><circle cx="11" cy="6" r="2.2"/>
+            <circle cx="16.5" cy="7.5" r="2.2"/><circle cx="20" cy="12" r="2.2"/>
+          </svg>
+        </div>
+        <div style="min-width: 0">
+          <p class="fr" style="margin: 0; font-size: 18px; font-weight: 600">3. Retira e paga na hora</p>
+          <p style="margin: 5px 0 0; font-size: 14.5px; line-height: 1.5; color: #7A5138">
+            Pega fresquinho e acerta direto com ela. Seus pontos caem na conta.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ 8. ONDE RETIRAR ═══ -->
+  <div class="wrap" style="padding-top: 32px">
+    <div style="display: flex; gap: 14px; background: #FFFFFF; border-radius: 14px; padding: 16px;
+                box-shadow: 0 1px 2px rgba(107,62,38,.05), 0 8px 20px -12px rgba(107,62,38,.16)">
+      <div style="display: flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center;
+                  justify-content: center; border-radius: 999px; background: #FFE6EE">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B3E26" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 10.5c0 5.5-8 11.5-8 11.5s-8-6-8-11.5a8 8 0 0 1 16 0z"/><circle cx="12" cy="10.2" r="2.8"/>
+        </svg>
+      </div>
+      <div style="min-width: 0; flex: 1">
+        <p style="margin: 0; font-size: 16px; font-weight: 600; line-height: 1.35">
+          Retirada no [BAIRRO] — referência: [PONTO CONHECIDO]
+        </p>
+        <p style="margin: 5px 0 0; font-size: 14.5px; line-height: 1.5; color: #7A5138">
+          O horário é sempre combinado antes — ninguém vai à toa.
+        </p>
+        <a href="#" style="display: inline-flex; align-items: center; height: 44px; margin-top: 4px;
+                           font-size: 15px; font-weight: 500; text-decoration: underline;
+                           text-underline-offset: 3px">Ver como chegar</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 9. TAMBÉM VENDEMOS — lista, não grid ═══ -->
+  <div class="wrap" style="padding-top: 36px; padding-bottom: 40px">
+    <h2 class="fr" style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em">Também vendemos</h2>
+    <p style="margin: 6px 0 0; font-size: 14.5px; color: #7A5138">
+      Esgotado por agora — a Luizinha faz sob encomenda, é só chamar.
+    </p>
+
+    <div style="margin-top: 14px">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #F0DECB">
+        <div style="width: 48px; height: 48px; flex-shrink: 0; border-radius: 10px; background: #F1E5D8;
+                    display: flex; align-items: center; justify-content: center; filter: grayscale(1); opacity: .62">
+          <svg width="28" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <circle cx="60" cy="60" r="34" fill="#C49A7A"/>
+            <circle cx="48" cy="52" r="5" fill="#5A3320"/><circle cx="72" cy="58" r="5" fill="#5A3320"/>
+            <circle cx="58" cy="74" r="5" fill="#5A3320"/>
+          </svg>
+        </div>
+        <p style="margin: 0; flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: #7A5138;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Cookie recheado</p>
+        <span style="flex-shrink: 0; font-size: 12px; font-weight: 500; color: #8A5A40;
+                     background: #F1E5D8; border-radius: 999px; padding: 4px 9px">Esgotado</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #F0DECB">
+        <div style="width: 48px; height: 48px; flex-shrink: 0; border-radius: 10px; background: #F1E5D8;
+                    display: flex; align-items: center; justify-content: center; filter: grayscale(1); opacity: .62">
+          <svg width="28" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <path d="M28 46h64v44a8 8 0 0 1-8 8H36a8 8 0 0 1-8-8z" fill="#C49A7A"/>
+            <path d="M24 34h72v12H24z" fill="#8E6247"/>
+          </svg>
+        </div>
+        <p style="margin: 0; flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: #7A5138;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Torta holandesa</p>
+        <span style="flex-shrink: 0; font-size: 12px; font-weight: 500; color: #8A5A40;
+                     background: #F1E5D8; border-radius: 999px; padding: 4px 9px">Esgotado</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #F0DECB">
+        <div style="width: 48px; height: 48px; flex-shrink: 0; border-radius: 10px; background: #F1E5D8;
+                    display: flex; align-items: center; justify-content: center; filter: grayscale(1); opacity: .62">
+          <svg width="28" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+            <path d="M34 70h52l-5 26a6 6 0 0 1-6 5H45a6 6 0 0 1-6-5z" fill="#C49A7A"/>
+            <path d="M60 26c9 0 15 7 15 14 6 1 9 6 9 11 0 8-7 12-15 12H51c-8 0-15-4-15-12 0-5 3-10 9-11 0-7 6-14 15-14z" fill="#9E7358"/>
+          </svg>
+        </div>
+        <p style="margin: 0; flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: #7A5138;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Mini naked cake</p>
+        <span style="flex-shrink: 0; font-size: 12px; font-weight: 500; color: #8A5A40;
+                     background: #F1E5D8; border-radius: 999px; padding: 4px 9px">Esgotado</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ FOOTER ═══ -->
+  <div style="border-top: 1px solid #FFD6E2; background: #FFFFFF; padding: 22px 16px">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;
+                font-size: 14px; color: #7A5138; text-align: center">
+      <span class="fr" style="font-size: 16px; color: #6B3E26">Luizinha Confeitaria</span>
+      <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center">
+        <a href="#" style="text-decoration: none">Onde retirar</a>
+        <a href="#" style="text-decoration: none">Termos</a>
+        <a href="#" style="text-decoration: none">Privacidade</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":390,"height":2700}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>
