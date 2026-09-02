@@ -25,14 +25,49 @@ export async function listarClientesAdmin(busca?: string) {
     orderBy: { name: 'asc' },
   })
 
-  const saldos = await prisma.pontosTransacao.groupBy({
-    by: ['clienteId'],
-    where: { clienteId: { in: clientes.map((c) => c.id) } },
-    _sum: { valor: true },
-  })
+  const ids = clientes.map((c) => c.id)
+
+  const [saldos, compras] = await Promise.all([
+    prisma.pontosTransacao.groupBy({
+      by: ['clienteId'],
+      where: { clienteId: { in: ids } },
+      _sum: { valor: true },
+    }),
+    // Mesmo motivo de listarReservasAdmin: valor total é soma de qtde ×
+    // precoCongelado do ITEM, não uma coluna de Reserva — groupBy não alcança,
+    // e o volume ainda é pequeno o bastante pra reduzir em JS.
+    prisma.reserva.findMany({
+      where: {
+        clienteId: { in: ids },
+        tipo: 'PADRAO',
+        status: { in: ['CONFIRMADA', 'AGUARDANDO_RETIRADA', 'RETIRADA'] },
+      },
+      select: {
+        clienteId: true,
+        criadoEm: true,
+        itens: { select: { qtde: true, precoUnitarioCongelado: true } },
+      },
+    }),
+  ])
+
   const saldoPorCliente = new Map(saldos.map((s) => [s.clienteId, s._sum.valor ?? 0]))
 
-  return clientes.map((c) => ({ ...c, saldoPontos: saldoPorCliente.get(c.id) ?? 0 }))
+  type Historico = { totalReservas: number; valorTotal: number; ultimaCompra: Date | null }
+  const historico = new Map<string, Historico>()
+  for (const r of compras) {
+    const id = r.clienteId!
+    const atual = historico.get(id) ?? { totalReservas: 0, valorTotal: 0, ultimaCompra: null }
+    atual.totalReservas += 1
+    atual.valorTotal += r.itens.reduce((s, i) => s + i.qtde * Number(i.precoUnitarioCongelado), 0)
+    if (!atual.ultimaCompra || r.criadoEm > atual.ultimaCompra) atual.ultimaCompra = r.criadoEm
+    historico.set(id, atual)
+  }
+
+  return clientes.map((c) => ({
+    ...c,
+    saldoPontos: saldoPorCliente.get(c.id) ?? 0,
+    ...(historico.get(c.id) ?? { totalReservas: 0, valorTotal: 0, ultimaCompra: null }),
+  }))
 }
 
 /** Detalhe do cliente pro painel de gestão — inclui só os ajustes AJUSTE_ADMIN (histórico do que a mãe já mexeu manualmente). */
