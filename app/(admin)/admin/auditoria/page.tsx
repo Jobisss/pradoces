@@ -1,6 +1,8 @@
 import { format, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { History, User, ShieldCheck, Terminal, Cog } from 'lucide-react'
 import { prisma } from '@/lib/db/client'
+import { PageHeader, SurfaceCard, EmptyState } from '@/components/admin/ui'
 
 /**
  * Viewer de auditoria (AUTH-11) — RSC sob o layout guardado (Plan 03). Lista o
@@ -24,58 +26,70 @@ const ACTION_COPY: Record<string, string> = {
   lote_criado: 'registrou um lote produzido',
 }
 
+const ATOR = {
+  admin: { label: 'você', icone: ShieldCheck },
+  customer: { label: 'um cliente', icone: User },
+  cli: { label: 'o dev', icone: Terminal },
+  system: { label: 'o sistema', icone: Cog },
+} as const
+
 function actorLabel(actorType: string): string {
-  switch (actorType) {
-    case 'admin':
-      return 'você'
-    case 'customer':
-      return 'um cliente'
-    case 'cli':
-      return 'o dev'
-    case 'system':
-      return 'o sistema'
-    default:
-      return actorType
-  }
+  return ATOR[actorType as keyof typeof ATOR]?.label ?? actorType
 }
 
 function whenLabel(ts: Date): string {
   return isToday(ts)
     ? format(ts, "'Hoje, 'HH:mm", { locale: ptBR })
-    : format(ts, "dd/MM/yyyy, HH:mm", { locale: ptBR })
+    : format(ts, 'dd/MM/yyyy, HH:mm', { locale: ptBR })
 }
 
 export default async function AuditPage() {
   const events = await prisma.auditLog.findMany({ orderBy: { ts: 'desc' }, take: 200 })
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-12">
-      <div className="space-y-6">
-        <h1 className="font-display text-3xl font-semibold">Quem fez o quê</h1>
-        {events.length === 0 ? (
-          <div className="space-y-1">
-            <p className="text-base font-medium">Nenhum evento ainda</p>
-            <p className="text-sm text-muted-foreground">
-              Quando alguém entrar no painel ou mexer em alguma coisa importante, vai aparecer aqui.
-            </p>
-          </div>
-        ) : (
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <PageHeader
+        title="Quem fez o quê"
+        subtitle={
+          events.length === 0
+            ? 'Nenhum evento registrado ainda'
+            : `Últimos ${events.length} eventos, mais recente primeiro`
+        }
+      />
+
+      {events.length === 0 ? (
+        <EmptyState
+          icon={History}
+          title="Nenhum evento ainda"
+          description="Quando alguém entrar no painel ou mexer em alguma coisa importante, vai aparecer aqui."
+        />
+      ) : (
+        <SurfaceCard>
           <ul className="divide-y divide-border">
-            {events.map((e) => (
-              <li key={String(e.id)} className="py-3 text-sm">
-                <span>
-                  {whenLabel(e.ts)} — {actorLabel(e.actorType)} — {ACTION_COPY[e.action] ?? e.action}
-                </span>
-                {e.metadata ? (
-                  <span className="block text-xs text-muted-foreground">
-                    {JSON.stringify(e.metadata)}
+            {events.map((e) => {
+              const Icone = ATOR[e.actorType as keyof typeof ATOR]?.icone ?? Cog
+              return (
+                <li key={String(e.id)} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background">
+                    <Icone className="size-4 text-caramelo" aria-hidden />
                   </span>
-                ) : null}
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <span className="block text-sm">
+                      {whenLabel(e.ts)} — {actorLabel(e.actorType)} —{' '}
+                      <span className="font-medium">{ACTION_COPY[e.action] ?? e.action}</span>
+                    </span>
+                    {e.metadata ? (
+                      <span className="block break-all font-mono text-xs text-muted-foreground">
+                        {JSON.stringify(e.metadata)}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
-        )}
-      </div>
+        </SurfaceCard>
+      )}
     </div>
   )
 }
