@@ -4,10 +4,19 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { salvarMargemGlobal, type ConfigActionState } from '@/lib/actions/config'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
+import {
+  FormLayout,
+  FormSection,
+  Field,
+  FieldRow,
+  AdminInput,
+  AdminSelectTrigger,
+  InputWithSuffix,
+  ToggleRow,
+  FormAlert,
+  FormActions,
+} from '@/components/admin/form'
 
 const initialState: ConfigActionState = {}
 
@@ -18,6 +27,16 @@ const PIX_TIPO_LABEL: Record<string, string> = {
   TELEFONE: 'Telefone',
   ALEATORIA: 'Chave aleatória',
 }
+
+/**
+ * O que muda na hora vs. o que fica congelado — a distinção mais importante
+ * dessa tela, e que antes não estava escrita em lugar nenhum.
+ */
+const CONSEQUENCIAS = [
+  'A margem mínima vale pra todo produto sem mínima própria — a home recalcula os avisos na hora.',
+  'Pontos por real só valem pra reservas confirmadas daqui pra frente. Saldo já creditado não muda.',
+  'Taxa de entrega e Pix ficam congelados em cada reserva no momento em que ela é feita.',
+]
 
 type AjustesFormProps = {
   margemAtual: string
@@ -57,138 +76,181 @@ export function AjustesForm({
     }
   }, [state.ok, state.message])
 
+  const rail = (
+    <div className="flex flex-col gap-2.5 rounded-xl bg-card p-5 ring-1 ring-foreground/10 shadow-doce-baixa">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+        O que muda na hora
+      </span>
+      {CONSEQUENCIAS.map((texto, i) => (
+        <p
+          key={i}
+          className={`text-[13px] leading-relaxed text-muted-foreground ${i > 0 ? 'border-t border-border pt-2.5' : ''}`}
+        >
+          {texto}
+        </p>
+      ))}
+    </div>
+  )
+
   return (
-    <form action={formAction} className="max-w-md space-y-6" noValidate>
-      {state.error && (
-        <p role="alert" className="text-sm text-muted-foreground">
-          {state.error}
-        </p>
-      )}
+    <form action={formAction} noValidate>
+      <FormLayout rail={rail}>
+        {state.error && <FormAlert title="Não deu pra salvar os ajustes" detail={state.error} />}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="margemMinimaPadrao">Margem mínima padrão (%)</Label>
-        <Input
-          id="margemMinimaPadrao"
-          name="margemMinimaPadrao"
-          inputMode="decimal"
-          defaultValue={margemAtual}
-          required
-        />
-        <p className="text-sm text-muted-foreground">
-          Abaixo disso, o produto ganha um aviso vermelho. Hoje: {Number(margemAtual)}%.
-        </p>
-      </div>
+        <FormSection title="Preço e margem">
+          <Field
+            label="Margem mínima padrão"
+            htmlFor="margemMinimaPadrao"
+            className="sm:max-w-64"
+            hint={`Abaixo disso o produto ganha aviso vermelho na lista e na home. Hoje: ${Number(margemAtual)}%.`}
+          >
+            <InputWithSuffix
+              id="margemMinimaPadrao"
+              name="margemMinimaPadrao"
+              inputMode="decimal"
+              defaultValue={margemAtual}
+              suffix="%"
+              required
+            />
+          </Field>
+        </FormSection>
 
-      <div className="space-y-4 border-t border-border pt-4">
-        <h2 className="text-base font-semibold">Pontos e reservas</h2>
+        <FormSection title="Pontos" hint="O programa de fidelidade da clientela do bairro.">
+          <FieldRow>
+            <Field
+              label="Pontos por real reservado"
+              htmlFor="pontosPorReal"
+              hint={`Hoje R$ 1,00 vira ${Number(pontosPorRealAtual)} ponto(s).`}
+            >
+              <InputWithSuffix
+                id="pontosPorReal"
+                name="pontosPorReal"
+                inputMode="decimal"
+                defaultValue={pontosPorRealAtual}
+                suffix="pts"
+                required
+              />
+            </Field>
+            <Field
+              label="Pontos expiram em"
+              htmlFor="pontosExpiracaoMeses"
+              hint="Contado a partir de cada crédito."
+            >
+              <InputWithSuffix
+                id="pontosExpiracaoMeses"
+                name="pontosExpiracaoMeses"
+                inputMode="numeric"
+                defaultValue={pontosExpiracaoAtual}
+                suffix="meses"
+                required
+              />
+            </Field>
+            <Field
+              label="Janela pra cancelar"
+              htmlFor="janelaCancelamentoHoras"
+              hint="Depois disso a cliente não cancela sozinha."
+            >
+              <InputWithSuffix
+                id="janelaCancelamentoHoras"
+                name="janelaCancelamentoHoras"
+                inputMode="numeric"
+                defaultValue={janelaCancelamentoAtual}
+                suffix="horas"
+                required
+              />
+            </Field>
+          </FieldRow>
+        </FormSection>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="pontosPorReal">Pontos por real reservado</Label>
-          <Input id="pontosPorReal" name="pontosPorReal" inputMode="decimal" defaultValue={pontosPorRealAtual} required />
-          <p className="text-sm text-muted-foreground">Hoje: R$ 1,00 vira {Number(pontosPorRealAtual)} ponto(s).</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pontosExpiracaoMeses">Pontos expiram depois de (meses)</Label>
-          <Input
-            id="pontosExpiracaoMeses"
-            name="pontosExpiracaoMeses"
-            inputMode="numeric"
-            defaultValue={pontosExpiracaoAtual}
-            required
+        <FormSection title="Entrega">
+          <ToggleRow
+            name="entregaAtiva"
+            label="Aceitar entrega"
+            hint="Quando desligado, a vitrine só oferece retirada. Taxa fixa pra cidade toda."
+            defaultChecked={entregaAtivaAtual}
           />
-        </div>
+          <Field
+            label="Taxa de entrega (R$)"
+            htmlFor="taxaEntregaPadrao"
+            className="sm:max-w-64"
+            hint="Congelada em cada reserva — mudar aqui não altera pedidos já feitos."
+          >
+            <AdminInput
+              id="taxaEntregaPadrao"
+              name="taxaEntregaPadrao"
+              inputMode="decimal"
+              defaultValue={taxaEntregaAtual}
+              required
+            />
+          </Field>
+        </FormSection>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="janelaCancelamentoHoras">Janela de cancelamento (horas)</Label>
-          <Input
-            id="janelaCancelamentoHoras"
-            name="janelaCancelamentoHoras"
-            inputMode="numeric"
-            defaultValue={janelaCancelamentoAtual}
-            required
+        <FormSection
+          title="Pix"
+          hint="Aparece no comprovante da reserva. O QR já vem com o valor exato — mas a confirmação do pagamento continua manual, no WhatsApp."
+        >
+          <ToggleRow
+            name="pixAtivo"
+            label="Mostrar Pix no comprovante"
+            hint="Desligado, a combinação de pagamento fica só no WhatsApp."
+            defaultChecked={pixAtivoAtual}
           />
-        </div>
-      </div>
 
-      <div className="space-y-4 border-t border-border pt-4">
-        <h2 className="text-base font-semibold">Entrega</h2>
+          <FieldRow>
+            <Field label="Tipo de chave" htmlFor="pixTipoChave-trigger" className="sm:max-w-56">
+              <input type="hidden" name="pixTipoChave" value={pixTipoChave} />
+              <Select value={pixTipoChave} onValueChange={setPixTipoChave}>
+                <AdminSelectTrigger id="pixTipoChave-trigger">
+                  <SelectValue placeholder="Escolhe o tipo" />
+                </AdminSelectTrigger>
+                <SelectContent>
+                  {Object.entries(PIX_TIPO_LABEL).map(([valor, label]) => (
+                    <SelectItem key={valor} value={valor}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Chave" htmlFor="pixChave">
+              <AdminInput id="pixChave" name="pixChave" defaultValue={pixChaveAtual} />
+            </Field>
+          </FieldRow>
 
-        <div className="flex items-start gap-3">
-          <Checkbox id="entregaAtiva" name="entregaAtiva" defaultChecked={entregaAtivaAtual} className="mt-0.5" />
-          <Label htmlFor="entregaAtiva" className="font-normal">
-            Oferecer entrega como opção na reserva (taxa fixa pra cidade toda)
-          </Label>
-        </div>
+          <FieldRow>
+            <Field
+              label="Nome do beneficiário"
+              htmlFor="pixNomeBeneficiario"
+              hint="Como está no banco, sem acentos, até 25 caracteres — limite do padrão Pix."
+            >
+              <AdminInput
+                id="pixNomeBeneficiario"
+                name="pixNomeBeneficiario"
+                maxLength={25}
+                defaultValue={pixNomeBeneficiarioAtual}
+              />
+            </Field>
+            <Field
+              label="Cidade do beneficiário"
+              htmlFor="pixCidade"
+              hint="Sem acentos, até 15 caracteres — limite do padrão Pix."
+            >
+              <AdminInput
+                id="pixCidade"
+                name="pixCidade"
+                maxLength={15}
+                defaultValue={pixCidadeAtual}
+              />
+            </Field>
+          </FieldRow>
+        </FormSection>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="taxaEntregaPadrao">Taxa de entrega (R$)</Label>
-          <Input
-            id="taxaEntregaPadrao"
-            name="taxaEntregaPadrao"
-            inputMode="decimal"
-            defaultValue={taxaEntregaAtual}
-            required
-          />
-          <p className="text-sm text-muted-foreground">
-            Cobrada em toda reserva com entrega. Reservas já feitas não mudam se você alterar depois.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-4 border-t border-border pt-4">
-        <h2 className="text-base font-semibold">Pix</h2>
-
-        <div className="flex items-start gap-3">
-          <Checkbox id="pixAtivo" name="pixAtivo" defaultChecked={pixAtivoAtual} className="mt-0.5" />
-          <Label htmlFor="pixAtivo" className="font-normal">
-            Mostrar QR code do Pix no comprovante da reserva
-          </Label>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pixTipoChave-trigger">Tipo de chave</Label>
-          <input type="hidden" name="pixTipoChave" value={pixTipoChave} />
-          <Select value={pixTipoChave} onValueChange={setPixTipoChave}>
-            <SelectTrigger id="pixTipoChave-trigger" className="w-full">
-              <SelectValue placeholder="Escolhe o tipo de chave" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(PIX_TIPO_LABEL).map(([valor, label]) => (
-                <SelectItem key={valor} value={valor}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pixChave">Chave Pix</Label>
-          <Input id="pixChave" name="pixChave" defaultValue={pixChaveAtual} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pixNomeBeneficiario">Nome do beneficiário</Label>
-          <Input id="pixNomeBeneficiario" name="pixNomeBeneficiario" maxLength={25} defaultValue={pixNomeBeneficiarioAtual} />
-          <p className="text-sm text-muted-foreground">Sem acentos, até 25 caracteres — limite do padrão Pix.</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="pixCidade">Cidade do beneficiário</Label>
-          <Input id="pixCidade" name="pixCidade" maxLength={15} defaultValue={pixCidadeAtual} />
-          <p className="text-sm text-muted-foreground">Sem acentos, até 15 caracteres — limite do padrão Pix.</p>
-        </div>
-
-        <p className="text-sm text-muted-foreground">
-          O QR mostra o valor exato de cada reserva — é só uma facilidade visual, a confirmação do pagamento
-          continua manual.
-        </p>
-      </div>
-
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? 'Salvando...' : 'Salvar ajustes'}
-      </Button>
+        <FormActions note="Nada aqui apaga dado — só muda o comportamento daqui pra frente.">
+          <Button type="submit" className="h-12 px-6 text-base" disabled={pending}>
+            {pending ? 'Salvando...' : 'Salvar ajustes'}
+          </Button>
+        </FormActions>
+      </FormLayout>
     </form>
   )
 }

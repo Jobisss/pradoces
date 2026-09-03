@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db/client'
 import { AjustesForm } from '@/components/admin/ajustes-form'
 import { SimuladorPontos } from '@/components/admin/simulador-pontos'
+import { PageHeader } from '@/components/admin/ui'
 
 export default async function AjustesPage() {
   const config = await prisma.configuracao.findUnique({ where: { id: 1 } })
@@ -17,8 +18,11 @@ export default async function AjustesPage() {
   const pixCidadeAtual = config?.pixCidade ?? ''
 
   return (
-    <div className="space-y-8">
-      <h1 className="font-display text-3xl font-semibold">Ajustes</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Ajustes"
+        subtitle="Regras que valem pro site inteiro — mexer aqui muda o comportamento de todas as telas"
+      />
       <AjustesForm
         margemAtual={margemAtual}
         pontosPorRealAtual={pontosPorRealAtual}

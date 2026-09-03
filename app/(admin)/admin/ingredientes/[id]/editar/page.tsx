@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db/client'
 import { IngredienteForm } from '@/components/admin/ingrediente-form'
+import { PageHeader } from '@/components/admin/ui'
 
 export default async function EditarIngredientePage({
   params,
@@ -16,7 +17,7 @@ export default async function EditarIngredientePage({
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Editar ingrediente</h1>
+      <PageHeader title="Editar ingrediente" subtitle={ingrediente.nome} />
       <IngredienteForm
         defaults={{
           id: ingrediente.id,
