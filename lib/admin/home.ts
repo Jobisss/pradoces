@@ -176,7 +176,11 @@ export async function listarPendencias(): Promise<Pendencia[]> {
 
 export type ResumoDoDia = {
   faturamento: Decimal
+  /** Venda + resgate + baixa: tudo que o estoque consumiu hoje. */
   custoTotal: Decimal
+  /** Custo do que saiu por pontos hoje — parte do custoTotal, destacado. */
+  custoResgates: Decimal
+  unidadesResgatadas: number
   lucro: Decimal
   /** Margem do dia em %, ou null quando não houve venda (evita divisão por zero). */
   margem: Decimal | null
@@ -184,38 +188,75 @@ export type ResumoDoDia = {
   retiradasPendentes: number
 }
 
-/** ADM-04 — confirmadas HOJE (não "criadas hoje"): é o dia em que a venda de fato aconteceu. */
+/**
+ * ADM-04 — confirmadas HOJE (não "criadas hoje"): é o dia em que a venda de
+ * fato aconteceu.
+ *
+ * Receita só de PADRAO (resgate é pago em pontos), mas o CUSTO conta os três
+ * caminhos que tiram doce da prateleira: venda, resgate e baixa. Contar só o
+ * custo das vendas fazia o doce trocado por pontos parecer de graça.
+ */
 export async function resumoDoDia(): Promise<ResumoDoDia> {
   const hoje = hojeDate()
   const amanha = new Date(hoje)
   amanha.setUTCDate(amanha.getUTCDate() + 1)
 
-  const reservasHoje = await prisma.reserva.findMany({
-    where: { tipo: 'PADRAO', confirmadaEm: { gte: hoje, lt: amanha } },
-    select: { itens: { select: { qtde: true, precoUnitarioCongelado: true, lote: { select: { custoPorUnidadeCongelado: true } } } } },
-  })
+  const [reservasHoje, baixasHoje, retiradasPendentes] = await Promise.all([
+    prisma.reserva.findMany({
+      where: { confirmadaEm: { gte: hoje, lt: amanha } },
+      select: {
+        tipo: true,
+        itens: {
+          select: {
+            qtde: true,
+            precoUnitarioCongelado: true,
+            lote: { select: { custoPorUnidadeCongelado: true } },
+          },
+        },
+      },
+    }),
+    prisma.loteBaixa.findMany({
+      where: { criadoEm: { gte: hoje, lt: amanha } },
+      select: { qtde: true, lote: { select: { custoPorUnidadeCongelado: true } } },
+    }),
+    prisma.reserva.count({ where: { status: { in: ['CONFIRMADA', 'AGUARDANDO_RETIRADA'] } } }),
+  ])
 
   let faturamento = new Decimal(0)
   let custoTotal = new Decimal(0)
+  let custoResgates = new Decimal(0)
+  let unidadesResgatadas = 0
+  let reservasDoDia = 0
+
   for (const r of reservasHoje) {
+    const resgate = r.tipo === 'RESGATE'
+    if (!resgate) reservasDoDia += 1
     for (const item of r.itens) {
-      faturamento = faturamento.plus(item.precoUnitarioCongelado.times(item.qtde))
-      custoTotal = custoTotal.plus(item.lote.custoPorUnidadeCongelado.times(item.qtde))
+      const custo = item.lote.custoPorUnidadeCongelado.times(item.qtde)
+      custoTotal = custoTotal.plus(custo)
+      if (resgate) {
+        custoResgates = custoResgates.plus(custo)
+        unidadesResgatadas += item.qtde
+      } else {
+        faturamento = faturamento.plus(item.precoUnitarioCongelado.times(item.qtde))
+      }
     }
   }
 
-  const retiradasPendentes = await prisma.reserva.count({
-    where: { status: { in: ['CONFIRMADA', 'AGUARDANDO_RETIRADA'] } },
-  })
+  for (const b of baixasHoje) {
+    custoTotal = custoTotal.plus(b.lote.custoPorUnidadeCongelado.times(b.qtde))
+  }
 
   const lucro = faturamento.minus(custoTotal)
 
   return {
     faturamento,
     custoTotal,
+    custoResgates,
+    unidadesResgatadas,
     lucro,
     margem: faturamento.isZero() ? null : lucro.dividedBy(faturamento).times(100),
-    reservasDoDia: reservasHoje.length,
+    reservasDoDia,
     retiradasPendentes,
   }
 }

@@ -40,16 +40,18 @@ export async function listarItensResgataveisDisponiveis() {
   if (variacaoIds.length === 0) return itens
 
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-  const lotesDisponiveis = await prisma.lote.findMany({
-    where: {
-      variacaoId: { in: variacaoIds },
-      validade: { gte: new Date(`${hoje}T00:00:00Z`) },
-      qtdeDisponivel: { gt: 0 },
-    },
-    select: { variacaoId: true },
-    distinct: ['variacaoId'],
-  })
-  const idsComEstoque = new Set(lotesDisponiveis.map((l) => l.variacaoId))
+  // `qtde_disponivel > qtde_reservada`, não `> 0`: resgate faz soft-hold desde
+  // lib/actions/resgate.ts, então unidade já prometida a outra pessoa não pode
+  // continuar ofertada — senão o catálogo mostra disponível e o resgate falha
+  // com "acabou de esgotar" no clique. Comparação entre duas colunas não sai
+  // no findMany, daí o raw (mesma convenção do resto do projeto).
+  const lotesDisponiveis = await prisma.$queryRaw<Array<{ variacao_id: string }>>`
+    SELECT DISTINCT variacao_id
+    FROM lotes
+    WHERE variacao_id = ANY(${variacaoIds}::uuid[])
+      AND validade >= ${new Date(`${hoje}T00:00:00Z`)}
+      AND qtde_disponivel > qtde_reservada`
+  const idsComEstoque = new Set(lotesDisponiveis.map((l) => l.variacao_id))
 
   return itens.filter((i) => !i.variacaoId || idsComEstoque.has(i.variacaoId))
 }

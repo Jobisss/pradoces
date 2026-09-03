@@ -326,6 +326,19 @@ export async function cancelarReserva(reservaId: string): Promise<ReservaActionS
         throw new ReservaError('Essa reserva não pode mais ser cancelada.')
       }
 
+      // Estoque volta pros dois tipos: resgate também segura e baixa lote
+      // (soft-hold no resgate, baixa na confirmação). Resgate de item
+      // nomeCustom e resgates antigos têm `itens` vazio e passam batido.
+      for (const item of reserva.itens) {
+        await tx.lote.update({
+          where: { id: item.loteId },
+          data:
+            reserva.status === 'PENDENTE'
+              ? { qtdeReservada: { decrement: item.qtde } }
+              : { qtdeDisponivel: { increment: item.qtde } },
+        })
+      }
+
       if (reserva.tipo === 'RESGATE') {
         // Devolve os pontos do resgate (débito imediato na hora de trocar,
         // RESG-04) — mesmo padrão de rejeitarReserva no admin.
@@ -336,16 +349,6 @@ export async function cancelarReserva(reservaId: string): Promise<ReservaActionS
           })
         }
       } else {
-        for (const item of reserva.itens) {
-          await tx.lote.update({
-            where: { id: item.loteId },
-            data:
-              reserva.status === 'PENDENTE'
-                ? { qtdeReservada: { decrement: item.qtde } }
-                : { qtdeDisponivel: { increment: item.qtde } },
-          })
-        }
-
         if (reserva.status === 'CONFIRMADA') {
           const creditos = await tx.pontosTransacao.findMany({
             where: { reservaId: reserva.id, motivo: 'RESERVA_CONFIRMADA' },
