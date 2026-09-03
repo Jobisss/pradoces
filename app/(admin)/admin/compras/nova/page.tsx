@@ -1,15 +1,20 @@
 import { prisma } from '@/lib/db/client'
 import { MercadoFlow } from '@/components/admin/mercado-flow'
+import { PageHeader } from '@/components/admin/ui'
 
 export default async function FuiAoMercadoPage() {
   const ingredientes = await prisma.ingrediente.findMany({
     orderBy: { nome: 'asc' },
-    select: { id: true, nome: true, unidadeBase: true },
+    // `tipo` alimenta a quebra "ingredientes × embalagens" do total da ida.
+    select: { id: true, nome: true, unidadeBase: true, tipo: true },
   })
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Fui ao mercado</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Fui ao mercado"
+        subtitle="Cada item é salvo na hora — pode fechar a aba no meio que nada se perde"
+      />
       <MercadoFlow ingredientes={ingredientes} />
     </div>
   )
