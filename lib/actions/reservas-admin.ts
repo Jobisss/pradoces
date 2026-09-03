@@ -62,13 +62,10 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
 
       const confirmadaEm = new Date()
 
-      // RESGATE já debitou os pontos na hora do resgate (RESG-04) e não tem
-      // ReservaItem/lote — confirmar é só virar o status.
-      if (reserva.tipo === 'RESGATE') {
-        await tx.reserva.update({ where: { id: reservaId }, data: { status: 'CONFIRMADA', confirmadaEm } })
-        return
-      }
-
+      // Baixa de estoque é IGUAL nos dois tipos: o doce sai da prateleira do
+      // mesmo jeito, tenha sido pago em reais ou em pontos. Resgate de item
+      // nomeCustom (sem lote) e resgates antigos — anteriores ao ReservaItem
+      // de resgate — têm `itens` vazio e passam batido aqui, de propósito.
       for (const item of reserva.itens) {
         // O UPDATE serializa contra outra transação concorrente na mesma
         // linha (Postgres bloqueia a row no primeiro UPDATE); os CHECKs
@@ -77,6 +74,13 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
           where: { id: item.loteId },
           data: { qtdeDisponivel: { decrement: item.qtde }, qtdeReservada: { decrement: item.qtde } },
         })
+      }
+
+      // RESGATE já debitou os pontos na hora do resgate (RESG-04) e não
+      // credita nada de volta — trocar pontos por doce não gera pontos.
+      if (reserva.tipo === 'RESGATE') {
+        await tx.reserva.update({ where: { id: reservaId }, data: { status: 'CONFIRMADA', confirmadaEm } })
+        return
       }
 
       const config = await tx.configuracao.findUnique({ where: { id: 1 } })
@@ -162,6 +166,11 @@ export async function rejeitarReserva(reservaId: string): Promise<ReservaAdminAc
       if (!reserva) throw new ReservaAdminError(GENERIC_SERVER_ERROR)
       if (reserva.status !== 'PENDENTE') throw new ReservaAdminError(JA_PROCESSADA)
 
+      // Soft-hold volta pros dois tipos — resgate também segura lote agora.
+      for (const item of reserva.itens) {
+        await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
+      }
+
       if (reserva.tipo === 'RESGATE') {
         // Resgate só existe pra cliente logado (lib/actions/resgate.ts sempre
         // exige requireCliente()) — reserva de convidado nunca é RESGATE.
@@ -177,10 +186,6 @@ export async function rejeitarReserva(reservaId: string): Promise<ReservaAdminAc
               reservaId: reserva.id,
             },
           })
-        }
-      } else {
-        for (const item of reserva.itens) {
-          await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
         }
       }
 
@@ -248,6 +253,11 @@ export async function cancelarReservaAdmin(reservaId: string): Promise<ReservaAd
         throw new ReservaAdminError(JA_PROCESSADA)
       }
 
+      // Estoque volta pros dois tipos — a confirmação decrementou nos dois.
+      for (const item of reserva.itens) {
+        await tx.lote.update({ where: { id: item.loteId }, data: { qtdeDisponivel: { increment: item.qtde } } })
+      }
+
       if (reserva.tipo === 'RESGATE') {
         // Resgate só existe pra cliente logado — reserva de convidado nunca é RESGATE.
         const debito = reserva.clienteId
@@ -264,10 +274,6 @@ export async function cancelarReservaAdmin(reservaId: string): Promise<ReservaAd
           })
         }
       } else {
-        for (const item of reserva.itens) {
-          await tx.lote.update({ where: { id: item.loteId }, data: { qtdeDisponivel: { increment: item.qtde } } })
-        }
-
         // Reserva de convidado (sem clienteId) nunca teve PontosTransacao — nada pra estornar.
         if (reserva.clienteId) {
           const creditos = await tx.pontosTransacao.findMany({
@@ -403,6 +409,11 @@ export async function apagarReserva(reservaId: string): Promise<ReservaAdminActi
       snapshot = { status: reserva.status, tipo: reserva.tipo, clienteId: reserva.clienteId }
 
       if (reserva.status === 'PENDENTE') {
+        // Soft-hold volta pros dois tipos — resgate também segura lote agora.
+        for (const item of reserva.itens) {
+          await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
+        }
+
         if (reserva.tipo === 'RESGATE') {
           // Resgate só existe pra cliente logado — reserva de convidado nunca é RESGATE.
           const debito = reserva.clienteId
@@ -417,10 +428,6 @@ export async function apagarReserva(reservaId: string): Promise<ReservaAdminActi
                 reservaId: reserva.id,
               },
             })
-          }
-        } else {
-          for (const item of reserva.itens) {
-            await tx.lote.update({ where: { id: item.loteId }, data: { qtdeReservada: { decrement: item.qtde } } })
           }
         }
       }

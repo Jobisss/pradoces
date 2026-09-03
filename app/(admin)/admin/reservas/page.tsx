@@ -173,6 +173,12 @@ export default async function ReservasAdminPage({ searchParams }: { searchParams
                               {r.valorResgateCongelado !== null &&
                                 ` · você deixa de faturar ${currency.format(Number(r.valorResgateCongelado))}`}
                             </p>
+                            {/* Resgate agora reserva um lote de verdade — mostra qual. */}
+                            {r.itens.length > 0 && (
+                              <p className="text-[13px] tabular-nums text-muted-foreground">
+                                sai do lote que vence {dataCivilFmtBR.format(r.itens[0].lote.validade)}
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <ul className="space-y-1.5">

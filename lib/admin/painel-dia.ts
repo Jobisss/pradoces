@@ -14,6 +14,8 @@ export type ItemSeparacao = { nome: string; qtde: number }
 export type ReservaDoDia = {
   id: string
   status: string
+  /** RESGATE não se cobra na porta — a tela usa isso pra não pedir dinheiro. */
+  tipo: string
   clienteNome: string
   clienteTelefone: string | null
   observacao: string | null
@@ -31,6 +33,7 @@ export async function painelDoDia(): Promise<GrupoJanela[]> {
     select: {
       id: true,
       status: true,
+      tipo: true,
       janelaRetirada: true,
       observacao: true,
       deliveryMode: true,
@@ -66,6 +69,7 @@ export async function painelDoDia(): Promise<GrupoJanela[]> {
     const entry: ReservaDoDia = {
       id: r.id,
       status: r.status,
+      tipo: r.tipo,
       clienteNome: r.cliente?.name ?? r.nomeConvidado ?? '—',
       clienteTelefone: r.cliente?.telefone ?? r.telefoneConvidado,
       observacao: r.observacao,

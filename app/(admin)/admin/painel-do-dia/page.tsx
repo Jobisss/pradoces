@@ -1,4 +1,4 @@
-import { Clock, Truck, Inbox, Boxes, Wallet, ClipboardList, MessageCircle } from 'lucide-react'
+import { Clock, Truck, Inbox, Boxes, Wallet, ClipboardList, MessageCircle, Star } from 'lucide-react'
 import { painelDoDia } from '@/lib/admin/painel-dia'
 import { BotaoImprimir } from '@/components/admin/botao-imprimir'
 import {
@@ -41,7 +41,8 @@ export default async function PainelDoDiaPage() {
   const reservas = grupos.flatMap((g) => g.reservas)
   const entregas = reservas.filter((r) => r.deliveryMode === 'ENTREGA').length
   const unidades = reservas.reduce((s, r) => s + r.itens.reduce((t, i) => t + i.qtde, 0), 0)
-  const naoPagas = reservas.filter((r) => !r.pago).length
+  // Resgate não se cobra — contar como "a pagar" mandava ela pedir dinheiro.
+  const naoPagas = reservas.filter((r) => !r.pago && r.tipo !== 'RESGATE').length
 
   return (
     <div className="space-y-6">
@@ -121,7 +122,13 @@ export default async function PainelDoDiaPage() {
                                   Entrega
                                 </Chip>
                               )}
-                              {!r.pago && <Chip tone="danger">A pagar</Chip>}
+                              {r.tipo === 'RESGATE' ? (
+                                <Chip tone="rosa" icon={Star}>
+                                  Resgate — não cobrar
+                                </Chip>
+                              ) : (
+                                !r.pago && <Chip tone="danger">A pagar</Chip>
+                              )}
                               <span className="print:hidden">
                                 <Chip tone={STATUS_TONE[r.status] ?? 'creme'}>
                                   {STATUS_LABEL[r.status] ?? r.status}
