@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db/client'
 import { ProduzirLoteForm } from '@/components/admin/produzir-lote-form'
+import { PageHeader } from '@/components/admin/ui'
+import { FormAlert } from '@/components/admin/form'
 
 /** D-13 — produto-cêntrico ("vou fazer o Brownie"), não mais receita-cêntrico. */
 export default async function ProduzirLotePage() {
@@ -15,12 +17,16 @@ export default async function ProduzirLotePage() {
   const opcoes = produtos.map((p) => ({ produtoId: p.id, nome: p.nome }))
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Produzi hoje</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Produzi hoje"
+        subtitle="Registra o que saiu do forno — o custo de hoje fica congelado nesse lote pra sempre"
+      />
       {opcoes.length === 0 && totalProdutosUnitarios > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Nenhum produto com variação ativa ainda — cadastra o produto (com pelo menos 1 variação) primeiro.
-        </p>
+        <FormAlert
+          title="Nenhum produto pronto pra produzir"
+          detail="Todo produto aqui precisa de uma receita e de pelo menos uma variação ativa. Edita o produto antes."
+        />
       )}
       <ProduzirLoteForm produtos={opcoes} />
     </div>

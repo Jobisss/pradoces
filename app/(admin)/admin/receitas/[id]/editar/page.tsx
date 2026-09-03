@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db/client'
 import { ultimasCompras } from '@/lib/custo/corrente'
 import { ReceitaForm } from '@/components/admin/receita-form'
+import { PageHeader } from '@/components/admin/ui'
 
 export default async function EditarReceitaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,8 +24,8 @@ export default async function EditarReceitaPage({ params }: { params: Promise<{ 
   }))
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Editar receita</h1>
+    <div className="space-y-6">
+      <PageHeader title="Editar receita" subtitle={receita.nome} />
       <ReceitaForm
         ingredientes={ingredientesProps}
         defaults={{

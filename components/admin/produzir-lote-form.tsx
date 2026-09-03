@@ -4,12 +4,25 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Decimal from 'decimal.js'
 import { toast } from 'sonner'
+import { ChefHat, TriangleAlert, Layers } from 'lucide-react'
 import { dadosProducao, comprasDoIngrediente, produzirLotes, type DadosProducao } from '@/lib/actions/lotes'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { dataCivilFmtBR as dateFmt } from '@/lib/format/date'
+import {
+  FormLayout,
+  FormSection,
+  Field,
+  FieldRow,
+  AdminInput,
+  AdminSelectTrigger,
+  InputWithSuffix,
+  FormAlert,
+  CostCard,
+  RailNote,
+  Checklist,
+  FormActions,
+} from '@/components/admin/form'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const currency4 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4 })
@@ -81,6 +94,10 @@ function toLinhaState(l: {
  * separado) — "fiz 5 desse, 3 desse" é tudo que a mãe precisa digitar.
  * Tudo aqui é PREVIEW (decimal.js no client); quem recomputa e congela de
  * verdade é produzirLotes server-side dentro de uma transação (02-07/D-13).
+ *
+ * É a tela mais difícil do painel, então o trilho da direita mostra o custo
+ * se formando e uma lista do que ainda falta — antes o botão só ficava
+ * desabilitado, sem dizer por quê.
  */
 export function ProduzirLoteForm({ produtos }: { produtos: ProdutoOpcao[] }) {
   const router = useRouter()
@@ -218,6 +235,15 @@ export function ProduzirLoteForm({ produtos }: { produtos: ProdutoOpcao[] }) {
     return { total, porUnidade: total.dividedBy(rendimento) }
   }
 
+  const ativas = variacoes.filter((v) => (Number(v.rendimentoReal) || 0) > 0)
+  const faltaCompraBase = linhasBase.filter((l) => !l.compra)
+  const faltaCompraRecheio = ativas.flatMap((v) => (v.recheio ? v.recheio.linhas.filter((l) => !l.compra) : []))
+  const semCompra = [...faltaCompraBase, ...faltaCompraRecheio]
+  const custoTotalLote = ativas.reduce((soma, v) => {
+    const preview = custoPreviewDe(v)
+    return preview ? soma.plus(preview.total) : soma
+  }, new Decimal(0))
+
   function confirmar() {
     setErro(null)
     if (!dados) {
@@ -228,7 +254,6 @@ export function ProduzirLoteForm({ produtos }: { produtos: ProdutoOpcao[] }) {
       setErro('Falta escolher a compra de algum ingrediente da base.')
       return
     }
-    const ativas = variacoes.filter((v) => (Number(v.rendimentoReal) || 0) > 0)
     if (ativas.length === 0) {
       setErro('Informa quantas unidades saíram de pelo menos uma variação.')
       return
@@ -286,162 +311,278 @@ export function ProduzirLoteForm({ produtos }: { produtos: ProdutoOpcao[] }) {
     })
   }
 
+  /** Linha de ingrediente com a compra congelada que vai valer nesse lote. */
   function linhaIngrediente(
     linha: LinhaState,
     qtdeEscalada: Decimal,
     onAbrirTroca: () => void,
     onEscolherCompra: (compra: OpcaoCompra) => void,
   ) {
+    const custo = linha.compra
+      ? qtdeEscalada.times(new Decimal(linha.compra.custoPorUnidadeBase))
+      : null
+
     return (
-      <div key={linha.ingredienteId} className="space-y-2 rounded-lg border border-border p-3">
-        {linha.compra ? (
-          <p className="tabular-nums text-sm">
-            {linha.nome} · {qtdeEscalada.toFixed(0)}
-            {linha.unidadeBase} — {linha.compra.marca}, compra de {dataPorExtenso(linha.compra.dataCompra)} (
-            {currency4.format(Number(linha.compra.custoPorUnidadeBase))}/{linha.unidadeBase})
+      <div
+        key={linha.ingredienteId}
+        className={`flex flex-col gap-3 rounded-xl p-3.5 sm:flex-row sm:items-center ${
+          linha.compra ? 'bg-background' : 'border border-warn/25 bg-caramelo/15'
+        }`}
+      >
+        <div className="w-full shrink-0 space-y-0.5 sm:w-52">
+          <p className="text-sm font-semibold">{linha.nome}</p>
+          <p className="text-[13px] tabular-nums text-muted-foreground">
+            {qtdeEscalada.toFixed(0)}
+            {linha.unidadeBase}
           </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">{linha.nome} ainda não tem compra registrada</p>
-        )}
+        </div>
 
         {linha.trocandoCompra ? (
-          <Select onValueChange={(id) => {
-            const c = linha.opcoesCompra.find((o) => o.id === id)
-            if (c) onEscolherCompra(c)
-          }}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Qual compra você usou?" />
-            </SelectTrigger>
-            <SelectContent>
-              {linha.opcoesCompra.map((o) => (
-                <SelectItem key={o.id} value={o.id}>
-                  {o.marca} — {dataPorExtenso(o.dataCompra)} ({currency4.format(Number(o.custoPorUnidadeBase))}/
-                  {linha.unidadeBase})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="min-w-0 flex-1">
+            <Select
+              onValueChange={(id) => {
+                const c = linha.opcoesCompra.find((o) => o.id === id)
+                if (c) onEscolherCompra(c)
+              }}
+            >
+              <AdminSelectTrigger>
+                <SelectValue placeholder="Qual compra você usou?" />
+              </AdminSelectTrigger>
+              <SelectContent>
+                {linha.opcoesCompra.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.marca} — {dataPorExtenso(o.dataCompra)} (
+                    {currency4.format(Number(o.custoPorUnidadeBase))}/{linha.unidadeBase})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : linha.compra ? (
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="inline-flex h-6 items-center rounded-full bg-card px-2.5 text-xs font-semibold ring-1 ring-border">
+              {linha.compra.marca}
+            </span>
+            <span className="text-[13px] tabular-nums text-muted-foreground">
+              compra de {dataPorExtenso(linha.compra.dataCompra)} ·{' '}
+              {currency4.format(Number(linha.compra.custoPorUnidadeBase))}/{linha.unidadeBase}
+            </span>
+          </div>
         ) : (
-          <button type="button" className="text-sm font-medium underline underline-offset-2" onClick={onAbrirTroca}>
-            Trocar compra
-          </button>
+          <p className="flex min-w-0 flex-1 items-center gap-2 text-[13px] text-warn">
+            <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+            Sem compra registrada — não dá pra congelar o custo desse lote
+          </p>
         )}
+
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="text-[15px] font-semibold tabular-nums">
+            {custo ? currency.format(custo.toNumber()) : '—'}
+          </span>
+          {!linha.trocandoCompra && (
+            <button
+              type="button"
+              className="text-[13px] font-medium underline underline-offset-2 hover:text-warn"
+              onClick={onAbrirTroca}
+            >
+              {linha.compra ? 'Trocar' : 'Escolher'}
+            </button>
+          )}
+        </div>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-6 pb-40 md:pb-0">
-      {erro && (
-        <p role="alert" className="text-sm text-muted-foreground">
-          {erro}
-        </p>
-      )}
+  const rail = dados ? (
+    <>
+      <CostCard
+        label="Esse lote vai custar"
+        value={currency.format(custoTotalLote.toNumber())}
+        sub={
+          somaRendimento > 0
+            ? `${somaRendimento} unidade${somaRendimento === 1 ? '' : 's'} · ${multEfetivo.toFixed(3).replace('.', ',')}× a receita base`
+            : 'preenche a quantidade de pelo menos um sabor'
+        }
+        icon={Layers}
+        rows={ativas.map((v) => {
+          const preview = custoPreviewDe(v)
+          return {
+            label: v.nome,
+            value: preview ? currency.format(preview.porUnidade.toNumber()) + '/un' : 'incompleto',
+            tone: preview ? ('default' as const) : ('warn' as const),
+          }
+        })}
+      >
+        {semCompra.length > 0 && (
+          <RailNote>
+            Falta a compra de {semCompra.map((l) => l.nome).join(', ')} — o custo real vai ser maior
+            que isso.
+          </RailNote>
+        )}
+      </CostCard>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="produto">Qual produto você fez</Label>
-        <Select value={produtoId} onValueChange={selecionarProduto}>
-          <SelectTrigger id="produto" className="w-full">
-            <SelectValue placeholder="Escolhe o produto" />
-          </SelectTrigger>
-          <SelectContent>
-            {produtos.map((p) => (
-              <SelectItem key={p.produtoId} value={p.produtoId}>
-                {p.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Checklist
+        items={[
+          { ok: true, label: 'Produto escolhido' },
+          { ok: ativas.length > 0, label: 'Quantidade em pelo menos um sabor' },
+          { ok: !!validade, label: 'Validade preenchida' },
+          {
+            ok: semCompra.length === 0,
+            label:
+              semCompra.length === 0
+                ? 'Todos os ingredientes com compra'
+                : `Compra de ${semCompra.map((l) => l.nome).join(', ')}`,
+          },
+        ]}
+      />
+    </>
+  ) : undefined
+
+  return (
+    <FormLayout rail={rail}>
+      {erro && <FormAlert title="Não deu pra registrar a produção" detail={erro} />}
+
+      <FormSection
+        title="O que você fez"
+        hint="Só aparecem produtos com receita e pelo menos uma variação ativa."
+      >
+        <FieldRow>
+          <Field label="Produto" htmlFor="produto">
+            <Select value={produtoId} onValueChange={selecionarProduto}>
+              <AdminSelectTrigger id="produto">
+                <SelectValue placeholder="Escolhe o produto" />
+              </AdminSelectTrigger>
+              <SelectContent>
+                {produtos.map((p) => (
+                  <SelectItem key={p.produtoId} value={p.produtoId}>
+                    {p.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {dados && (
+            <Field
+              label="Vence em"
+              htmlFor="validade"
+              className="sm:max-w-64"
+              hint={
+                validade
+                  ? `Vence ${dataPorExtenso(validade)} — confere com a etiqueta que você cola no doce.`
+                  : dados.receita.validadeDias
+                    ? undefined
+                    : 'Essa receita não tem validade configurada — preenche na mão.'
+              }
+            >
+              <AdminInput
+                id="validade"
+                type="date"
+                value={validade}
+                onChange={(e) => setValidade(e.target.value)}
+              />
+            </Field>
+          )}
+        </FieldRow>
+      </FormSection>
 
       {dados && (
         <>
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Ingredientes da massa (base)</h2>
-            {linhasBase.map((linha, index) =>
-              linhaIngrediente(
-                linha,
-                escalarBase(linha),
-                () => abrirTrocaCompraBase(index),
-                (compra) => escolherCompraBase(index, compra),
-              ),
-            )}
-          </div>
+          <FormSection
+            title="Ingredientes da massa"
+            hint="Cada linha já vem com a última compra registrada. Só troca se você usou um pacote mais antigo."
+          >
+            <div className="flex flex-col gap-2.5">
+              {linhasBase.map((linha, index) =>
+                linhaIngrediente(
+                  linha,
+                  escalarBase(linha),
+                  () => abrirTrocaCompraBase(index),
+                  (compra) => escolherCompraBase(index, compra),
+                ),
+              )}
+            </div>
+          </FormSection>
 
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Quantas unidades de cada variação</h2>
-            {variacoes.map((v, index) => {
-              const custoPreview = custoPreviewDe(v)
-              const rendimento = Number(v.rendimentoReal) || 0
-              return (
-                <div key={v.id} className="space-y-3 rounded-lg border border-border p-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor={`rendimento-${v.id}`}>{v.nome}</Label>
-                    <Input
-                      id={`rendimento-${v.id}`}
-                      inputMode="numeric"
-                      value={v.rendimentoReal}
-                      onChange={(e) => setRendimentoReal(index, e.target.value)}
-                      placeholder="0"
-                    />
-                    <p className="text-sm text-muted-foreground">Deixa em branco (ou 0) se não fez essa hoje.</p>
-                  </div>
+          <FormSection
+            title="Quantas saíram de cada sabor"
+            hint="A conta da massa é dividida entre os sabores pelo que cada um rendeu — você não precisa calcular multiplicador nenhum."
+          >
+            <div className="flex flex-col gap-3">
+              {variacoes.map((v, index) => {
+                const custoPreview = custoPreviewDe(v)
+                const rendimento = Number(v.rendimentoReal) || 0
+                const feito = rendimento > 0
 
-                  {v.recheio && rendimento > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold text-muted-foreground">Recheio: {v.recheio.nome}</h3>
-                      {v.recheio.linhas.map((linha, li) =>
-                        linhaIngrediente(
-                          linha,
-                          escalarRecheio(v, linha),
-                          () => abrirTrocaCompraRecheio(index, li),
-                          (compra) => escolherCompraRecheio(index, li, compra),
-                        ),
+                return (
+                  <div
+                    key={v.id}
+                    className={`flex flex-col gap-3.5 rounded-xl p-[18px] ${
+                      feito ? 'border border-border bg-card' : 'bg-background'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <Field label={v.nome} htmlFor={`rendimento-${v.id}`} className="sm:max-w-56">
+                        <InputWithSuffix
+                          id={`rendimento-${v.id}`}
+                          inputMode="numeric"
+                          value={v.rendimentoReal}
+                          onChange={(e) => setRendimentoReal(index, e.target.value)}
+                          placeholder="0"
+                          suffix="un"
+                        />
+                      </Field>
+                      {custoPreview ? (
+                        <p className="flex flex-1 items-baseline gap-2.5 pb-3">
+                          <span className="text-lg font-semibold tabular-nums">
+                            {currency.format(custoPreview.porUnidade.toNumber())}
+                          </span>
+                          <span className="text-[13px] text-muted-foreground">
+                            por unidade · {currency.format(custoPreview.total.toNumber())} no total
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="flex-1 pb-3.5 text-[13px] text-muted-foreground">
+                          {feito
+                            ? 'Falta escolher a compra de algum ingrediente pra calcular.'
+                            : 'Deixa vazio se não fez essa hoje.'}
+                        </p>
                       )}
                     </div>
-                  )}
 
-                  {custoPreview && (
-                    <p className="tabular-nums text-sm">
-                      Custou {currency.format(custoPreview.total.toNumber())} — {currency.format(custoPreview.porUnidade.toNumber())} por unidade.
-                    </p>
-                  )}
-                </div>
-              )
-            })}
-            {somaRendimento > 0 && (
-              <p className="tabular-nums text-sm text-muted-foreground">
-                Isso equivale a {multEfetivo.toFixed(3).replace('.', ',')}× a receita base ({somaRendimento} unidades
-                no total).
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="validade">Vence em</Label>
-            <Input id="validade" type="date" value={validade} onChange={(e) => setValidade(e.target.value)} />
-            {validade && (
-              <p className="text-sm text-muted-foreground">
-                vence {dataPorExtenso(validade)} — confere com a etiqueta que você cola no doce
-              </p>
-            )}
-          </div>
-
-          <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
-            <div className="mx-auto w-full max-w-md">
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                disabled={pending || linhasBase.some((l) => !l.compra)}
-                onClick={confirmar}
-              >
-                {pending ? 'Registrando...' : 'Registrar produção'}
-              </Button>
+                    {v.recheio && feito && (
+                      <div className="flex flex-col gap-2.5">
+                        <span className="text-xs font-semibold uppercase tracking-[0.05em] text-caramelo">
+                          Recheio: {v.recheio.nome}
+                        </span>
+                        {v.recheio.linhas.map((linha, li) =>
+                          linhaIngrediente(
+                            linha,
+                            escalarRecheio(v, linha),
+                            () => abrirTrocaCompraRecheio(index, li),
+                            (compra) => escolherCompraRecheio(index, li, compra),
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          </div>
+          </FormSection>
+
+          <FormActions note="Depois de registrar, o custo desse lote não muda mais — nem se o preço do ingrediente subir amanhã.">
+            <Button
+              type="button"
+              className="h-12 gap-2 px-6 text-base"
+              disabled={pending || linhasBase.some((l) => !l.compra)}
+              onClick={confirmar}
+            >
+              <ChefHat className="size-[18px]" aria-hidden />
+              {pending ? 'Registrando...' : 'Registrar produção'}
+            </Button>
+          </FormActions>
         </>
       )}
-    </div>
+    </FormLayout>
   )
 }

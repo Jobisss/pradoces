@@ -4,12 +4,24 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, useFieldArray } from 'react-hook-form'
 import Decimal from 'decimal.js'
-import { XIcon } from 'lucide-react'
+import { XIcon, BookOpen, Plus } from 'lucide-react'
 import { criarReceita, editarReceita } from '@/lib/actions/receitas'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
+import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
+import { Form, FormField, FormItem, FormControl, FormMessage } from '@/components/ui/form'
+import {
+  FormLayout,
+  FormSection,
+  Field,
+  FieldRow,
+  AdminInput,
+  AdminSelectTrigger,
+  InputWithSuffix,
+  FormAlert,
+  CostCard,
+  RailNote,
+  FormActions,
+} from '@/components/admin/form'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -54,6 +66,9 @@ type ReceitaFormProps = {
  * custoPorUnidadeBase (string) de cada ingrediente — NUNCA soma/multiplica
  * com +/* nativo do JS, e nunca importa o Decimal do lado do servidor
  * (Pitfall 3: Decimal não atravessa a fronteira RSC->Client).
+ *
+ * O custo vive no trilho da direita, não num parágrafo cinza no rodapé: é o
+ * número que a receita inteira existe pra produzir.
  */
 export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
   const router = useRouter()
@@ -81,8 +96,17 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
     return ingredientes.find((i) => i.id === id)
   }
 
+  /** Custo de UMA linha com a última compra do ingrediente — null se falta compra. */
+  function custoDaLinha(item: { ingredienteId: string; qtde: string }): Decimal | null {
+    const ing = ingredienteById(item.ingredienteId)
+    if (!ing?.custoPorUnidadeBase) return null
+    const qtde = toDecimal(item.qtde ?? '')
+    if (!qtde) return null
+    return qtde.times(new Decimal(ing.custoPorUnidadeBase))
+  }
+
   const faltantes = new Set<string>()
-  let totalPreview = new Decimal(0)
+  let totalIngredientes = new Decimal(0)
   for (const item of itensAtuais) {
     if (!item.ingredienteId) continue
     const ing = ingredienteById(item.ingredienteId)
@@ -91,15 +115,13 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
       faltantes.add(ing.nome)
       continue
     }
-    const qtde = toDecimal(item.qtde ?? '')
-    if (!qtde) continue
-    totalPreview = totalPreview.plus(qtde.times(new Decimal(ing.custoPorUnidadeBase)))
+    const custo = custoDaLinha(item)
+    if (custo) totalIngredientes = totalIngredientes.plus(custo)
   }
   const gas = toDecimal(custoGasAtual ?? '')
-  if (gas) totalPreview = totalPreview.plus(gas)
+  const totalPreview = gas ? totalIngredientes.plus(gas) : totalIngredientes
   const rendimento = Number(rendimentoAtual)
-  const porUnidadePreview =
-    rendimento > 0 ? totalPreview.dividedBy(rendimento) : new Decimal(0)
+  const porUnidadePreview = rendimento > 0 ? totalPreview.dividedBy(rendimento) : new Decimal(0)
 
   function onSubmit(data: ReceitaFormValues) {
     setServerError(null)
@@ -113,175 +135,222 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
     })
   }
 
+  const rail = (
+    <CostCard
+      label="Custo do lote hoje"
+      value={currency.format(totalPreview.toNumber())}
+      sub={
+        rendimento > 0
+          ? `${currency.format(porUnidadePreview.toNumber())} por unidade · rende ${rendimento}`
+          : 'preenche o rendimento pra ver o custo por unidade'
+      }
+      icon={BookOpen}
+      rows={[
+        { label: 'Ingredientes com compra', value: currency.format(totalIngredientes.toNumber()) },
+        ...(gas ? [{ label: 'Gás', value: currency.format(gas.toNumber()) }] : []),
+        ...[...faltantes].map((nome) => ({
+          label: nome,
+          value: 'falta compra',
+          tone: 'warn' as const,
+        })),
+      ]}
+    >
+      {faltantes.size > 0 && (
+        <RailNote>
+          Esse valor sobe quando você registrar a compra de{' '}
+          {[...faltantes].join(', ')}.
+        </RailNote>
+      )}
+    </CostCard>
+  )
+
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pb-40 md:pb-0" noValidate>
-        {serverError && (
-          <p role="alert" className="text-sm text-muted-foreground">
-            {serverError}
-          </p>
-        )}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <FormLayout rail={rail}>
+          {serverError && <FormAlert title="Não deu pra salvar a receita" detail={serverError} />}
 
-        <FormField
-          control={control}
-          name="nome"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nome da receita</FormLabel>
-              <FormControl>
-                <Input {...field} required />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormSection title="Identidade">
+            <FieldRow>
+              <FormField
+                control={control}
+                name="nome"
+                render={({ field, fieldState }) => (
+                  <FormItem className="min-w-0 flex-[2] gap-0">
+                    <Field label="Nome da receita" error={fieldState.error?.message}>
+                      <FormControl>
+                        <AdminInput {...field} required />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name="rendimentoPadrao"
+                render={({ field, fieldState }) => (
+                  <FormItem className="gap-0 sm:w-52">
+                    <Field label="Rende" error={fieldState.error?.message}>
+                      <FormControl>
+                        <InputWithSuffix {...field} inputMode="numeric" suffix="un" required />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+            </FieldRow>
+          </FormSection>
 
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Ingredientes (pra um lote)</h2>
+          <FormSection
+            title="Ingredientes de um lote"
+            hint="Quantidade de UM lote inteiro, na unidade do ingrediente. Na hora de produzir a gente multiplica sozinho."
+          >
+            <div className="flex flex-col gap-3">
+              {fields.map((field, index) => {
+                const itemValue = itensAtuais[index]
+                const ing = itemValue ? ingredienteById(itemValue.ingredienteId) : undefined
+                const unidade = ing?.unidadeBase ?? 'un'
+                const semCompra = !!ing && !ing.custoPorUnidadeBase
+                const custoLinha = itemValue ? custoDaLinha(itemValue) : null
 
-          {fields.map((field, index) => {
-            const itemValue = itensAtuais[index]
-            const ing = itemValue ? ingredienteById(itemValue.ingredienteId) : undefined
-            const unidade = ing?.unidadeBase ?? 'un'
-            return (
-              <div key={field.id} className="space-y-3 rounded-lg border border-border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 space-y-1.5">
+                return (
+                  <div
+                    key={field.id}
+                    className="flex flex-col gap-3 rounded-xl bg-background p-3.5 sm:flex-row sm:items-start"
+                  >
                     <FormField
                       control={control}
                       name={`itens.${index}.ingredienteId`}
-                      render={({ field: selectField }) => (
-                        <FormItem>
-                          <FormLabel>Ingrediente</FormLabel>
-                          <Select value={selectField.value} onValueChange={selectField.onChange}>
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Escolhe um ingrediente" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {ingredientes.map((i) => (
-                                <SelectItem key={i.id} value={i.id}>
-                                  {i.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
+                      render={({ field: selectField, fieldState }) => (
+                        <FormItem className="min-w-0 flex-[2] gap-0">
+                          <Field
+                            label="Ingrediente"
+                            error={
+                              fieldState.error?.message ??
+                              (semCompra
+                                ? 'Sem compra registrada — o custo da receita fica incompleto'
+                                : undefined)
+                            }
+                          >
+                            <Select value={selectField.value} onValueChange={selectField.onChange}>
+                              <FormControl>
+                                <AdminSelectTrigger>
+                                  <SelectValue placeholder="Escolhe um ingrediente" />
+                                </AdminSelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {ingredientes.map((i) => (
+                                  <SelectItem key={i.id} value={i.id}>
+                                    {i.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Field>
                         </FormItem>
                       )}
                     />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="mt-6 size-11 shrink-0"
-                    aria-label="Remover ingrediente"
-                    disabled={fields.length === 1}
-                    onClick={() => remove(index)}
-                  >
-                    <XIcon />
-                  </Button>
-                </div>
 
-                <FormField
-                  control={control}
-                  name={`itens.${index}.qtde`}
-                  render={({ field: qtdeField }) => (
-                    <FormItem>
-                      <FormLabel>Quantidade ({unidade})</FormLabel>
-                      <FormControl>
-                        <Input {...qtdeField} inputMode="decimal" placeholder="0" />
-                      </FormControl>
-                      {ing && !ing.custoPorUnidadeBase && (
-                        <p className="text-sm text-muted-foreground">
-                          {ing.nome} ainda não tem compra registrada — o custo fica incompleto até
-                          você registrar uma.
-                        </p>
+                    <FormField
+                      control={control}
+                      name={`itens.${index}.qtde`}
+                      render={({ field: qtdeField, fieldState }) => (
+                        <FormItem className="gap-0 sm:w-44">
+                          <Field label="Quantidade" error={fieldState.error?.message}>
+                            <FormControl>
+                              <InputWithSuffix
+                                {...qtdeField}
+                                inputMode="decimal"
+                                placeholder="0"
+                                suffix={unidade}
+                              />
+                            </FormControl>
+                          </Field>
+                        </FormItem>
                       )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )
-          })}
+                    />
 
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11"
-            onClick={() => append({ ingredienteId: '', qtde: '' })}
-          >
-            Mais um ingrediente
-          </Button>
-        </div>
+                    <div className="flex items-end gap-2 sm:w-40 sm:pt-[27px]">
+                      <span
+                        className={`flex h-11 flex-1 items-center text-[15px] font-semibold tabular-nums ${semCompra ? 'text-warn' : ''}`}
+                      >
+                        {custoLinha ? currency.format(custoLinha.toNumber()) : '—'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="size-11 shrink-0"
+                        aria-label="Remover ingrediente"
+                        disabled={fields.length === 1}
+                        onClick={() => remove(index)}
+                      >
+                        <XIcon />
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </div>
+                )
+              })}
+            </div>
 
-        <FormField
-          control={control}
-          name="rendimentoPadrao"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Rende quantas unidades</FormLabel>
-              <FormControl>
-                <Input {...field} inputMode="numeric" required />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 gap-2 border-dashed text-[15px]"
+              onClick={() => append({ ingredienteId: '', qtde: '' })}
+            >
+              <Plus className="size-4" aria-hidden />
+              Adicionar ingrediente
+            </Button>
+          </FormSection>
 
-        <FormField
-          control={control}
-          name="custoGas"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Gasto de gás/energia por lote (R$) — se quiser</FormLabel>
-              <FormControl>
-                <Input {...field} inputMode="decimal" placeholder="0,00" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormSection title="Gás e validade">
+            <FieldRow>
+              <FormField
+                control={control}
+                name="custoGas"
+                render={({ field, fieldState }) => (
+                  <FormItem className="min-w-0 flex-1 gap-0">
+                    <Field
+                      label="Custo de gás por lote (R$)"
+                      optional
+                      error={fieldState.error?.message}
+                      hint="Quanto você estima de botijão por fornada."
+                    >
+                      <FormControl>
+                        <AdminInput {...field} inputMode="decimal" placeholder="0,00" />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name="validadeDias"
+                render={({ field, fieldState }) => (
+                  <FormItem className="min-w-0 flex-1 gap-0">
+                    <Field
+                      label="Validade"
+                      optional
+                      error={fieldState.error?.message}
+                      hint="Vira sugestão automática na hora de produzir."
+                    >
+                      <FormControl>
+                        <InputWithSuffix {...field} inputMode="numeric" placeholder="7" suffix="dias" />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+            </FieldRow>
+          </FormSection>
 
-        <FormField
-          control={control}
-          name="validadeDias"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dura quantos dias</FormLabel>
-              <FormControl>
-                <Input {...field} inputMode="numeric" placeholder="7" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="space-y-1 rounded-lg border border-border bg-card p-4">
-          <p className="tabular-nums text-base font-medium">
-            Custo do lote hoje: {currency.format(totalPreview.toNumber())} ·{' '}
-            {currency.format(porUnidadePreview.toNumber())} por unidade
-          </p>
-          <p className="text-xs text-muted-foreground">
-            calculado com a última compra de cada ingrediente
-          </p>
-          {[...faltantes].map((nome) => (
-            <p key={nome} className="text-sm text-muted-foreground">
-              {nome} ainda não tem compra registrada — o custo fica incompleto até você registrar
-              uma.
-            </p>
-          ))}
-        </div>
-
-        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
-          <div className="mx-auto w-full max-w-md">
-            <Button type="submit" size="lg" className="w-full" disabled={pending}>
+          <FormActions note="O custo acompanha o preço da última compra de cada ingrediente — muda sozinho quando você for ao mercado.">
+            <Button type="submit" className="h-12 px-6 text-base" disabled={pending}>
               {pending ? 'Salvando...' : 'Salvar receita'}
             </Button>
-          </div>
-        </div>
+          </FormActions>
+        </FormLayout>
       </form>
     </Form>
   )

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db/client'
 import { ultimasCompras } from '@/lib/custo/corrente'
 import { ReceitaForm } from '@/components/admin/receita-form'
+import { PageHeader } from '@/components/admin/ui'
 
 export default async function NovaReceitaPage() {
   const ingredientes = await prisma.ingrediente.findMany({ orderBy: { nome: 'asc' } })
@@ -14,8 +15,11 @@ export default async function NovaReceitaPage() {
   }))
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Nova receita</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Nova receita"
+        subtitle="A receita diz quanto de cada ingrediente vai num lote — é com ela que sai o custo de cada doce"
+      />
       <ReceitaForm ingredientes={ingredientesProps} />
     </div>
   )
