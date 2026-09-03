@@ -5,7 +5,7 @@ import { ItemResgatavelForm } from '@/components/admin/item-resgatavel-form'
 export default async function EditarItemResgatavelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [item, produtosAtivos, config] = await Promise.all([
+  const [item, produtosAtivos] = await Promise.all([
     prisma.itemResgatavel.findUnique({ where: { id } }),
     prisma.produto.findMany({
       where: { ativo: true, tipo: 'UNITARIO' },
@@ -16,7 +16,6 @@ export default async function EditarItemResgatavelPage({ params }: { params: Pro
       },
       orderBy: { nome: 'asc' },
     }),
-    prisma.configuracao.findUnique({ where: { id: 1 } }),
   ])
   if (!item) notFound()
 
@@ -31,7 +30,6 @@ export default async function EditarItemResgatavelPage({ params }: { params: Pro
       <h1 className="font-display text-3xl font-semibold">Editar item de resgate</h1>
       <ItemResgatavelForm
         produtos={produtos}
-        pontosPorRealAtual={config ? Number(config.pontosPorReal) : 1}
         defaults={{
           id: item.id,
           produtoId: item.produtoId,

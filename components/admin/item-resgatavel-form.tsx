@@ -24,7 +24,6 @@ type FormValues = {
 
 type ItemResgatavelFormProps = {
   produtos: ProdutoOpcao[]
-  pontosPorRealAtual: number
   defaults?: {
     id: string
     produtoId: string | null
@@ -35,10 +34,8 @@ type ItemResgatavelFormProps = {
   }
 }
 
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
 /** RESG-01/02/07 — produto do catálogo OU nome custom, nunca os dois. D-13: quando é produto, a variação (sabor) é obrigatória. */
-export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: ItemResgatavelFormProps) {
+export function ItemResgatavelForm({ produtos, defaults }: ItemResgatavelFormProps) {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -56,40 +53,7 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
   const { control, handleSubmit, watch, setValue } = form
   const modo = watch('modo')
   const produtoId = watch('produtoId')
-  const variacaoId = watch('variacaoId')
-  const custoPontosStr = watch('custoPontos')
-
   const produtoSelecionado = modo === 'produto' ? produtos.find((p) => p.id === produtoId) : undefined
-  const variacaoSelecionada = produtoSelecionado?.variacoes.find((v) => v.id === variacaoId)
-  const custoPontosNum = Number(custoPontosStr?.replace(',', '.'))
-
-  // Trocar por pontos não tem custo de caixa NENHUM na hora (o doce já foi
-  // pago quando ela comprou o ingrediente) — o que ela precisa enxergar aqui
-  // é quanto ela DEIXA DE GANHAR: o preço de venda inteiro do item, já que a
-  // troca não entra R$ nenhum. Por isso essa dica é baseada 100% em
-  // `precoVenda`, nunca em custo/margem — funciona até pra variação sem
-  // nenhuma compra de ingrediente registrada ainda.
-  let dica: {
-    valorPontosEmReais: number
-    deixaDeGanhar: number
-    percentualCoberto: number
-    sugestao: number
-  } | null = null
-  if (variacaoSelecionada && variacaoSelecionada.precoVenda !== null) {
-    const precoVenda = variacaoSelecionada.precoVenda
-    // Sugestão: custoPontos igual ao que o cliente ganharia comprando esse
-    // item pagando de verdade — cobre o preço de venda inteiro.
-    const sugestao = Math.max(1, Math.ceil(precoVenda * pontosPorRealAtual))
-    if (Number.isFinite(custoPontosNum) && custoPontosNum > 0 && pontosPorRealAtual > 0) {
-      const valorPontosEmReais = custoPontosNum / pontosPorRealAtual
-      dica = {
-        valorPontosEmReais,
-        deixaDeGanhar: Math.max(0, precoVenda - valorPontosEmReais),
-        percentualCoberto: (valorPontosEmReais / precoVenda) * 100,
-        sugestao,
-      }
-    }
-  }
 
   function onSubmit(data: FormValues) {
     setServerError(null)
@@ -97,7 +61,10 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
       produtoId: data.modo === 'produto' ? data.produtoId : undefined,
       variacaoId: data.modo === 'produto' ? data.variacaoId : undefined,
       nomeCustom: data.modo === 'custom' ? data.nomeCustom : undefined,
-      custoPontos: data.custoPontos,
+      // Item ligado a um produto tem preço em pontos DERIVADO do custo
+      // corrente (lib/pontos/resgate.ts) — a coluna não é lida nesse caso.
+      // Manda 1 só pra satisfazer o schema, que exige >= 1.
+      custoPontos: data.modo === 'produto' ? '1' : data.custoPontos,
       ativo: data.ativo,
     }
     startTransition(async () => {
@@ -215,49 +182,31 @@ export function ItemResgatavelForm({ produtos, pontosPorRealAtual, defaults }: I
           />
         )}
 
-        <FormField
-          control={control}
-          name="custoPontos"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Custo em pontos</FormLabel>
-              <FormControl>
-                <Input {...field} inputMode="numeric" required />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {modo === 'produto' && variacaoSelecionada && variacaoSelecionada.precoVenda === null && (
-          <p className="text-sm text-muted-foreground">
-            Não achei o preço de venda dessa variação — recarrega a página e tenta de novo.
-          </p>
+        {modo === 'produto' && (
+          <div className="space-y-1 rounded-xl bg-background p-4">
+            <p className="text-sm font-semibold">O preço em pontos é calculado</p>
+            <p className="text-[13px] leading-snug text-muted-foreground">
+              Sai do custo atual do doce dividido pela devolução configurada em Ajustes — e
+              acompanha o ingrediente: se o leite condensado sobe, o item fica mais caro em pontos
+              no mesmo dia. Você não precisa (nem consegue) digitar esse número aqui.
+            </p>
+          </div>
         )}
 
-        {dica && (
-          <div className="space-y-1 rounded-lg border border-border p-3 text-sm text-muted-foreground">
-            <p>
-              Essa troca vale {currency.format(variacaoSelecionada!.precoVenda!)} de venda — é isso que você deixa
-              de ganhar a cada resgate (não é prejuízo de caixa: o custo de fazer o doce você já teria gastado de
-              qualquer jeito).
-            </p>
-            <p>
-              Pra juntar {custoPontosNum} pontos, o cliente precisou de uns {currency.format(dica.valorPontosEmReais)}{' '}
-              em compras aqui — {dica.percentualCoberto >= 100 ? (
-                'cobre o valor de venda desse item, sem deixar nada na mesa.'
-              ) : (
-                <>deixando {currency.format(dica.deixaDeGanhar)} de venda sem cobrir ({dica.percentualCoberto.toFixed(0)}%).</>
-              )}
-            </p>
-            <button
-              type="button"
-              className="text-primary underline underline-offset-2"
-              onClick={() => setValue('custoPontos', String(dica!.sugestao))}
-            >
-              Usar sugestão (cobre o preço de venda inteiro): {dica.sugestao} pontos
-            </button>
-          </div>
+        {modo === 'custom' && (
+          <FormField
+            control={control}
+            name="custoPontos"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Custo em pontos</FormLabel>
+                <FormControl>
+                  <Input {...field} inputMode="numeric" required />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         )}
 
         <FormField

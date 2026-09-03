@@ -7,6 +7,7 @@ import { requireCliente } from '@/lib/auth/require-cliente'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { saldoPontos } from '@/lib/pontos/queries'
+import { precoDeResgateDaVariacao } from '@/lib/pontos/resgate'
 import { precoEfetivo } from '@/lib/pricing/promocao'
 
 /**
@@ -66,6 +67,19 @@ export async function resgatarItem(
       })
       if (!item || !item.ativo) throw new ResgateError('Esse item não está mais disponível.')
 
+      // Preço em pontos DERIVADO do custo corrente (PT-01): a coluna
+      // custoPontos só vale pra item nomeCustom, que não tem produto do
+      // catálogo pra ancorar o custo. Cobrar o número guardado deixaria o
+      // resgate barato sempre que o ingrediente subisse.
+      let precoEmPontos = item.custoPontos
+      if (item.variacaoId) {
+        const preco = await precoDeResgateDaVariacao(item.variacaoId)
+        if (preco.pontos === null) {
+          throw new ResgateError('Esse item está sem preço no momento — tenta de novo mais tarde.')
+        }
+        precoEmPontos = preco.pontos
+      }
+
       // D-13: estoque da VARIAÇÃO prometida, não "qualquer sabor" do produto.
       //
       // ESCOLHE um lote (FEFO), não só confere que existe: o doce entregue em
@@ -94,7 +108,7 @@ export async function resgatarItem(
       }
 
       const saldo = await saldoPontos(cliente.id)
-      if (saldo < item.custoPontos) throw new ResgateError('Você não tem pontos suficientes pra esse resgate.')
+      if (saldo < precoEmPontos) throw new ResgateError('Você não tem pontos suficientes pra esse resgate.')
 
       // "Quanto ela deixa de ganhar" trocando por pontos em vez de vender —
       // PREÇO DE VENDA (com promoção se ativa), nunca custo. Item nomeCustom
@@ -129,7 +143,7 @@ export async function resgatarItem(
       }
 
       await tx.pontosTransacao.create({
-        data: { clienteId: cliente.id, valor: -item.custoPontos, motivo: 'RESGATE', reservaId: reserva.id },
+        data: { clienteId: cliente.id, valor: -precoEmPontos, motivo: 'RESGATE', reservaId: reserva.id },
       })
 
       return reserva

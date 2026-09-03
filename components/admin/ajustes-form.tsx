@@ -34,13 +34,15 @@ const PIX_TIPO_LABEL: Record<string, string> = {
  */
 const CONSEQUENCIAS = [
   'A margem mínima vale pra todo produto sem mínima própria — a home recalcula os avisos na hora.',
-  'Pontos por real só valem pra reservas confirmadas daqui pra frente. Saldo já creditado não muda.',
+  'Pontos por real de lucro só valem pra vendas daqui pra frente. Saldo já creditado não muda — quem juntou pontos na regra antiga (por valor gasto) continua com eles.',
+  'A devolução muda o preço em pontos de TODO item de resgate na hora, porque ele é calculado a partir do custo atual do doce.',
   'Taxa de entrega e Pix ficam congelados em cada reserva no momento em que ela é feita.',
 ]
 
 type AjustesFormProps = {
   margemAtual: string
   pontosPorRealAtual: string
+  devolucaoAtual: string
   pontosExpiracaoAtual: string
   janelaCancelamentoAtual: string
   taxaEntregaAtual: string
@@ -55,6 +57,7 @@ type AjustesFormProps = {
 export function AjustesForm({
   margemAtual,
   pontosPorRealAtual,
+  devolucaoAtual,
   pontosExpiracaoAtual,
   janelaCancelamentoAtual,
   taxaEntregaAtual,
@@ -115,12 +118,31 @@ export function AjustesForm({
           </Field>
         </FormSection>
 
-        <FormSection title="Pontos" hint="O programa de fidelidade da clientela do bairro.">
+        <FormSection
+          title="Pontos"
+          hint="Ponto é lastreado no LUCRO da venda, não no valor. Um doce de margem ruim dá menos ponto que um de margem boa pelo mesmo preço — é assim que o programa se paga."
+        >
+          <Field
+            label="De cada R$ 1 de lucro, quanto volta como brinde?"
+            htmlFor="pontosDevolucaoPercent"
+            className="sm:max-w-md"
+            hint={`É o único botão do preço de resgate: um doce que custa R$ 3,00 pra fazer sai por ${Math.ceil(300 / Number(devolucaoAtual))} pontos. Quanto maior a porcentagem, mais barato o brinde e mais rápido o cliente resgata.`}
+          >
+            <InputWithSuffix
+              id="pontosDevolucaoPercent"
+              name="pontosDevolucaoPercent"
+              inputMode="decimal"
+              defaultValue={devolucaoAtual}
+              suffix="%"
+              required
+            />
+          </Field>
+
           <FieldRow>
             <Field
-              label="Pontos por real reservado"
+              label="Pontos por real de lucro"
               htmlFor="pontosPorReal"
-              hint={`Hoje R$ 1,00 vira ${Number(pontosPorRealAtual)} ponto(s).`}
+              hint={`R$ 1,00 de lucro vira ${Number(pontosPorRealAtual)} ponto(s). Mexe aqui só pra mudar a escala do número que a cliente vê — não muda o quanto ela ganha de verdade.`}
             >
               <InputWithSuffix
                 id="pontosPorReal"

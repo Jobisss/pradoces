@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db/client'
 import { ItemResgatavelForm } from '@/components/admin/item-resgatavel-form'
 
 export default async function NovoItemResgatavelPage() {
-  const [produtosAtivos, config] = await Promise.all([
+  const [produtosAtivos] = await Promise.all([
     prisma.produto.findMany({
       where: { ativo: true, tipo: 'UNITARIO' },
       select: {
@@ -12,7 +12,6 @@ export default async function NovoItemResgatavelPage() {
       },
       orderBy: { nome: 'asc' },
     }),
-    prisma.configuracao.findUnique({ where: { id: 1 } }),
   ])
 
   const produtos = produtosAtivos.map((p) => ({
@@ -24,7 +23,7 @@ export default async function NovoItemResgatavelPage() {
   return (
     <div className="space-y-6">
       <h1 className="font-display text-3xl font-semibold">Novo item de resgate</h1>
-      <ItemResgatavelForm produtos={produtos} pontosPorRealAtual={config ? Number(config.pontosPorReal) : 1} />
+      <ItemResgatavelForm produtos={produtos} />
     </div>
   )
 }

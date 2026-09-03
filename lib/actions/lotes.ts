@@ -531,6 +531,8 @@ export async function venderLoteParaCliente(input: unknown): Promise<VendaLoteAc
           id: true,
           qtdeDisponivel: true,
           qtdeReservada: true,
+          // Ponto é lastreado em lucro (PT-01) — precisa do custo congelado.
+          custoPorUnidadeCongelado: true,
           variacao: {
             select: {
               precoVenda: true,
@@ -587,7 +589,8 @@ export async function venderLoteParaCliente(input: unknown): Promise<VendaLoteAc
       await tx.lote.update({ where: { id: lote.id }, data: { qtdeDisponivel: { decrement: data.qtde } } })
 
       const config = await tx.configuracao.findUnique({ where: { id: 1 } })
-      const pontos = pontosDeVenda(total, config?.pontosPorReal ?? new Decimal(1))
+      const lucro = precoUnitario.minus(lote.custoPorUnidadeCongelado).times(data.qtde)
+      const pontos = pontosDeVenda(lucro, config?.pontosPorReal ?? new Decimal(1))
       if (pontos > 0) {
         await tx.pontosTransacao.create({
           data: {

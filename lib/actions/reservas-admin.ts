@@ -54,7 +54,16 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
           status: true,
           tipo: true,
           clienteId: true,
-          itens: { select: { loteId: true, qtde: true, precoUnitarioCongelado: true } },
+          itens: {
+            select: {
+              loteId: true,
+              qtde: true,
+              precoUnitarioCongelado: true,
+              // Ponto é lastreado em lucro (PT-01) — precisa do custo
+              // congelado daquele lote, não só do preço.
+              lote: { select: { custoPorUnidadeCongelado: true } },
+            },
+          },
         },
       })
       if (!reserva) throw new ReservaAdminError(GENERIC_SERVER_ERROR)
@@ -87,12 +96,17 @@ export async function confirmarReserva(reservaId: string): Promise<ReservaAdminA
       const pontosPorReal = config?.pontosPorReal ?? new Decimal(1)
       const expiracaoMeses = config?.pontosExpiracaoMeses ?? 12
 
-      const valorTotal = reserva.itens.reduce(
-        (soma, item) => soma.plus(item.precoUnitarioCongelado.times(item.qtde)),
+      const lucroTotal = reserva.itens.reduce(
+        (soma, item) =>
+          soma.plus(
+            item.precoUnitarioCongelado
+              .minus(item.lote.custoPorUnidadeCongelado)
+              .times(item.qtde),
+          ),
         new Decimal(0),
       )
       // Mesma conta da venda no balcão (lib/actions/lotes.ts) — ver lib/pontos/calculo.ts.
-      const pontos = pontosDeVenda(valorTotal, pontosPorReal)
+      const pontos = pontosDeVenda(lucroTotal, pontosPorReal)
       const expiraEm = expiracaoDoCredito(confirmadaEm, expiracaoMeses)
 
       // Reserva de convidado (sem cadastro) não credita pontos — só passa a

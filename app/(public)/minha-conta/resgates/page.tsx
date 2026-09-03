@@ -29,12 +29,12 @@ export default async function ResgatesPage() {
             <li key={item.id} className="flex items-center justify-between py-3">
               <div>
                 <p className="text-base font-medium">{nomeItemResgatavel(item)}</p>
-                <p className="tabular-nums text-sm text-muted-foreground">{item.custoPontos} pts</p>
+                <p className="tabular-nums text-sm text-muted-foreground">{item.pontos} pts</p>
               </div>
               <ResgatarItemBotao
                 itemId={item.id}
                 nome={nomeItemResgatavel(item)}
-                custoPontos={item.custoPontos}
+                custoPontos={item.pontos ?? 0}
                 saldoAtual={saldo}
               />
             </li>

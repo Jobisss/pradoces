@@ -11,6 +11,12 @@ export const ConfigSchema = z
   .object({
     margemMinimaPadrao: zDecimalBRL.refine((v) => v.gte(0) && v.lt(100), 'Usa um número entre 0 e 99.'),
     pontosPorReal: zDecimalBRL.refine((v) => v.gte(0) && v.lte(100), 'Usa um número entre 0 e 100.'),
+    // Acima de 100% a casa daria mais brinde do que lucro; 0 desligaria o
+    // resgate por divisão por zero. Mesma faixa do CHECK no banco.
+    pontosDevolucaoPercent: zDecimalBRL.refine(
+      (v) => v.gt(0) && v.lte(100),
+      'Usa um número entre 1 e 100.',
+    ),
     pontosExpiracaoMeses: z.coerce.number().int().min(1, 'Pelo menos 1 mês.'),
     janelaCancelamentoHoras: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
     taxaEntregaPadrao: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
@@ -53,5 +59,8 @@ export const ConfigSchema = z
 export type ConfigInput = z.infer<typeof ConfigSchema>
 
 export const SimuladorPontosSchema = z.object({
-  pontosPorReal: zDecimalBRL.refine((v) => v.gte(0) && v.lte(100), 'Usa um número entre 0 e 100.'),
+  pontosDevolucaoPercent: zDecimalBRL.refine(
+    (v) => v.gt(0) && v.lte(100),
+    'Usa um número entre 1 e 100.',
+  ),
 })

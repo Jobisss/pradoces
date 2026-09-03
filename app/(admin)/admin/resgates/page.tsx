@@ -53,7 +53,7 @@ export default async function ResgatesPage() {
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-background px-3 py-1.5">
                   <Star className="size-4 text-caramelo" aria-hidden />
-                  <span className="text-[15px] font-semibold tabular-nums">{item.custoPontos}</span>
+                  <span className="text-[15px] font-semibold tabular-nums">{item.pontos ?? '—'}</span>
                   <span className="text-xs text-muted-foreground">pontos</span>
                 </span>
                 {!item.ativo && <Chip tone="creme">Escondido da vitrine</Chip>}

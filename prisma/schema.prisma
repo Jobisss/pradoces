@@ -665,8 +665,15 @@ model LoteUsoIngrediente {
 model Configuracao {
   id                      Int     @id @default(1)
   margemMinimaPadrao      Decimal @default(30) @map("margem_minima_padrao") @db.Decimal(5, 2)
-  // PT-01: pontos creditados = valor da reserva confirmada × essa taxa.
+  // PT-01: pontos creditados = LUCRO da venda × essa taxa. Era o valor cheio
+  // da reserva; virou lucro (preço − custo congelado) pra que o programa de
+  // fidelidade seja lastreado no que a casa realmente ganhou, não no que
+  // faturou. Venda no prejuízo credita 0, nunca negativo.
   pontosPorReal           Decimal @default(1) @map("pontos_por_real") @db.Decimal(6, 2)
+  // Quanto do lucro volta pro cliente como brinde. É o único botão do preço
+  // de resgate: pontos = custo_corrente ÷ (percent/100) × pontosPorReal.
+  // 15% ≈ "a cada R$ 6,70 de lucro, devolvo R$ 1 em custo de doce".
+  pontosDevolucaoPercent  Decimal @default(15) @map("pontos_devolucao_percent") @db.Decimal(5, 2)
   // PT-04 removido a pedido da usuária (sem teto de pontos por reserva) —
   // coluna morta, mantida só pra não rodar DROP COLUMN numa tabela de config
   // já viva em produção (PRODUCTION MODE, ver CLAUDE.md). Nenhum código lê

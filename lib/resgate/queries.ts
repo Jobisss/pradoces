@@ -1,18 +1,46 @@
 import 'server-only'
 import { prisma } from '@/lib/db/client'
+import { precosDeResgateBatch } from '@/lib/pontos/resgate'
+
+/**
+ * O preço em pontos vem DERIVADO do custo corrente (lib/pontos/resgate.ts),
+ * não da coluna `custoPontos` — que hoje só vale pra item `nomeCustom`, sem
+ * produto no catálogo pra ancorar. As duas listas abaixo devolvem `pontos`
+ * já resolvido, pra que nenhuma tela precise saber dessa regra.
+ */
+type ItemBase = { id: string; variacaoId: string | null; custoPontos: number }
+
+/** Anexa `pontos` e `custoCorrente` a uma lista de itens resgatáveis. */
+async function comPreco<T extends ItemBase>(itens: T[]) {
+  const precos = await precosDeResgateBatch()
+  return itens.map((item) => {
+    if (!item.variacaoId) {
+      // nomeCustom: não tem custo rastreado, o número digitado é o que vale.
+      return { ...item, pontos: item.custoPontos as number | null, custoCorrente: null, derivado: false }
+    }
+    const preco = precos.get(item.variacaoId)
+    return {
+      ...item,
+      pontos: preco?.pontos ?? null,
+      custoCorrente: preco?.custoCorrente ? preco.custoCorrente.toFixed(4) : null,
+      derivado: true,
+    }
+  })
+}
 
 /** Admin — todos os itens, ativos ou não (ela precisa ver tudo pra reativar/editar). */
 export async function listarItensResgataveisAdmin() {
-  return prisma.itemResgatavel.findMany({
+  const itens = await prisma.itemResgatavel.findMany({
     include: {
       produto: { select: { id: true, nome: true, precoVenda: true } },
       // D-13: o item promete um SABOR específico, não "qualquer um do produto".
       // Sem isso o catálogo mostra dois itens com o mesmo nome e ninguém sabe
       // qual é qual (ver lib/resgate/nome.ts).
-      variacao: { select: { id: true, nome: true } },
+      variacao: { select: { id: true, nome: true, precoVenda: true } },
     },
     orderBy: { criadoEm: 'desc' },
   })
+  return comPreco(itens)
 }
 
 /**
@@ -33,11 +61,17 @@ export async function listarItensResgataveisDisponiveis() {
       produto: { select: { id: true, nome: true } },
       variacao: { select: { id: true, nome: true } },
     },
-    orderBy: { custoPontos: 'asc' },
+    orderBy: { criadoEm: 'desc' },
   })
 
   const variacaoIds = itens.flatMap((i) => (i.variacaoId ? [i.variacaoId] : []))
-  if (variacaoIds.length === 0) return itens
+  const comPrecoResolvido = await comPreco(itens)
+
+  // Item sem preço (custo incompleto) não pode ser ofertado: sem custo real,
+  // qualquer número em pontos seria invenção.
+  const precificados = comPrecoResolvido.filter((i) => i.pontos !== null)
+
+  if (variacaoIds.length === 0) return precificados.sort((a, b) => (a.pontos ?? 0) - (b.pontos ?? 0))
 
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
   // `qtde_disponivel > qtde_reservada`, não `> 0`: resgate faz soft-hold desde
@@ -53,5 +87,7 @@ export async function listarItensResgataveisDisponiveis() {
       AND qtde_disponivel > qtde_reservada`
   const idsComEstoque = new Set(lotesDisponiveis.map((l) => l.variacao_id))
 
-  return itens.filter((i) => !i.variacaoId || idsComEstoque.has(i.variacaoId))
+  return precificados
+    .filter((i) => !i.variacaoId || idsComEstoque.has(i.variacaoId))
+    .sort((a, b) => (a.pontos ?? 0) - (b.pontos ?? 0))
 }

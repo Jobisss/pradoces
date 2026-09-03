@@ -5,17 +5,34 @@ import { prisma } from '@/lib/db/client'
 import { requireAdmin } from '@/lib/auth/require-admin'
 import { SimuladorPontosSchema } from '@/lib/validation/config'
 
-/** PT-09 — "se eu mudasse a taxa pra X, quanto teria custado nos últimos 30 dias?" */
+/**
+ * PT-09 — "se eu mudasse a devolução pra X%, quanto o programa teria custado
+ * nos últimos 30 dias?"
+ *
+ * Na regra nova a conta fecha sozinha e é essa a beleza do botão único:
+ *
+ *   pontos creditados      = lucro × pontosPorReal
+ *   preço de um resgate    = custo ÷ (devolução/100) × pontosPorReal
+ *   ⇒ custo do programa    = lucro × devolução/100
+ *
+ * Ou seja: a devolução É, literalmente, a fatia do lucro que volta como
+ * ingrediente de brinde. Não precisa mais estimar "valor por ponto" tirando
+ * média do catálogo — aquilo era um remendo de quando o preço em pontos era
+ * digitado à mão e não tinha relação nenhuma com o custo.
+ */
 export type SimuladorResultado = {
   error?: string
   fieldErrors?: Record<string, string[] | undefined>
+  /** Lucro real do período (preço congelado − custo congelado). */
+  lucroPeriodo?: string
+  faturamentoPeriodo?: string
   totalPontos?: number
   totalReservas?: number
+  /** Quanto de ingrediente sairia de graça com essa devolução. */
   custoEstimado?: string
-  valorPorPonto?: string
-  baseadoEmCatalogoReal?: boolean
-  cashbackPercent?: string
+  devolucaoPercent?: string
   margemMinimaPadrao?: string
+  /** Devolver mais do que a margem mínima é vender no vermelho pra fidelizar. */
   arriscado?: boolean
 }
 
@@ -27,57 +44,60 @@ export async function simularTaxaPontos(_prev: unknown, formData: FormData): Pro
   }
 
   const parsed = SimuladorPontosSchema.safeParse({
-    pontosPorReal: String(formData.get('pontosPorReal') ?? ''),
+    pontosDevolucaoPercent: String(formData.get('pontosDevolucaoPercent') ?? ''),
   })
   if (!parsed.success) {
     return { error: 'Confere os campos abaixo.', fieldErrors: parsed.error.flatten().fieldErrors }
   }
 
   const desde = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const reservas = await prisma.reserva.findMany({
-    where: { status: { in: ['CONFIRMADA', 'AGUARDANDO_RETIRADA', 'RETIRADA'] }, confirmadaEm: { gte: desde } },
-    select: { itens: { select: { qtde: true, precoUnitarioCongelado: true } } },
-  })
-
-  // PT-04 (teto por reserva) removido a pedido da usuária — soma o valor cheio.
-  let totalPontos = new Decimal(0)
-  for (const reserva of reservas) {
-    const valor = reserva.itens.reduce((soma, i) => soma.plus(i.precoUnitarioCongelado.times(i.qtde)), new Decimal(0))
-    totalPontos = totalPontos.plus(valor.times(parsed.data.pontosPorReal).floor())
-  }
-
-  // Valor real de resgate por ponto = média de (preço de venda ÷ custoPontos)
-  // dos itens ativos do catálogo — substitui o antigo placeholder "1 ponto ~
-  // R$1" (só fazia sentido antes do catálogo de resgate existir, Phase 5).
-  // Sem itens de catálogo cadastrados ainda, cai de volta pro placeholder.
-  const [itensCatalogo, config] = await Promise.all([
-    // D-13: preço vem da Variação prometida, não do Produto (que não tem
-    // mais preço próprio pra UNITARIO).
-    prisma.itemResgatavel.findMany({
-      where: { ativo: true, variacaoId: { not: null } },
-      select: { custoPontos: true, variacao: { select: { precoVenda: true } } },
+  const [reservas, config] = await Promise.all([
+    prisma.reserva.findMany({
+      where: {
+        tipo: 'PADRAO',
+        status: { in: ['CONFIRMADA', 'AGUARDANDO_RETIRADA', 'RETIRADA'] },
+        confirmadaEm: { gte: desde },
+      },
+      select: {
+        itens: {
+          select: {
+            qtde: true,
+            precoUnitarioCongelado: true,
+            lote: { select: { custoPorUnidadeCongelado: true } },
+          },
+        },
+      },
     }),
     prisma.configuracao.findUnique({ where: { id: 1 } }),
   ])
 
-  const baseadoEmCatalogoReal = itensCatalogo.length > 0
-  const valorPorPonto = baseadoEmCatalogoReal
-    ? itensCatalogo
-        .reduce((soma, item) => soma.plus(new Decimal(item.variacao!.precoVenda).dividedBy(item.custoPontos)), new Decimal(0))
-        .dividedBy(itensCatalogo.length)
-    : new Decimal(1)
+  const pontosPorReal = config?.pontosPorReal ?? new Decimal(1)
 
+  let faturamento = new Decimal(0)
+  let lucro = new Decimal(0)
+  for (const reserva of reservas) {
+    for (const item of reserva.itens) {
+      faturamento = faturamento.plus(item.precoUnitarioCongelado.times(item.qtde))
+      lucro = lucro.plus(
+        item.precoUnitarioCongelado.minus(item.lote.custoPorUnidadeCongelado).times(item.qtde),
+      )
+    }
+  }
+  // Venda no prejuízo não credita ponto (lib/pontos/calculo.ts) — o total
+  // simulado tem que respeitar a mesma regra pra não prometer a mais.
+  const lucroPositivo = Decimal.max(0, lucro)
+
+  const devolucao = parsed.data.pontosDevolucaoPercent
   const margemMinimaPadrao = config?.margemMinimaPadrao ?? new Decimal(30)
-  const cashbackPercent = valorPorPonto.times(parsed.data.pontosPorReal).times(100)
 
   return {
-    totalPontos: totalPontos.toNumber(),
+    lucroPeriodo: lucro.toFixed(2),
+    faturamentoPeriodo: faturamento.toFixed(2),
+    totalPontos: lucroPositivo.times(pontosPorReal).floor().toNumber(),
     totalReservas: reservas.length,
-    custoEstimado: totalPontos.times(valorPorPonto).toFixed(2),
-    valorPorPonto: valorPorPonto.toFixed(4),
-    baseadoEmCatalogoReal,
-    cashbackPercent: cashbackPercent.toFixed(1),
+    custoEstimado: lucroPositivo.times(devolucao).dividedBy(100).toFixed(2),
+    devolucaoPercent: devolucao.toFixed(2),
     margemMinimaPadrao: margemMinimaPadrao.toFixed(2),
-    arriscado: cashbackPercent.gte(margemMinimaPadrao),
+    arriscado: devolucao.gte(margemMinimaPadrao),
   }
 }
