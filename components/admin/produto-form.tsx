@@ -9,14 +9,24 @@ import { criarProduto, editarProduto, sugestoesCategoria } from '@/lib/actions/p
 import { ALERGENICOS } from '@/lib/validation/produtos'
 import { CAMPANHAS } from '@/lib/campanhas/definicoes'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SuggestInput } from '@/components/admin/suggest-input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ProdutoFotosManager } from '@/components/admin/produto-fotos-manager'
+import { Chip, Meter } from '@/components/admin/ui'
+import {
+  FormLayout,
+  FormSection,
+  Field,
+  AdminInput as Input,
+  AdminTextarea as Textarea,
+  AdminSelectTrigger as SelectTrigger,
+  FormAlert,
+  CostCard,
+  Checklist,
+  FormActions,
+} from '@/components/admin/form'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -58,19 +68,31 @@ function blocoMargem(
   margemMinimaGlobal: string,
 ): { node: React.ReactNode; abaixoDoCusto: boolean } {
   if (custo === null) {
-    return { node: <p className="text-sm text-muted-foreground">custo incompleto</p>, abaixoDoCusto: false }
+    return {
+      node: (
+        <p className="flex items-center gap-2 text-[13px] text-warn">
+          <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+          Custo incompleto — falta compra de algum ingrediente da receita.
+        </p>
+      ),
+      abaixoDoCusto: false,
+    }
   }
   const preco = toDecimal(precoRaw)
   if (preco === null) return { node: null, abaixoDoCusto: false }
   if (preco.lessThan(custo)) {
     return {
       node: (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Esse preço tá abaixo do custo ({currency.format(custo.toNumber())}) — você pagaria pra vender. Aumenta o
-            preço pra salvar.
-          </AlertDescription>
-        </Alert>
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/[0.07] p-3.5"
+        >
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+          <p className="text-[13px] leading-snug text-destructive">
+            Esse preço está abaixo do custo ({currency.format(custo.toNumber())}) — você pagaria pra
+            vender. Aumenta o preço pra salvar.
+          </p>
+        </div>
       ),
       abaixoDoCusto: true,
     }
@@ -79,28 +101,35 @@ function blocoMargem(
   const margem = margemPercent(preco, custo)
   const abaixoDoMinimo = margem.lessThan(minima)
   const lucro = preco.minus(custo)
-  if (abaixoDoMinimo) {
-    return {
-      node: (
-        <div className="space-y-1 rounded-lg border-l-4 border-destructive bg-card p-3">
-          <p className="flex items-center gap-1.5 text-base text-destructive">
-            <TriangleAlert className="size-4 shrink-0" aria-hidden />
-            Margem abaixo do mínimo ({minima.toFixed(0)}%): de cada R$ 10 vendidos, menos de R$ 3 ficam com você.
-            Vale subir o preço ou rever a receita.
-          </p>
-        </div>
-      ),
-      abaixoDoCusto: false,
-    }
-  }
+
+  // Mesma leitura da listagem de produtos: barra com o traço da mínima, e a
+  // frase em R$ — "62%" sozinho não diz se é bom.
   return {
     node: (
-      <div className="space-y-1 rounded-lg border border-border bg-card p-3">
-        <p className="tabular-nums text-base">
-          Custa {currency.format(custo.toNumber())} pra fazer hoje. Vendendo a {currency.format(preco.toNumber())},
-          ficam {currency.format(lucro.toNumber())} com você ({margem.toFixed(0)}% de margem).
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-xl bg-background px-3.5 py-3">
+        <p className="flex-1 text-[13px] tabular-nums text-muted-foreground">
+          custa <strong className="font-semibold text-foreground">{currency.format(custo.toNumber())}</strong> ·
+          vende por <strong className="font-semibold text-foreground">{currency.format(preco.toNumber())}</strong> ·
+          sobra{' '}
+          <strong className={abaixoDoMinimo ? 'font-semibold text-destructive' : 'font-semibold text-success'}>
+            {currency.format(lucro.toNumber())}
+          </strong>
         </p>
-        <p className="text-xs text-muted-foreground">Margem = quanto do preço fica com você, já descontado o custo.</p>
+        <div className="flex items-center gap-2.5">
+          <Meter
+            value={margem.toNumber()}
+            min={minima.toNumber()}
+            tone={abaixoDoMinimo ? 'danger' : 'ok'}
+            className="w-[130px]"
+          />
+          {abaixoDoMinimo ? (
+            <Chip tone="danger" icon={TriangleAlert}>
+              {margem.toFixed(0)}% · mínima {minima.toFixed(0)}%
+            </Chip>
+          ) : (
+            <Chip tone="ok">{margem.toFixed(0)}% de margem</Chip>
+          )}
+        </div>
       </div>
     ),
     abaixoDoCusto: false,
@@ -220,7 +249,7 @@ function VariacaoLinha({
   const { node } = blocoMargem(custo, row.precoVenda ?? '', row.margemMinimaOverride ?? '', margemMinimaGlobal)
 
   return (
-    <div className="space-y-3 rounded-lg border border-border p-3">
+    <div className="space-y-3.5 rounded-xl bg-background p-[18px]">
       <div className="flex items-start gap-2">
         <div className="flex-1 space-y-1.5">
           <FormField
@@ -320,9 +349,9 @@ function VariacaoLinha({
 
       {node}
 
-      <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+      <div className="space-y-3 rounded-xl border border-dashed border-caramelo/50 bg-card p-3.5">
         <div className="space-y-0.5">
-          <p className="text-sm font-medium">Promoção (opcional)</p>
+          <p className="text-sm font-semibold">Promoção (opcional)</p>
           <p className="text-sm text-muted-foreground">
             Preço com desconto só nesse período. Some da vitrine sozinha quando a data de fim passar.
           </p>
@@ -478,15 +507,40 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
   const custoBase = custoBaseReceita ? new Decimal(custoBaseReceita) : null
 
   // Cortesia visual pro botão de submit — a validação de verdade é no server.
+  // Margem de cada sabor num lugar só — alimenta o trilho da direita e o
+  // bloqueio do submit sem recalcular duas vezes.
   let algumaVariacaoAbaixoDoCusto = false
+  let variacoesAbaixoDoMinimo = 0
+  const linhasMargem: Array<{ label: string; value: string; tone: 'default' | 'ok' | 'danger' | 'warn' }> = []
   if (tipo === 'UNITARIO') {
     for (const v of variacoesWatch) {
       const recheioSelecionado = recheios.find((r) => r.id === v.recheioReceitaId)
       const custo = calcularCusto(custoBase, recheioSelecionado, toDecimal(v.recheioGramasUsadas))
+      const preco = toDecimal(v.precoVenda)
+      const nome = v.nome?.trim() || 'Sem nome'
+
       if (blocoMargem(custo, v.precoVenda, v.margemMinimaOverride, margemMinimaGlobal).abaixoDoCusto) {
         algumaVariacaoAbaixoDoCusto = true
-        break
       }
+
+      if (custo === null) {
+        linhasMargem.push({ label: nome, value: 'custo incompleto', tone: 'warn' })
+        continue
+      }
+      if (preco === null) {
+        linhasMargem.push({ label: nome, value: 'sem preço', tone: 'warn' })
+        continue
+      }
+      const minima =
+        toDecimal(v.margemMinimaOverride) ?? toDecimal(margemMinimaGlobal) ?? new Decimal(30)
+      const margem = margemPercent(preco, custo)
+      const abaixo = margem.lessThan(minima)
+      if (abaixo) variacoesAbaixoDoMinimo += 1
+      linhasMargem.push({
+        label: nome,
+        value: `${margem.toFixed(0)}%`,
+        tone: abaixo ? 'danger' : 'ok',
+      })
     }
   }
 
@@ -561,15 +615,51 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
     })
   }
 
+  const nomeAtual = watch('nome')
+  const descricaoAtual = watch('descricao')
+
+  const rail = (
+    <>
+      {tipo === 'UNITARIO' && linhasMargem.length > 0 && (
+        <CostCard
+          label="Margem por sabor"
+          value={`${linhasMargem.length} ${linhasMargem.length === 1 ? 'sabor' : 'sabores'}`}
+          sub={
+            variacoesAbaixoDoMinimo > 0
+              ? `${variacoesAbaixoDoMinimo} abaixo da mínima de ${margemMinimaGlobal}%`
+              : 'todos acima da mínima'
+          }
+          tone={variacoesAbaixoDoMinimo > 0 ? 'danger' : 'default'}
+          rows={linhasMargem}
+        />
+      )}
+
+      <Checklist
+        items={[
+          { ok: !!nomeAtual?.trim() && !!descricaoAtual?.trim(), label: 'Nome e descrição' },
+          ...(tipo === 'UNITARIO'
+            ? [
+                { ok: !!receitaId, label: 'Receita da massa escolhida' },
+                { ok: linhasMargem.length > 0, label: 'Pelo menos um sabor' },
+              ]
+            : [{ ok: kitItens.length > 0, label: 'Pelo menos um item no kit' }]),
+          { ok: !algumaVariacaoAbaixoDoCusto && !kitAbaixoDoCusto, label: 'Nenhum preço abaixo do custo' },
+          {
+            ok: !!defaults,
+            label: defaults ? 'Foto liberada' : 'Foto — só dá pra adicionar depois de salvar',
+          },
+        ]}
+      />
+    </>
+  )
+
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 pb-40 md:pb-0" noValidate>
-        {serverError && (
-          <p role="alert" className="text-sm text-muted-foreground">
-            {serverError}
-          </p>
-        )}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <FormLayout rail={rail}>
+        {serverError && <FormAlert title="Não deu pra salvar o produto" detail={serverError} />}
 
+        <FormSection title="Na vitrine" hint="É isso que a cliente lê antes de reservar.">
         <FormField
           control={control}
           name="nome"
@@ -598,13 +688,14 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
           )}
         />
 
-        <SuggestInput
-          id="categoria"
-          label="Categoria"
-          value={categoria}
-          onChange={(v) => setValue('categoria', v)}
-          fetchSuggestions={sugestoesCategoria}
-        />
+        <Field label="Categoria" htmlFor="categoria" hint="Agrupa o produto na vitrine — reaproveita uma que você já usou.">
+          <SuggestInput
+            id="categoria"
+            value={categoria}
+            onChange={(v) => setValue('categoria', v)}
+            fetchSuggestions={sugestoesCategoria}
+          />
+        </Field>
 
         <FormField
           control={control}
@@ -640,7 +731,12 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
             </FormItem>
           )}
         />
+        </FormSection>
 
+        <FormSection
+          title="Restrições e campanhas"
+          hint="Alergênico aparece na ficha do produto pra cliente. Campanha destaca o doce na vitrine no período certo."
+        >
         <FormField
           control={control}
           name="alergenicos"
@@ -698,24 +794,22 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
           )}
         />
 
-        {defaults && (
-          <FormItem>
-            <FormLabel>Fotos</FormLabel>
+        </FormSection>
+
+        <FormSection title="Fotos">
+          {defaults ? (
             <ProdutoFotosManager produtoId={defaults.id} fotosIniciais={defaults.fotos} />
-          </FormItem>
-        )}
-        {!defaults && (
-          <FormItem>
-            <FormLabel>Fotos</FormLabel>
+          ) : (
             <p className="text-sm text-muted-foreground">
               Salva o produto primeiro — depois de salvar, você volta pra essa tela já com o campo de
               foto liberado.
             </p>
-          </FormItem>
-        )}
+          )}
+        </FormSection>
 
         {tipo === 'UNITARIO' && (
           <>
+            <FormSection title="A massa" hint="A receita define o custo base — cada sabor soma o recheio dele por cima.">
             <FormField
               control={control}
               name="receitaId"
@@ -741,11 +835,12 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
               )}
             />
 
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Variações</h2>
-              <p className="text-sm text-muted-foreground">
-                Cada sabor/recheio diferente da mesma massa vira uma variação, com preço próprio.
-              </p>
+            </FormSection>
+
+            <FormSection
+              title="Sabores"
+              hint="Cada sabor/recheio diferente da mesma massa vira uma variação, com preço próprio — e é o sabor que a cliente escolhe na vitrine, não o produto."
+            >
               {variacaoFieldArray.fields.map((field, index) => (
                 <VariacaoLinha
                   key={field.id}
@@ -761,23 +856,22 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
               <Button
                 type="button"
                 variant="outline"
-                className="h-11"
+                className="h-11 border-dashed text-[15px]"
                 onClick={() => variacaoFieldArray.append(VARIACAO_NOVA)}
               >
-                Mais uma variação
+                Adicionar sabor
               </Button>
-            </div>
+            </FormSection>
           </>
         )}
 
         {tipo === 'KIT' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Itens do kit</h2>
+          <FormSection title="Itens do kit" hint="O kit não tem lote próprio — na reserva, os componentes saem dos lotes deles.">
             {kitFieldArray.fields.map((field, index) => {
               const componenteId = kitItens[index]?.componenteId
               const variacoesDoComponente = unitarios.find((u) => u.id === componenteId)?.variacoes ?? []
               return (
-                <div key={field.id} className="space-y-2 rounded-lg border border-border p-3">
+                <div key={field.id} className="space-y-3 rounded-xl bg-background p-[18px]">
                   <div className="flex items-end gap-2">
                     <div className="flex-1 space-y-1.5">
                       <FormField
@@ -871,16 +965,16 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              className="h-11 border-dashed text-[15px]"
               onClick={() => kitFieldArray.append({ componenteId: '', componenteVariacaoId: '', qtde: '1' })}
             >
-              Mais um item
+              Adicionar item
             </Button>
-          </div>
+          </FormSection>
         )}
 
         {tipo === 'KIT' && (
-          <>
+          <FormSection title="Preço do kit">
             <FormField
               control={control}
               name="precoVenda"
@@ -910,21 +1004,25 @@ export function ProdutoForm({ receitas, recheios, unitarios, margemMinimaGlobal,
                 </FormItem>
               )}
             />
-          </>
+          </FormSection>
         )}
 
-        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
-          <div className="mx-auto w-full max-w-md">
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={pending || algumaVariacaoAbaixoDoCusto || kitAbaixoDoCusto}
-            >
-              {pending ? 'Salvando...' : 'Salvar produto'}
-            </Button>
-          </div>
-        </div>
+        <FormActions
+          note={
+            algumaVariacaoAbaixoDoCusto || kitAbaixoDoCusto
+              ? 'Tem preço abaixo do custo — corrige antes de salvar.'
+              : 'Dá pra salvar com a margem baixa: o aviso vermelho continua aparecendo na lista até você acertar o preço.'
+          }
+        >
+          <Button
+            type="submit"
+            className="h-12 px-6 text-base"
+            disabled={pending || algumaVariacaoAbaixoDoCusto || kitAbaixoDoCusto}
+          >
+            {pending ? 'Salvando...' : 'Salvar produto'}
+          </Button>
+        </FormActions>
+        </FormLayout>
       </form>
     </Form>
   )

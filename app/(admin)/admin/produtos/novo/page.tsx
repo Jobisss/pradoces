@@ -2,6 +2,7 @@ import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
 import { custosCorrentesReceitas, pesoTotalGramasReceita } from '@/lib/custo/corrente'
 import { ProdutoForm } from '@/components/admin/produto-form'
+import { PageHeader } from '@/components/admin/ui'
 
 export default async function NovoProdutoPage() {
   const [receitasDisponiveisRaw, todasReceitasRaw, unitariosRaw, config] = await Promise.all([
@@ -87,8 +88,11 @@ export default async function NovoProdutoPage() {
   const margemMinimaGlobal = config ? config.margemMinimaPadrao.toFixed(2) : '30.00'
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Novo produto</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Novo produto"
+        subtitle="Produto é o que aparece na vitrine — um doce ligado a uma receita, ou um kit com vários"
+      />
       <ProdutoForm
         receitas={receitas}
         recheios={recheios}

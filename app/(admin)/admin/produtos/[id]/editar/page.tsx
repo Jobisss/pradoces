@@ -2,6 +2,7 @@ import Decimal from 'decimal.js'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db/client'
 import { custosCorrentesReceitas, pesoTotalGramasReceita } from '@/lib/custo/corrente'
+import { PageHeader } from '@/components/admin/ui'
 import { ProdutoForm } from '@/components/admin/produto-form'
 
 export default async function EditarProdutoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -101,8 +102,8 @@ export default async function EditarProdutoPage({ params }: { params: Promise<{ 
   const margemMinimaGlobal = config ? config.margemMinimaPadrao.toFixed(2) : '30.00'
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-6">
-      <h1 className="font-display text-3xl font-semibold">Editar produto</h1>
+    <div className="space-y-6">
+      <PageHeader title="Editar produto" subtitle={produto.nome} />
       <ProdutoForm
         receitas={receitas}
         recheios={recheios}
