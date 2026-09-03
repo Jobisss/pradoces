@@ -1,29 +1,34 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+import { AdminInput } from '@/components/admin/form'
 
 /**
  * Autocomplete "que aprende" (D-04) — input livre + sugestões vindas de uma
  * Server Action, sem restringir a escolha ao que já existe (o valor digitado
  * é o que vale, a lista é só atalho). Usado por mercado (marca/mercado) e
  * produto (categoria).
+ *
+ * Renderiza SÓ o controle: o rótulo e a dica ficam por conta do `Field` que
+ * envolve, pra não ter dois sistemas de rótulo no mesmo formulário.
  */
 export function SuggestInput({
   id,
   name,
-  label,
   value,
   onChange,
   fetchSuggestions,
+  placeholder,
+  className,
 }: {
   id: string
   name?: string
-  label: string
   value: string
   onChange: (v: string) => void
   fetchSuggestions: (prefix: string) => Promise<string[]>
+  placeholder?: string
+  className?: string
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [open, setOpen] = useState(false)
@@ -42,24 +47,24 @@ export function SuggestInput({
   }
 
   return (
-    <div className="relative space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
+    <div className={cn('relative', className)}>
+      <AdminInput
         id={id}
         name={name}
         value={value}
+        placeholder={placeholder}
         onChange={(e) => handleChange(e.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         autoComplete="off"
       />
       {open && suggestions.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-popover shadow-md">
+        <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-[10px] border border-border bg-popover shadow-doce">
           {suggestions.map((s) => (
             <li key={s}>
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                className="block w-full px-3.5 py-2.5 text-left text-sm hover:bg-muted"
                 onMouseDown={(e) => {
                   e.preventDefault()
                   onChange(s)
