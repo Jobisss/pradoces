@@ -1,9 +1,17 @@
 import Link from 'next/link'
 import Decimal from 'decimal.js'
-import { ChartColumn, Wallet, Layers, ShoppingBasket } from 'lucide-react'
+import { ChartColumn, Wallet, Layers, ShoppingBasket, Star, PackageOpen } from 'lucide-react'
 import { relatorioFaturamento, historicoMensal, margemPorMarca } from '@/lib/admin/relatorios'
 import { prisma } from '@/lib/db/client'
-import { PageHeader, SurfaceCard, StatTile, Meter, EmptyState, EyebrowLabel } from '@/components/admin/ui'
+import {
+  PageHeader,
+  SurfaceCard,
+  StatTile,
+  Meter,
+  Chip,
+  EmptyState,
+  EyebrowLabel,
+} from '@/components/admin/ui'
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const currencyCurto = new Intl.NumberFormat('pt-BR', {
@@ -73,9 +81,12 @@ export default async function RelatoriosPage({
     : relatorio.lucroTotal.dividedBy(relatorio.faturamentoTotal).times(100)
 
   const ALTURA = 208
+  // Escala pelo MAIOR dos dois: num mês de muita perda o custo passa do
+  // faturamento, e escalar só pela receita jogaria a barra pra fora do eixo.
   const topo = topoDoEixo(
-    historico.reduce((m, h) => Math.max(m, h.receita.toNumber()), 0)
+    historico.reduce((m, h) => Math.max(m, h.receita.toNumber(), h.custo.toNumber()), 0)
   )
+  const temMesNoVermelho = historico.some((h) => h.lucro.isNegative())
   const linhas = [0, 0.25, 0.5, 0.75, 1].map((f) => f * topo)
 
   const receitaMax = relatorio.topPorReceita.reduce(
@@ -133,14 +144,27 @@ export default async function RelatoriosPage({
         <StatTile
           label="Custo"
           value={currency.format(relatorio.custoTotal.toNumber())}
-          sub="custo congelado dos lotes vendidos"
+          sub={`${currency.format(relatorio.custoVendas.toNumber())} do que foi vendido`}
           icon={Layers}
-        />
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {relatorio.resgates.unidades > 0 && (
+              <Chip tone="warn" icon={Star}>
+                {currency.format(relatorio.resgates.custo.toNumber())} em fidelidade
+              </Chip>
+            )}
+            {relatorio.perdas.unidades > 0 && (
+              <Chip tone="danger" icon={PackageOpen}>
+                {currency.format(relatorio.perdas.custo.toNumber())} perdidos
+              </Chip>
+            )}
+          </div>
+        </StatTile>
         <StatTile
           label="Lucro real"
           value={currency.format(relatorio.lucroTotal.toNumber())}
           tone={relatorio.lucroTotal.isNegative() ? 'danger' : 'ok'}
-          sub="faturamento menos custo"
+          sub="faturamento menos tudo que saiu do estoque"
           icon={ChartColumn}
         />
         <StatTile
@@ -159,6 +183,58 @@ export default async function RelatoriosPage({
         </StatTile>
       </div>
 
+      {/*
+        Fidelidade e perda saem do estoque sem virar receita. Ficam numa
+        linha própria porque diluídos no custo total ninguém enxergaria o
+        preço do programa de pontos.
+      */}
+      {(relatorio.resgates.unidades > 0 || relatorio.perdas.unidades > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {relatorio.resgates.unidades > 0 && (
+            <SurfaceCard>
+              <div className="flex items-start gap-3.5">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-caramelo/25">
+                  <Star className="size-5 text-warn" aria-hidden />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-[15px] font-semibold">
+                    Fidelidade custou {currency.format(relatorio.resgates.custo.toNumber())}
+                  </p>
+                  <p className="text-[13px] leading-snug text-muted-foreground">
+                    {relatorio.resgates.unidades} unidade
+                    {relatorio.resgates.unidades === 1 ? '' : 's'} entregue
+                    {relatorio.resgates.unidades === 1 ? '' : 's'} em troca de pontos. Já está
+                    descontado do lucro acima.
+                    {relatorio.valorDeixadoDeGanhar.greaterThan(0) &&
+                      ` Se tivesse vendido, seriam ${currency.format(relatorio.valorDeixadoDeGanhar.toNumber())}.`}
+                  </p>
+                </div>
+              </div>
+            </SurfaceCard>
+          )}
+
+          {relatorio.perdas.unidades > 0 && (
+            <SurfaceCard>
+              <div className="flex items-start gap-3.5">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/[0.09]">
+                  <PackageOpen className="size-5 text-destructive" aria-hidden />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-[15px] font-semibold">
+                    Perdeu {currency.format(relatorio.perdas.custo.toNumber())} em baixa
+                  </p>
+                  <p className="text-[13px] leading-snug text-muted-foreground">
+                    {relatorio.perdas.unidades} unidade
+                    {relatorio.perdas.unidades === 1 ? '' : 's'} que venceu ou estragou. Também já
+                    está descontado do lucro.
+                  </p>
+                </div>
+              </div>
+            </SurfaceCard>
+          )}
+        </div>
+      )}
+
       {/* -------------------------------------------------- histórico mensal */}
       <SurfaceCard>
         <div className="space-y-4">
@@ -169,7 +245,7 @@ export default async function RelatoriosPage({
                 {variacaoFiltro && ` — ${variacaoFiltro.produto.nome} — ${variacaoFiltro.nome}`}
               </h2>
               <p className="text-[13px] text-muted-foreground">
-                Últimos 12 meses · as duas faixas empilhadas somam o faturamento
+                Últimos 12 meses · o custo inclui o que saiu em resgate e o que foi baixado
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-4">
@@ -181,6 +257,12 @@ export default async function RelatoriosPage({
                 <span className="size-2.5 rounded-sm bg-chart-2" aria-hidden />
                 Custo
               </span>
+              {temMesNoVermelho && (
+                <span className="inline-flex items-center gap-2 text-[13px] text-muted-foreground">
+                  <span className="h-0.5 w-3 rounded-sm bg-destructive" aria-hidden />
+                  Onde o faturamento parou
+                </span>
+              )}
               {(params.produto || params.variacao) && (
                 <Link
                   href="/admin/relatorios"
@@ -223,7 +305,8 @@ export default async function RelatoriosPage({
                     {historico.map((h) => {
                       const hFat = (h.receita.toNumber() / topo) * ALTURA
                       const hCus = (h.custo.toNumber() / topo) * ALTURA
-                      const hLuc = Math.max(0, hFat - hCus - 2)
+                      const noVermelho = h.lucro.isNegative()
+                      const hLuc = noVermelho ? 0 : Math.max(0, hFat - hCus - 2)
                       return (
                         <div
                           key={h.mes}
@@ -246,9 +329,26 @@ export default async function RelatoriosPage({
                             </p>
                           </div>
 
-                          <div className="flex w-full max-w-[34px] flex-col gap-0.5 rounded-t-sm">
-                            <div className="rounded-t-sm bg-chart-1" style={{ height: hLuc }} />
-                            <div className="rounded-b-sm bg-chart-2" style={{ height: hCus }} />
+                          <div className="relative flex w-full max-w-[34px] flex-col gap-0.5 rounded-t-sm">
+                            {hLuc > 0 && (
+                              <div className="rounded-t-sm bg-chart-1" style={{ height: hLuc }} />
+                            )}
+                            <div
+                              className={noVermelho ? 'rounded-sm bg-chart-2' : 'rounded-b-sm bg-chart-2'}
+                              style={{ height: hCus }}
+                            />
+                            {/*
+                              Mês no vermelho: o custo passou do que entrou.
+                              A marca mostra ONDE o faturamento parou — mesmo
+                              recurso do traço de mínima no medidor de margem.
+                            */}
+                            {noVermelho && (
+                              <div
+                                className="absolute inset-x-[-3px] h-0.5 rounded-sm bg-destructive"
+                                style={{ bottom: hFat }}
+                                aria-hidden
+                              />
+                            )}
                           </div>
                         </div>
                       )

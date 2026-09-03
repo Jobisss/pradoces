@@ -11,6 +11,7 @@ import {
   Inbox,
   ClipboardList,
   Truck,
+  Star,
   PartyPopper,
   type LucideIcon,
 } from 'lucide-react'
@@ -146,7 +147,10 @@ export default async function AdminHomePage() {
   const urgentes = pendencias.filter((p) => p.severidade === 'agora').length
   const proximas = janelas.slice(0, 3)
   const totalProximas = janelas.reduce((s, j) => s + j.reservas.length, 0)
-  const naoPagas = janelas.flatMap((j) => j.reservas).filter((r) => !r.pago).length
+  // Resgate é pago em pontos — nunca entra em "a pagar".
+  const naoPagas = janelas
+    .flatMap((j) => j.reservas)
+    .filter((r) => !r.pago && r.tipo !== 'RESGATE').length
 
   const grupos = ORDEM_SEVERIDADE.map((sev) => ({
     sev,
@@ -191,9 +195,16 @@ export default async function AdminHomePage() {
           <StatTile
             label="Custou"
             value={currency.format(resumo.custoTotal.toNumber())}
-            sub="custo dos lotes que saíram"
+            sub="tudo que saiu do estoque hoje"
             icon={Layers}
-          />
+          >
+            {resumo.unidadesResgatadas > 0 && (
+              <Chip tone="warn" icon={Star}>
+                {currency.format(resumo.custoResgates.toNumber())} em {resumo.unidadesResgatadas}{' '}
+                resgate{resumo.unidadesResgatadas === 1 ? '' : 's'}
+              </Chip>
+            )}
+          </StatTile>
           <StatTile
             label="Sobrou"
             value={currency.format(resumo.lucro.toNumber())}
@@ -311,7 +322,15 @@ export default async function AdminHomePage() {
                                 Entrega
                               </Chip>
                             )}
-                            <Chip tone={r.pago ? 'ok' : 'danger'}>{r.pago ? 'Pago' : 'A pagar'}</Chip>
+                            {r.tipo === 'RESGATE' ? (
+                              <Chip tone="rosa" icon={Star}>
+                                Resgate
+                              </Chip>
+                            ) : (
+                              <Chip tone={r.pago ? 'ok' : 'danger'}>
+                                {r.pago ? 'Pago' : 'A pagar'}
+                              </Chip>
+                            )}
                           </div>
                           <p className="text-[13px] tabular-nums text-muted-foreground">
                             {r.itens.map((i) => `${i.qtde}× ${i.nome}`).join(' · ')}
