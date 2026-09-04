@@ -223,6 +223,11 @@ model Receita {
   // (minutos × multiplicador × valorHora/60), congelado no lote. NULL = não
   // medido ainda; entra como zero, mesmo tratamento do custoGas.
   minutosPreparo   Int?     @map("minutos_preparo")
+  // Overrides por receita — NULL usa o padrão global de Configuracao.
+  // valorHora entra no CUSTO (salário dela); lucroPorHoraAlvo entra só no
+  // PREÇO SUGERIDO (o que o negócio precisa gerar em cima do salário).
+  valorHoraMaoDeObra Decimal? @map("valor_hora_mao_de_obra") @db.Decimal(19, 4)
+  lucroPorHoraAlvo   Decimal? @map("lucro_por_hora_alvo") @db.Decimal(19, 4)
   validadeDias     Int?     @map("validade_dias")
   criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm     DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(6)
@@ -689,6 +694,10 @@ model Configuracao {
   // Meta de lucro do mês JÁ DESCONTADA a mão de obra: o que sobra depois de
   // ela se pagar. 0 = sem meta (a home esconde o bloco).
   metaLucroMensal         Decimal @default(0) @map("meta_lucro_mensal") @db.Decimal(19, 4)
+  // Padrão de lucro/hora que o preço sugerido persegue, pra toda receita sem
+  // valor próprio. Não é derivado da meta mensal de propósito — ver a
+  // migration 20260903193000.
+  lucroPorHoraAlvo        Decimal @default(0) @map("lucro_por_hora_alvo") @db.Decimal(19, 4)
   // PT-04 removido a pedido da usuária (sem teto de pontos por reserva) —
   // coluna morta, mantida só pra não rodar DROP COLUMN numa tabela de config
   // já viva em produção (PRODUCTION MODE, ver CLAUDE.md). Nenhum código lê

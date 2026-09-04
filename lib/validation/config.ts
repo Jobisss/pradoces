@@ -21,6 +21,7 @@ export const ConfigSchema = z
     // Quanto ela se paga por hora, e quanto quer que sobre DEPOIS disso.
     valorHoraMaoDeObra: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
     metaLucroMensal: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
+    lucroPorHoraAlvo: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
     janelaCancelamentoHoras: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
     taxaEntregaPadrao: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
     entregaAtiva: z.boolean(),

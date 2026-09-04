@@ -15,6 +15,9 @@ export const ReceitaSchema = z
       .min(1, 'Se for preencher, coloca pelo menos 1 minuto.')
       .optional()
       .or(z.literal('').transform(() => undefined)),
+    // Overrides por receita — vazio usa o padrão global de Ajustes.
+    valorHoraMaoDeObra: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
+    lucroPorHoraAlvo: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
     validadeDias: z.coerce
       .number()
       .int()

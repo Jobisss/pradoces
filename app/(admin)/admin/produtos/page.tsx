@@ -81,6 +81,30 @@ function LinhaSabor({ linha, nome }: { linha: LinhaMargem; nome: string }) {
         {currency.format(linha.precoVenda.toNumber())}
       </span>
 
+      {/* Preço sugerido ao lado do fixo: o que esse doce PRECISARIA custar pra
+          cada minuto de trabalho render o lucro/hora alvo. Só aparece quando
+          há tempo medido e lucro/hora configurado. */}
+      <span className="w-28 shrink-0 text-sm tabular-nums">
+        {linha.precoSugerido === null ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span
+            className={
+              linha.precoSugerido.greaterThan(linha.precoVenda)
+                ? 'font-semibold text-warn'
+                : 'text-muted-foreground'
+            }
+            title={
+              linha.precoSugerido.greaterThan(linha.precoVenda)
+                ? 'O preço atual está abaixo do que o tempo de trabalho pede'
+                : 'O preço atual já cobre o lucro/hora alvo'
+            }
+          >
+            {currency.format(linha.precoSugerido.toNumber())}
+          </span>
+        )}
+      </span>
+
       <span className="w-24 shrink-0 text-sm tabular-nums text-muted-foreground">
         {semCusto ? '—' : currency.format(linha.custo!.toNumber())}
       </span>

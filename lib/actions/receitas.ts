@@ -84,6 +84,8 @@ export async function criarReceita(input: unknown): Promise<ReceitaActionState> 
         rendimentoPadrao: parsed.data.rendimentoPadrao,
         custoGas: parsed.data.custoGas ? parsed.data.custoGas.toFixed(4) : null,
       minutosPreparo: parsed.data.minutosPreparo ?? null,
+      valorHoraMaoDeObra: parsed.data.valorHoraMaoDeObra ? parsed.data.valorHoraMaoDeObra.toFixed(4) : null,
+      lucroPorHoraAlvo: parsed.data.lucroPorHoraAlvo ? parsed.data.lucroPorHoraAlvo.toFixed(4) : null,
         validadeDias: parsed.data.validadeDias ?? null,
         itens: {
           create: parsed.data.itens.map((item) => ({
@@ -132,6 +134,8 @@ export async function editarReceita(id: string, input: unknown): Promise<Receita
           rendimentoPadrao: parsed.data.rendimentoPadrao,
           custoGas: parsed.data.custoGas ? parsed.data.custoGas.toFixed(4) : null,
       minutosPreparo: parsed.data.minutosPreparo ?? null,
+      valorHoraMaoDeObra: parsed.data.valorHoraMaoDeObra ? parsed.data.valorHoraMaoDeObra.toFixed(4) : null,
+      lucroPorHoraAlvo: parsed.data.lucroPorHoraAlvo ? parsed.data.lucroPorHoraAlvo.toFixed(4) : null,
           validadeDias: parsed.data.validadeDias ?? null,
         },
       }),

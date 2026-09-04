@@ -34,6 +34,8 @@ export default async function EditarReceitaPage({ params }: { params: Promise<{ 
           rendimentoPadrao: receita.rendimentoPadrao,
           custoGas: receita.custoGas ? receita.custoGas.toFixed(4) : null,
           minutosPreparo: receita.minutosPreparo,
+          valorHoraMaoDeObra: receita.valorHoraMaoDeObra ? receita.valorHoraMaoDeObra.toFixed(2) : null,
+          lucroPorHoraAlvo: receita.lucroPorHoraAlvo ? receita.lucroPorHoraAlvo.toFixed(2) : null,
           validadeDias: receita.validadeDias,
           itens: receita.itens.map((item) => ({
             ingredienteId: item.ingredienteId,

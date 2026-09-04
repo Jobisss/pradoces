@@ -1,7 +1,7 @@
 import 'server-only'
 import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
-import { custoMaoDeObra } from '@/lib/custo/congelado'
+import { custoMaoDeObra, precoSugerido } from '@/lib/custo/congelado'
 
 /**
  * TODA aritmética de custo do projeto mora aqui. Nada fora de lib/custo
@@ -56,6 +56,8 @@ type ReceitaComItens = {
   rendimentoPadrao: number
   custoGas: Decimal | null
   minutosPreparo?: number | null
+  valorHoraMaoDeObra?: Decimal | null
+  lucroPorHoraAlvo?: Decimal | null
   itens: { ingredienteId: string; qtde: Decimal; ingrediente?: { nome: string; unidadeBase?: string } }[]
 }
 
@@ -105,6 +107,11 @@ export function pesoTotalGramasReceita(itens: ReceitaComItens['itens']): {
  * configurar — nesse caso a mão de obra não entra em conta nenhuma e tudo
  * funciona como antes.
  */
+/** Override da receita vence o padrão global; ausente nos dois = zero. */
+export function taxaResolvida(daReceita: Decimal | null | undefined, global: Decimal): Decimal {
+  return daReceita != null ? new Decimal(daReceita.toString()) : global
+}
+
 export async function valorHoraMaoDeObra(): Promise<Decimal> {
   const config = await prisma.configuracao.findUnique({
     where: { id: 1 },
@@ -133,7 +140,9 @@ export async function custoCorrenteReceita(
   const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
   const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
   // Multiplicador 1: aqui é a receita PADRÃO, não uma fornada específica.
-  const total = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
+  const total = comGas.plus(
+    custoMaoDeObra(receita.minutosPreparo, new Decimal(1), taxaResolvida(receita.valorHoraMaoDeObra, valorHora)),
+  )
   const porUnidade = total.dividedBy(receita.rendimentoPadrao)
 
   return { total, porUnidade, faltamCompras }
@@ -167,7 +176,9 @@ export async function custoCorrenteRecheio(
   const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
   const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
   // O recheio também é feito por ela — o tempo dele conta igual.
-  const totalReceita = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
+  const totalReceita = comGas.plus(
+    custoMaoDeObra(receita.minutosPreparo, new Decimal(1), taxaResolvida(receita.valorHoraMaoDeObra, valorHora)),
+  )
   const { pesoTotalG, itensForaDeGramas } = pesoTotalGramasReceita(receita.itens)
 
   const custoParaProduto = pesoTotalG.isZero()
@@ -199,7 +210,9 @@ export async function custosCorrentesReceitas(
   for (const receita of receitas) {
     const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
     const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
-    const total = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
+    const total = comGas.plus(
+      custoMaoDeObra(receita.minutosPreparo, new Decimal(1), taxaResolvida(receita.valorHoraMaoDeObra, valorHora)),
+    )
     resultado.set(receita.id, {
       total,
       porUnidade: total.dividedBy(receita.rendimentoPadrao),
@@ -294,6 +307,8 @@ export async function margensCorrentesBatch(): Promise<
     custo: Decimal | null
     margem: Decimal | null
     minima: Decimal
+    /** null quando o custo está incompleto ou não há lucro/hora alvo. */
+    precoSugerido: Decimal | null
   }>
 > {
   const produtos = await prisma.produto.findMany({
@@ -333,22 +348,46 @@ export async function margensCorrentesBatch(): Promise<
 
   const config = await prisma.configuracao.findUnique({ where: { id: 1 } })
   const margemMinimaGlobal = config ? new Decimal(config.margemMinimaPadrao) : new Decimal(30)
+  const valorHoraGlobal = new Decimal(config?.valorHoraMaoDeObra?.toString() ?? 0)
+  const lucroPorHoraGlobal = new Decimal(config?.lucroPorHoraAlvo?.toString() ?? 0)
 
   function custoReceitaEmMemoria(receita: ReceitaComItens | null | undefined) {
-    if (!receita) return { porUnidade: new Decimal(0), algumEncontrado: false }
+    if (!receita) {
+      return { porUnidade: new Decimal(0), algumEncontrado: false, minutosPorUnidade: new Decimal(0) }
+    }
     const { total: somaItens, algumEncontrado } = somaCustoItens(receita.itens, ultimas)
-    const total = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
-    return { porUnidade: total.dividedBy(receita.rendimentoPadrao), algumEncontrado }
+    const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    // Mão de obra também entra aqui — sem isso a margem da LISTAGEM divergia
+    // da margem do formulário de receita, que já somava o trabalho.
+    const valorHora = taxaResolvida(receita.valorHoraMaoDeObra, valorHoraGlobal)
+    const total = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
+    return {
+      porUnidade: total.dividedBy(receita.rendimentoPadrao),
+      algumEncontrado,
+      minutosPorUnidade: new Decimal(receita.minutosPreparo ?? 0).dividedBy(receita.rendimentoPadrao),
+    }
   }
 
   /** Equivalente em memória de custoCorrenteRecheio — mesma regra de 3 por peso. */
   function custoRecheioEmMemoria(receita: ReceitaComItens | null | undefined, gramasUsadas: Decimal | null) {
-    if (!receita || !gramasUsadas) return { custoParaProduto: new Decimal(0), algumEncontrado: false }
+    if (!receita || !gramasUsadas) {
+      return { custoParaProduto: new Decimal(0), algumEncontrado: false, minutosPorUnidade: new Decimal(0) }
+    }
     const { total: somaItens, algumEncontrado } = somaCustoItens(receita.itens, ultimas)
-    const total = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    const valorHora = taxaResolvida(receita.valorHoraMaoDeObra, valorHoraGlobal)
+    const total = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
     const { pesoTotalG } = pesoTotalGramasReceita(receita.itens)
-    const custoParaProduto = pesoTotalG.isZero() ? new Decimal(0) : total.dividedBy(pesoTotalG).times(gramasUsadas)
-    return { custoParaProduto, algumEncontrado }
+    if (pesoTotalG.isZero()) {
+      return { custoParaProduto: new Decimal(0), algumEncontrado, minutosPorUnidade: new Decimal(0) }
+    }
+    const fracao = gramasUsadas.dividedBy(pesoTotalG)
+    return {
+      custoParaProduto: total.times(fracao),
+      algumEncontrado,
+      // Minutos do recheio rateados pela mesma regra de 3 do custo.
+      minutosPorUnidade: new Decimal(receita.minutosPreparo ?? 0).times(fracao),
+    }
   }
 
   /** Equivalente em memória de custoCorrenteVariacao — base + recheio (quando houver). */
@@ -359,13 +398,15 @@ export async function margensCorrentesBatch(): Promise<
   ) {
     const base = custoReceitaEmMemoria(receitaBase)
     let custo = base.porUnidade
+    let minutosPorUnidade = base.minutosPorUnidade
     let algumEncontrado = base.algumEncontrado
     if (receitaRecheio) {
       const recheio = custoRecheioEmMemoria(receitaRecheio, gramasUsadas)
       custo = custo.plus(recheio.custoParaProduto)
+      minutosPorUnidade = minutosPorUnidade.plus(recheio.minutosPorUnidade)
       if (recheio.algumEncontrado) algumEncontrado = true
     }
-    return { custo, algumEncontrado }
+    return { custo, algumEncontrado, minutosPorUnidade }
   }
 
   type Linha = {
@@ -379,6 +420,7 @@ export async function margensCorrentesBatch(): Promise<
     custo: Decimal | null
     margem: Decimal | null
     minima: Decimal
+    precoSugerido: Decimal | null
   }
   const linhas: Linha[] = []
 
@@ -388,13 +430,19 @@ export async function margensCorrentesBatch(): Promise<
         const minima = variacao.margemMinimaOverride ? new Decimal(variacao.margemMinimaOverride) : margemMinimaGlobal
         const precoVenda = new Decimal(variacao.precoVenda)
         const gramasUsadas = variacao.recheioGramasUsadas ? new Decimal(variacao.recheioGramasUsadas) : null
-        const { custo: custoBruto, algumEncontrado } = custoVariacaoEmMemoria(
+        const { custo: custoBruto, algumEncontrado, minutosPorUnidade } = custoVariacaoEmMemoria(
           produto.receita,
           variacao.receitaRecheio,
           gramasUsadas,
         )
         const custo = algumEncontrado ? custoBruto : null
         const margem = custo === null ? null : margemPercent(precoVenda, custo)
+        // Taxa da receita base manda; sem ela, o padrão da casa.
+        const lucroAlvo = taxaResolvida(produto.receita?.lucroPorHoraAlvo, lucroPorHoraGlobal)
+        const sugerido =
+          custo === null || lucroAlvo.lessThanOrEqualTo(0)
+            ? null
+            : precoSugerido(custo, minutosPorUnidade, lucroAlvo)
         linhas.push({
           produtoId: produto.id,
           variacaoId: variacao.id,
@@ -406,6 +454,7 @@ export async function margensCorrentesBatch(): Promise<
           custo,
           margem,
           minima,
+          precoSugerido: sugerido,
         })
       }
     } else {
@@ -413,6 +462,9 @@ export async function margensCorrentesBatch(): Promise<
       const precoVenda = new Decimal(produto.precoVenda ?? 0)
       let custoBruto = new Decimal(0)
       let algumEncontrado = false
+      // Kit não tem receita própria: o tempo dele é a soma do tempo dos
+      // componentes, e o lucro/hora alvo é o padrão da casa.
+      let minutosKit = new Decimal(0)
       for (const kitItem of produto.kitItens) {
         const cv = kitItem.componenteVariacao
         if (!cv) continue
@@ -420,9 +472,14 @@ export async function margensCorrentesBatch(): Promise<
         const r = custoVariacaoEmMemoria(cv.produto.receita, cv.receitaRecheio, gramasUsadas)
         if (r.algumEncontrado) algumEncontrado = true
         custoBruto = custoBruto.plus(r.custo.times(kitItem.qtde))
+        minutosKit = minutosKit.plus(r.minutosPorUnidade.times(kitItem.qtde))
       }
       const custo = algumEncontrado ? custoBruto : null
       const margem = custo === null ? null : margemPercent(precoVenda, custo)
+      const sugeridoKit =
+        custo === null || lucroPorHoraGlobal.lessThanOrEqualTo(0)
+          ? null
+          : precoSugerido(custo, minutosKit, lucroPorHoraGlobal)
       linhas.push({
         produtoId: produto.id,
         variacaoId: null,
@@ -430,6 +487,7 @@ export async function margensCorrentesBatch(): Promise<
         produtoNome: produto.nome,
         variacaoNome: null,
         tipo: 'KIT',
+        precoSugerido: sugeridoKit,
         precoVenda,
         custo,
         margem,

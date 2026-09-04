@@ -36,6 +36,7 @@ const CONSEQUENCIAS = [
   'A margem mínima vale pra todo produto sem mínima própria — a home recalcula os avisos na hora.',
   'Pontos por real de lucro só valem pra vendas daqui pra frente. Saldo já creditado não muda — quem juntou pontos na regra antiga (por valor gasto) continua com eles.',
   'A devolução muda o preço em pontos de TODO item de resgate na hora, porque ele é calculado a partir do custo atual do doce.',
+  'O preço sugerido é recalculado na hora em toda a listagem de produtos — ele acompanha ingrediente, tempo e taxa, e nunca o atraso do mês.',
   'Mão de obra entra no custo de cada lote NOVO. Lote já produzido mantém o custo congelado que tinha — o histórico fica com um degrau na data.',
   'Taxa de entrega e Pix ficam congelados em cada reserva no momento em que ela é feita.',
 ]
@@ -46,6 +47,7 @@ type AjustesFormProps = {
   devolucaoAtual: string
   valorHoraAtual: string
   metaAtual: string
+  lucroHoraAtual: string
   pontosExpiracaoAtual: string
   janelaCancelamentoAtual: string
   taxaEntregaAtual: string
@@ -63,6 +65,7 @@ export function AjustesForm({
   devolucaoAtual,
   valorHoraAtual,
   metaAtual,
+  lucroHoraAtual,
   pontosExpiracaoAtual,
   janelaCancelamentoAtual,
   taxaEntregaAtual,
@@ -133,6 +136,19 @@ export function AjustesForm({
                 name="metaLucroMensal"
                 inputMode="decimal"
                 defaultValue={metaAtual}
+                required
+              />
+            </Field>
+            <Field
+              label="Lucro por hora que o preço persegue (R$)"
+              htmlFor="lucroPorHoraAlvo"
+              hint="Padrão da casa pro PREÇO SUGERIDO, em cima do seu salário. Cada receita pode ter o próprio. 0 desliga a sugestão."
+            >
+              <AdminInput
+                id="lucroPorHoraAlvo"
+                name="lucroPorHoraAlvo"
+                inputMode="decimal"
+                defaultValue={lucroHoraAtual}
                 required
               />
             </Field>

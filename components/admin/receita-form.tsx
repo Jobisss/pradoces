@@ -39,6 +39,8 @@ type ReceitaFormValues = {
   nome: string
   rendimentoPadrao: string
   minutosPreparo: string
+  valorHoraMaoDeObra: string
+  lucroPorHoraAlvo: string
   custoGas: string
   validadeDias: string
   itens: Array<{ ingredienteId: string; qtde: string }>
@@ -57,6 +59,8 @@ type ReceitaFormProps = {
     rendimentoPadrao: number
     custoGas: string | null
     minutosPreparo: number | null
+    valorHoraMaoDeObra: string | null
+    lucroPorHoraAlvo: string | null
     validadeDias: number | null
     itens: Array<{ ingredienteId: string; qtde: string }>
   }
@@ -82,6 +86,8 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
       nome: defaults?.nome ?? '',
       rendimentoPadrao: defaults ? String(defaults.rendimentoPadrao) : '',
       minutosPreparo: defaults?.minutosPreparo ? String(defaults.minutosPreparo) : '',
+      valorHoraMaoDeObra: defaults?.valorHoraMaoDeObra ?? '',
+      lucroPorHoraAlvo: defaults?.lucroPorHoraAlvo ?? '',
       custoGas: defaults?.custoGas ?? '',
       validadeDias: defaults?.validadeDias ? String(defaults.validadeDias) : '',
       itens: defaults?.itens ?? [{ ingredienteId: '', qtde: '' }],
@@ -330,6 +336,42 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
                           placeholder="90"
                           suffix="min"
                         />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name="valorHoraMaoDeObra"
+                render={({ field, fieldState }) => (
+                  <FormItem className="min-w-0 flex-1 gap-0">
+                    <Field
+                      label="Seu valor/hora nessa receita (R$)"
+                      optional
+                      error={fieldState.error?.message}
+                      hint="Vazio usa o padrão de Ajustes. Preenche só se essa receita for mais puxada."
+                    >
+                      <FormControl>
+                        <AdminInput {...field} inputMode="decimal" placeholder="padrão" />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name="lucroPorHoraAlvo"
+                render={({ field, fieldState }) => (
+                  <FormItem className="min-w-0 flex-1 gap-0">
+                    <Field
+                      label="Lucro/hora alvo (R$)"
+                      optional
+                      error={fieldState.error?.message}
+                      hint="O que o preço sugerido persegue AQUI, em cima do seu salário. Vazio usa o padrão."
+                    >
+                      <FormControl>
+                        <AdminInput {...field} inputMode="decimal" placeholder="padrão" />
                       </FormControl>
                     </Field>
                   </FormItem>

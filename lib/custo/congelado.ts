@@ -33,6 +33,31 @@ export function custoMaoDeObra(
   return new Decimal(minutosPreparo).times(multiplicador).dividedBy(60).times(valorHora)
 }
 
+/**
+ * Preço que o produto PRECISARIA ter pra que cada minuto de trabalho gere o
+ * lucro/hora alvo, em cima do custo (que já inclui o salário dela).
+ *
+ *   sugerido = custo/un + (minutos/un ÷ 60) × lucro_por_hora_alvo
+ *
+ * Ancorado em TEMPO e não na meta mensal de propósito: um preço que sobe
+ * porque o mês está atrasado é instável, assume volume constante (que cai
+ * quando o preço sobe) e queima a confiança de uma clientela de bairro. Este
+ * número só se mexe quando o ingrediente, o tempo ou a taxa mudam.
+ *
+ * Efeito desejado: produto lento fica mais caro que produto que sai em série,
+ * que é a distinção que a margem percentual nunca captura.
+ */
+export function precoSugerido(
+  custoPorUnidade: Decimal,
+  minutosPorUnidade: Decimal,
+  lucroPorHoraAlvo: Decimal,
+): Decimal {
+  if (lucroPorHoraAlvo.lessThanOrEqualTo(0) || minutosPorUnidade.lessThanOrEqualTo(0)) {
+    return custoPorUnidade
+  }
+  return custoPorUnidade.plus(minutosPorUnidade.dividedBy(60).times(lucroPorHoraAlvo))
+}
+
 export function computeLoteSnapshot(args: {
   linhas: Array<{
     compra: { id: string; marca: string; custoPorUnidadeBase: Decimal }

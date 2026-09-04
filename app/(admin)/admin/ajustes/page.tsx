@@ -10,6 +10,7 @@ export default async function AjustesPage() {
   const devolucaoAtual = config ? config.pontosDevolucaoPercent.toFixed(2) : '15.00'
   const valorHoraAtual = config ? config.valorHoraMaoDeObra.toFixed(2) : '0.00'
   const metaAtual = config ? config.metaLucroMensal.toFixed(2) : '0.00'
+  const lucroHoraAtual = config ? config.lucroPorHoraAlvo.toFixed(2) : '0.00'
   const pontosExpiracaoAtual = String(config?.pontosExpiracaoMeses ?? 12)
   const janelaCancelamentoAtual = String(config?.janelaCancelamentoHoras ?? 24)
   const taxaEntregaAtual = config ? config.taxaEntregaPadrao.toFixed(2) : '0.00'
@@ -32,6 +33,7 @@ export default async function AjustesPage() {
         devolucaoAtual={devolucaoAtual}
         valorHoraAtual={valorHoraAtual}
         metaAtual={metaAtual}
+        lucroHoraAtual={lucroHoraAtual}
         pontosExpiracaoAtual={pontosExpiracaoAtual}
         janelaCancelamentoAtual={janelaCancelamentoAtual}
         taxaEntregaAtual={taxaEntregaAtual}
