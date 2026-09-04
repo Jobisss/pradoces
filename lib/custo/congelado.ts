@@ -11,12 +11,36 @@ import Decimal from 'decimal.js'
  * recebe.
  */
 
+/**
+ * Custo do trabalho de uma fornada.
+ *
+ * Modelado como TEMPO × valor/hora, não como valor fixo por receita: assim
+ * aumentar o próprio salário é mexer em UM número global (Configuracao), e
+ * não reabrir receita por receita. Escala pelo multiplicador junto com os
+ * ingredientes — fazer 2× a receita leva ~2× o tempo.
+ *
+ * Receita sem `minutosPreparo` (nunca medido) custa ZERO de mão de obra,
+ * mesmo tratamento do `custoGas` ausente. É o que mantém a conta funcionando
+ * antes de ela medir o tempo de cada receita.
+ */
+export function custoMaoDeObra(
+  minutosPreparo: number | null | undefined,
+  multiplicador: Decimal,
+  valorHora: Decimal,
+): Decimal {
+  if (!minutosPreparo || minutosPreparo <= 0) return new Decimal(0)
+  if (valorHora.lessThanOrEqualTo(0)) return new Decimal(0)
+  return new Decimal(minutosPreparo).times(multiplicador).dividedBy(60).times(valorHora)
+}
+
 export function computeLoteSnapshot(args: {
   linhas: Array<{
     compra: { id: string; marca: string; custoPorUnidadeBase: Decimal }
     qtdeUsada: Decimal
   }>
   custoGas: Decimal
+  /** Já escalado pelo multiplicador — ver custoMaoDeObra. */
+  custoMaoDeObra?: Decimal
   rendimentoReal: number
 }): {
   usos: Array<{
@@ -29,6 +53,7 @@ export function computeLoteSnapshot(args: {
   custoTotalCongelado: string
   custoPorUnidadeCongelado: string
   custoGasCongelado: string
+  custoMaoDeObraCongelado: string
 } {
   const usos = args.linhas.map((linha) => {
     const custoCongelado = linha.qtdeUsada.times(linha.compra.custoPorUnidadeBase)
@@ -45,7 +70,10 @@ export function computeLoteSnapshot(args: {
     (acc, linha) => acc.plus(linha.qtdeUsada.times(linha.compra.custoPorUnidadeBase)),
     new Decimal(0),
   )
-  const custoTotalCongelado = somaUsos.plus(args.custoGas)
+  const maoDeObra = args.custoMaoDeObra ?? new Decimal(0)
+  // Mão de obra entra no custo total igual gás e ingrediente. É isso que faz
+  // o "lucro" parar de esconder o pagamento do trabalho dela.
+  const custoTotalCongelado = somaUsos.plus(args.custoGas).plus(maoDeObra)
   const custoPorUnidadeCongelado = custoTotalCongelado.dividedBy(args.rendimentoReal)
 
   return {
@@ -53,5 +81,6 @@ export function computeLoteSnapshot(args: {
     custoTotalCongelado: custoTotalCongelado.toFixed(4),
     custoPorUnidadeCongelado: custoPorUnidadeCongelado.toFixed(6),
     custoGasCongelado: args.custoGas.toFixed(4),
+    custoMaoDeObraCongelado: maoDeObra.toFixed(4),
   }
 }

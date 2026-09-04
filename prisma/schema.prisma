@@ -219,6 +219,10 @@ model Receita {
   nome             String
   rendimentoPadrao Int      @map("rendimento_padrao")
   custoGas         Decimal? @map("custo_gas") @db.Decimal(19, 4)
+  // Tempo pra fazer UM lote padrão. Vira custo de mão de obra na produção
+  // (minutos × multiplicador × valorHora/60), congelado no lote. NULL = não
+  // medido ainda; entra como zero, mesmo tratamento do custoGas.
+  minutosPreparo   Int?     @map("minutos_preparo")
   validadeDias     Int?     @map("validade_dias")
   criadoEm         DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
   atualizadoEm     DateTime @updatedAt @map("atualizado_em") @db.Timestamptz(6)
@@ -399,6 +403,9 @@ model Lote {
   qtdeDisponivel           Int      @map("qtde_disponivel")
   qtdeReservada            Int      @default(0) @map("qtde_reservada")
   custoGasCongelado        Decimal  @map("custo_gas_congelado") @db.Decimal(19, 4)
+  // Mesmo padrão do gás: se ela aumentar o próprio salário amanhã, o lote de
+  // hoje continua valendo o que valeu hoje.
+  custoMaoDeObraCongelado  Decimal  @default(0) @map("custo_mao_de_obra_congelado") @db.Decimal(19, 4)
   custoTotalCongelado      Decimal  @map("custo_total_congelado") @db.Decimal(19, 4)
   custoPorUnidadeCongelado Decimal  @map("custo_por_unidade_congelado") @db.Decimal(19, 6)
   criadoEm                 DateTime @default(now()) @map("criado_em") @db.Timestamptz(6)
@@ -674,6 +681,14 @@ model Configuracao {
   // de resgate: pontos = custo_corrente ÷ (percent/100) × pontosPorReal.
   // 15% ≈ "a cada R$ 6,70 de lucro, devolvo R$ 1 em custo de doce".
   pontosDevolucaoPercent  Decimal @default(15) @map("pontos_devolucao_percent") @db.Decimal(5, 2)
+  // Quanto a confeiteira se paga por hora. Entra como custo do lote, então
+  // derruba a margem de todo produto — de propósito: até aqui o "lucro"
+  // incluía calado o pagamento do trabalho dela. Default 0 pra conta não
+  // mudar sozinha no deploy.
+  valorHoraMaoDeObra      Decimal @default(0) @map("valor_hora_mao_de_obra") @db.Decimal(19, 4)
+  // Meta de lucro do mês JÁ DESCONTADA a mão de obra: o que sobra depois de
+  // ela se pagar. 0 = sem meta (a home esconde o bloco).
+  metaLucroMensal         Decimal @default(0) @map("meta_lucro_mensal") @db.Decimal(19, 4)
   // PT-04 removido a pedido da usuária (sem teto de pontos por reserva) —
   // coluna morta, mantida só pra não rodar DROP COLUMN numa tabela de config
   // já viva em produção (PRODUCTION MODE, ver CLAUDE.md). Nenhum código lê

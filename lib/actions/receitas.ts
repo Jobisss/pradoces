@@ -83,6 +83,7 @@ export async function criarReceita(input: unknown): Promise<ReceitaActionState> 
         nome: parsed.data.nome,
         rendimentoPadrao: parsed.data.rendimentoPadrao,
         custoGas: parsed.data.custoGas ? parsed.data.custoGas.toFixed(4) : null,
+      minutosPreparo: parsed.data.minutosPreparo ?? null,
         validadeDias: parsed.data.validadeDias ?? null,
         itens: {
           create: parsed.data.itens.map((item) => ({
@@ -130,6 +131,7 @@ export async function editarReceita(id: string, input: unknown): Promise<Receita
           nome: parsed.data.nome,
           rendimentoPadrao: parsed.data.rendimentoPadrao,
           custoGas: parsed.data.custoGas ? parsed.data.custoGas.toFixed(4) : null,
+      minutosPreparo: parsed.data.minutosPreparo ?? null,
           validadeDias: parsed.data.validadeDias ?? null,
         },
       }),

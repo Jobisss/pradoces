@@ -40,6 +40,8 @@ export async function salvarMargemGlobal(
     pontosPorReal: String(formData.get('pontosPorReal') ?? ''),
     pontosDevolucaoPercent: String(formData.get('pontosDevolucaoPercent') ?? ''),
     pontosExpiracaoMeses: String(formData.get('pontosExpiracaoMeses') ?? ''),
+    valorHoraMaoDeObra: String(formData.get('valorHoraMaoDeObra') ?? ''),
+    metaLucroMensal: String(formData.get('metaLucroMensal') ?? ''),
     janelaCancelamentoHoras: String(formData.get('janelaCancelamentoHoras') ?? ''),
     taxaEntregaPadrao: String(formData.get('taxaEntregaPadrao') ?? ''),
     // Checkbox desmarcado não manda a chave no FormData (mesmo padrão do
@@ -60,6 +62,8 @@ export async function salvarMargemGlobal(
     pontosPorReal: parsed.data.pontosPorReal.toFixed(2),
     pontosDevolucaoPercent: parsed.data.pontosDevolucaoPercent.toFixed(2),
     pontosExpiracaoMeses: parsed.data.pontosExpiracaoMeses,
+    valorHoraMaoDeObra: parsed.data.valorHoraMaoDeObra.toFixed(4),
+    metaLucroMensal: parsed.data.metaLucroMensal.toFixed(4),
     janelaCancelamentoHoras: parsed.data.janelaCancelamentoHoras,
     taxaEntregaPadrao: parsed.data.taxaEntregaPadrao.toFixed(2),
     entregaAtiva: parsed.data.entregaAtiva,

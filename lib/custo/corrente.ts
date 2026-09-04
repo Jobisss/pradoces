@@ -1,6 +1,7 @@
 import 'server-only'
 import Decimal from 'decimal.js'
 import { prisma } from '@/lib/db/client'
+import { custoMaoDeObra } from '@/lib/custo/congelado'
 
 /**
  * TODA aritmética de custo do projeto mora aqui. Nada fora de lib/custo
@@ -54,6 +55,7 @@ export async function ultimasCompras(ingredienteIds: string[]): Promise<Map<stri
 type ReceitaComItens = {
   rendimentoPadrao: number
   custoGas: Decimal | null
+  minutosPreparo?: number | null
   itens: { ingredienteId: string; qtde: Decimal; ingrediente?: { nome: string; unidadeBase?: string } }[]
 }
 
@@ -99,6 +101,19 @@ export function pesoTotalGramasReceita(itens: ReceitaComItens['itens']): {
 }
 
 /**
+ * Quanto a confeiteira se paga por hora (Configuracao). Zero enquanto ela não
+ * configurar — nesse caso a mão de obra não entra em conta nenhuma e tudo
+ * funciona como antes.
+ */
+export async function valorHoraMaoDeObra(): Promise<Decimal> {
+  const config = await prisma.configuracao.findUnique({
+    where: { id: 1 },
+    select: { valorHoraMaoDeObra: true },
+  })
+  return new Decimal(config?.valorHoraMaoDeObra?.toString() ?? 0)
+}
+
+/**
  * Custo corrente de uma receita (REC-05) = Σ(qtde × custo da última compra de
  * cada ingrediente) + gás, com rendimento PADRÃO (D-09 — o rendimento REAL só
  * entra no custo congelado, ver lib/custo/congelado.ts).
@@ -111,9 +126,14 @@ export async function custoCorrenteReceita(
     include: { itens: { include: { ingrediente: true } } },
   })
 
-  const ultimas = await ultimasCompras(receita.itens.map((item) => item.ingredienteId))
+  const [ultimas, valorHora] = await Promise.all([
+    ultimasCompras(receita.itens.map((item) => item.ingredienteId)),
+    valorHoraMaoDeObra(),
+  ])
   const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
-  const total = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+  const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+  // Multiplicador 1: aqui é a receita PADRÃO, não uma fornada específica.
+  const total = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
   const porUnidade = total.dividedBy(receita.rendimentoPadrao)
 
   return { total, porUnidade, faltamCompras }
@@ -140,9 +160,14 @@ export async function custoCorrenteRecheio(
     include: { itens: { include: { ingrediente: true } } },
   })
 
-  const ultimas = await ultimasCompras(receita.itens.map((item) => item.ingredienteId))
+  const [ultimas, valorHora] = await Promise.all([
+    ultimasCompras(receita.itens.map((item) => item.ingredienteId)),
+    valorHoraMaoDeObra(),
+  ])
   const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
-  const totalReceita = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+  const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+  // O recheio também é feito por ela — o tempo dele conta igual.
+  const totalReceita = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
   const { pesoTotalG, itensForaDeGramas } = pesoTotalGramasReceita(receita.itens)
 
   const custoParaProduto = pesoTotalG.isZero()
@@ -165,12 +190,16 @@ export async function custosCorrentesReceitas(
   for (const receita of receitas) {
     for (const item of receita.itens) ingredienteIds.add(item.ingredienteId)
   }
-  const ultimas = await ultimasCompras([...ingredienteIds])
+  const [ultimas, valorHora] = await Promise.all([
+    ultimasCompras([...ingredienteIds]),
+    valorHoraMaoDeObra(),
+  ])
 
   const resultado = new Map<string, { total: Decimal; porUnidade: Decimal; faltamCompras: string[] }>()
   for (const receita of receitas) {
     const { total: somaItens, faltamCompras } = somaCustoItens(receita.itens, ultimas)
-    const total = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    const comGas = receita.custoGas ? somaItens.plus(new Decimal(receita.custoGas)) : somaItens
+    const total = comGas.plus(custoMaoDeObra(receita.minutosPreparo, new Decimal(1), valorHora))
     resultado.set(receita.id, {
       total,
       porUnidade: total.dividedBy(receita.rendimentoPadrao),

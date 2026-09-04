@@ -8,6 +8,13 @@ export const ReceitaSchema = z
     nome: z.string().trim().min(1, OBRIGATORIO),
     rendimentoPadrao: z.coerce.number().int().min(1, 'Precisa render pelo menos 1 unidade.'),
     custoGas: zDecimalBRL.optional().or(z.literal('').transform(() => undefined)),
+    // Tempo pra fazer UM lote padrão — vira custo de mão de obra na produção.
+    minutosPreparo: z.coerce
+      .number()
+      .int()
+      .min(1, 'Se for preencher, coloca pelo menos 1 minuto.')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     validadeDias: z.coerce
       .number()
       .int()

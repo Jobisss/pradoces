@@ -174,6 +174,106 @@ export async function listarPendencias(): Promise<Pendencia[]> {
   return pendencias.sort((a, b) => ORDEM[a.severidade] - ORDEM[b.severidade])
 }
 
+export type MetaDoMes = {
+  /** 0 = sem meta configurada; a home esconde o bloco. */
+  meta: Decimal
+  faturamento: Decimal
+  /** Quanto do trabalho dela já foi pago pelas vendas do mês. */
+  maoDeObraPaga: Decimal
+  /** Já é líquido da mão de obra — ela entra no custo congelado do lote. */
+  lucro: Decimal
+  /** % da meta batida (pode passar de 100). null quando não há meta. */
+  progresso: Decimal | null
+  diasRestantes: number
+  /** Quanto de lucro por dia falta pra fechar o mês na meta. */
+  ritmoNecessario: Decimal
+}
+
+/**
+ * ADM/FIN — meta de lucro do mês, já descontada a mão de obra.
+ *
+ * "Lucro" aqui é o que sobra DEPOIS de ela se pagar: a mão de obra entra no
+ * custo congelado do lote (lib/custo/congelado.ts), então
+ * `preço − custoPorUnidadeCongelado` já vem líquido. `maoDeObraPaga` é
+ * extraída à parte só pra ela conseguir ver os dois números separados —
+ * quanto do trabalho dela as vendas já cobriram, e quanto sobrou além disso.
+ */
+export async function metaDoMes(): Promise<MetaDoMes> {
+  const hojeStr = hojeSaoPaulo()
+  const inicioMes = new Date(`${hojeStr.slice(0, 7)}-01T00:00:00Z`)
+  const amanha = new Date(`${hojeStr}T00:00:00Z`)
+  amanha.setUTCDate(amanha.getUTCDate() + 1)
+
+  const [reservas, baixas, config] = await Promise.all([
+    prisma.reserva.findMany({
+      where: { confirmadaEm: { gte: inicioMes, lt: amanha } },
+      select: {
+        tipo: true,
+        itens: {
+          select: {
+            qtde: true,
+            precoUnitarioCongelado: true,
+            lote: {
+              select: {
+                custoPorUnidadeCongelado: true,
+                custoMaoDeObraCongelado: true,
+                rendimentoReal: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.loteBaixa.findMany({
+      where: { criadoEm: { gte: inicioMes, lt: amanha } },
+      select: { qtde: true, lote: { select: { custoPorUnidadeCongelado: true } } },
+    }),
+    prisma.configuracao.findUnique({ where: { id: 1 }, select: { metaLucroMensal: true } }),
+  ])
+
+  let faturamento = new Decimal(0)
+  let custo = new Decimal(0)
+  let maoDeObraPaga = new Decimal(0)
+
+  for (const r of reservas) {
+    for (const item of r.itens) {
+      custo = custo.plus(item.lote.custoPorUnidadeCongelado.times(item.qtde))
+      if (r.tipo !== 'RESGATE') {
+        faturamento = faturamento.plus(item.precoUnitarioCongelado.times(item.qtde))
+      }
+      // Mão de obra do lote é do LOTE inteiro — a fatia que saiu nessa venda
+      // é proporcional ao que foi vendido dele.
+      if (item.lote.rendimentoReal > 0) {
+        maoDeObraPaga = maoDeObraPaga.plus(
+          item.lote.custoMaoDeObraCongelado.dividedBy(item.lote.rendimentoReal).times(item.qtde),
+        )
+      }
+    }
+  }
+  for (const b of baixas) {
+    custo = custo.plus(b.lote.custoPorUnidadeCongelado.times(b.qtde))
+  }
+
+  const meta = new Decimal(config?.metaLucroMensal?.toString() ?? 0)
+  const lucro = faturamento.minus(custo)
+
+  // Dias restantes conta o de hoje: ainda dá pra vender hoje.
+  const hoje = new Date(`${hojeStr}T00:00:00Z`)
+  const ultimoDia = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() + 1, 0))
+  const diasRestantes = ultimoDia.getUTCDate() - hoje.getUTCDate() + 1
+  const falta = Decimal.max(0, meta.minus(lucro))
+
+  return {
+    meta,
+    faturamento,
+    maoDeObraPaga,
+    lucro,
+    progresso: meta.isZero() ? null : lucro.dividedBy(meta).times(100),
+    diasRestantes,
+    ritmoNecessario: diasRestantes > 0 ? falta.dividedBy(diasRestantes) : falta,
+  }
+}
+
 export type ResumoDoDia = {
   faturamento: Decimal
   /** Venda + resgate + baixa: tudo que o estoque consumiu hoje. */

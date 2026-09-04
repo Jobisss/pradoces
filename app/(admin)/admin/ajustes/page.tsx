@@ -8,6 +8,8 @@ export default async function AjustesPage() {
   const margemAtual = config ? config.margemMinimaPadrao.toFixed(2) : '30.00'
   const pontosPorRealAtual = config ? config.pontosPorReal.toFixed(2) : '1.00'
   const devolucaoAtual = config ? config.pontosDevolucaoPercent.toFixed(2) : '15.00'
+  const valorHoraAtual = config ? config.valorHoraMaoDeObra.toFixed(2) : '0.00'
+  const metaAtual = config ? config.metaLucroMensal.toFixed(2) : '0.00'
   const pontosExpiracaoAtual = String(config?.pontosExpiracaoMeses ?? 12)
   const janelaCancelamentoAtual = String(config?.janelaCancelamentoHoras ?? 24)
   const taxaEntregaAtual = config ? config.taxaEntregaPadrao.toFixed(2) : '0.00'
@@ -28,6 +30,8 @@ export default async function AjustesPage() {
         margemAtual={margemAtual}
         pontosPorRealAtual={pontosPorRealAtual}
         devolucaoAtual={devolucaoAtual}
+        valorHoraAtual={valorHoraAtual}
+        metaAtual={metaAtual}
         pontosExpiracaoAtual={pontosExpiracaoAtual}
         janelaCancelamentoAtual={janelaCancelamentoAtual}
         taxaEntregaAtual={taxaEntregaAtual}

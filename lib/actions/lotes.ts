@@ -9,7 +9,7 @@ import { logAudit } from '@/lib/audit/log'
 import { rateLimitAuth } from '@/lib/ratelimit/memory'
 import { clientIp } from '@/lib/net/client-ip'
 import { ultimasCompras, pesoTotalGramasReceita } from '@/lib/custo/corrente'
-import { computeLoteSnapshot } from '@/lib/custo/congelado'
+import { computeLoteSnapshot, custoMaoDeObra } from '@/lib/custo/congelado'
 import { ProduzirLotesSchema, BaixarLoteSchema, VenderLoteSchema } from '@/lib/validation/lotes'
 import { precoEfetivo } from '@/lib/pricing/promocao'
 import { pontosDeVenda, expiracaoDoCredito } from '@/lib/pontos/calculo'
@@ -78,6 +78,11 @@ export async function produzirLotes(input: unknown): Promise<LotesActionState> {
   try {
     resultados = await prisma.$transaction(async (tx) => {
       const receita = await tx.receita.findUniqueOrThrow({ where: { id: data.receitaId }, include: { itens: true } })
+      const configLote = await tx.configuracao.findUnique({
+        where: { id: 1 },
+        select: { valorHoraMaoDeObra: true },
+      })
+      const valorHora = new Decimal(configLote?.valorHoraMaoDeObra?.toString() ?? 0)
 
       const variacoes = await tx.variacao.findMany({
         where: { id: { in: data.variacoes.map((v) => v.variacaoId) } },
@@ -115,6 +120,10 @@ export async function produzirLotes(input: unknown): Promise<LotesActionState> {
 
       const somaRendimento = data.variacoes.reduce((soma, v) => soma + v.rendimentoReal, 0)
       const custoGasBase = receita.custoGas ? new Decimal(receita.custoGas) : new Decimal(0)
+      // Diferente do gás, a mão de obra ESCALA pelo multiplicador: fazer 2× a
+      // receita leva ~2× o tempo, mas não gasta 2× de botijão pela lógica que
+      // já estava aqui. Cada lote leva sua fatia proporcional, igual à base.
+      const maoDeObraFornada = custoMaoDeObra(receita.minutosPreparo, data.multiplicador, valorHora)
 
       const resultados: LoteResult[] = []
       for (const item of data.variacoes) {
@@ -134,6 +143,7 @@ export async function produzirLotes(input: unknown): Promise<LotesActionState> {
         // lote (já é per-variação, não precisa fatiar de novo).
         let linhasRecheio: LinhaCompra[] = []
         let custoGasRecheio = new Decimal(0)
+        let maoDeObraRecheio = new Decimal(0)
         if (variacao.receitaRecheio) {
           if (!variacao.recheioGramasUsadas) throw new Error('RECHEIO_SEM_CONFIG')
           const { pesoTotalG } = pesoTotalGramasReceita(variacao.receitaRecheio.itens)
@@ -162,15 +172,23 @@ export async function produzirLotes(input: unknown): Promise<LotesActionState> {
           })
           if (linhasRecheioDisponiveis.length > 0) throw new Error('DADOS_DESATUALIZADOS')
           custoGasRecheio = variacao.receitaRecheio.custoGas ? new Decimal(variacao.receitaRecheio.custoGas) : new Decimal(0)
+          // Recheio conta INTEIRO nesse lote, mesma convenção do gás acima.
+          maoDeObraRecheio = custoMaoDeObra(
+            variacao.receitaRecheio.minutosPreparo,
+            new Decimal(1),
+            valorHora,
+          )
         } else if (item.linhasRecheio.length > 0) {
           throw new Error('DADOS_DESATUALIZADOS')
         }
 
         const custoGasLote = custoGasBase.times(fracao).plus(custoGasRecheio)
+        const maoDeObraLote = maoDeObraFornada.times(fracao).plus(maoDeObraRecheio)
 
         const snapshot = computeLoteSnapshot({
           linhas: [...linhasBaseFatia, ...linhasRecheio],
           custoGas: custoGasLote,
+          custoMaoDeObra: maoDeObraLote,
           rendimentoReal: item.rendimentoReal,
         })
 
@@ -185,6 +203,7 @@ export async function produzirLotes(input: unknown): Promise<LotesActionState> {
             qtdeDisponivel: item.rendimentoReal,
             qtdeReservada: 0,
             custoGasCongelado: snapshot.custoGasCongelado,
+            custoMaoDeObraCongelado: snapshot.custoMaoDeObraCongelado,
             custoTotalCongelado: snapshot.custoTotalCongelado,
             custoPorUnidadeCongelado: snapshot.custoPorUnidadeCongelado,
             usos: { create: snapshot.usos },

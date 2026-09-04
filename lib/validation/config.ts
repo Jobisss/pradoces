@@ -18,6 +18,9 @@ export const ConfigSchema = z
       'Usa um número entre 1 e 100.',
     ),
     pontosExpiracaoMeses: z.coerce.number().int().min(1, 'Pelo menos 1 mês.'),
+    // Quanto ela se paga por hora, e quanto quer que sobre DEPOIS disso.
+    valorHoraMaoDeObra: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
+    metaLucroMensal: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
     janelaCancelamentoHoras: z.coerce.number().int().min(0, 'Não pode ser negativo.'),
     taxaEntregaPadrao: zDecimalBRL.refine((v) => v.gte(0), 'Não pode ser negativo.'),
     entregaAtiva: z.boolean(),

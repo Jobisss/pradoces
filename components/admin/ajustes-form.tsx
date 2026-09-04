@@ -36,6 +36,7 @@ const CONSEQUENCIAS = [
   'A margem mínima vale pra todo produto sem mínima própria — a home recalcula os avisos na hora.',
   'Pontos por real de lucro só valem pra vendas daqui pra frente. Saldo já creditado não muda — quem juntou pontos na regra antiga (por valor gasto) continua com eles.',
   'A devolução muda o preço em pontos de TODO item de resgate na hora, porque ele é calculado a partir do custo atual do doce.',
+  'Mão de obra entra no custo de cada lote NOVO. Lote já produzido mantém o custo congelado que tinha — o histórico fica com um degrau na data.',
   'Taxa de entrega e Pix ficam congelados em cada reserva no momento em que ela é feita.',
 ]
 
@@ -43,6 +44,8 @@ type AjustesFormProps = {
   margemAtual: string
   pontosPorRealAtual: string
   devolucaoAtual: string
+  valorHoraAtual: string
+  metaAtual: string
   pontosExpiracaoAtual: string
   janelaCancelamentoAtual: string
   taxaEntregaAtual: string
@@ -58,6 +61,8 @@ export function AjustesForm({
   margemAtual,
   pontosPorRealAtual,
   devolucaoAtual,
+  valorHoraAtual,
+  metaAtual,
   pontosExpiracaoAtual,
   janelaCancelamentoAtual,
   taxaEntregaAtual,
@@ -99,6 +104,40 @@ export function AjustesForm({
     <form action={formAction} noValidate>
       <FormLayout rail={rail}>
         {state.error && <FormAlert title="Não deu pra salvar os ajustes" detail={state.error} />}
+
+        <FormSection
+          title="Seu trabalho e sua meta"
+          hint="Até aqui o custo era só ingrediente e gás — o trabalho dela não entrava, então o “lucro” incluía calado o pagamento das horas. Preencher isso derruba a margem de todos os produtos de propósito: é a margem honesta."
+        >
+          <FieldRow>
+            <Field
+              label="Quanto você se paga por hora (R$)"
+              htmlFor="valorHoraMaoDeObra"
+              hint="Vira custo em cada lote, proporcional ao tempo da receita. Deixa 0 pra não usar mão de obra na conta."
+            >
+              <AdminInput
+                id="valorHoraMaoDeObra"
+                name="valorHoraMaoDeObra"
+                inputMode="decimal"
+                defaultValue={valorHoraAtual}
+                required
+              />
+            </Field>
+            <Field
+              label="Meta de lucro do mês (R$)"
+              htmlFor="metaLucroMensal"
+              hint="O que você quer que sobre DEPOIS de se pagar. Aparece na home com o quanto falta. 0 esconde o bloco."
+            >
+              <AdminInput
+                id="metaLucroMensal"
+                name="metaLucroMensal"
+                inputMode="decimal"
+                defaultValue={metaAtual}
+                required
+              />
+            </Field>
+          </FieldRow>
+        </FormSection>
 
         <FormSection title="Preço e margem">
           <Field

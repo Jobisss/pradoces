@@ -38,6 +38,7 @@ function toDecimal(raw: string): Decimal | null {
 type ReceitaFormValues = {
   nome: string
   rendimentoPadrao: string
+  minutosPreparo: string
   custoGas: string
   validadeDias: string
   itens: Array<{ ingredienteId: string; qtde: string }>
@@ -55,6 +56,7 @@ type ReceitaFormProps = {
     nome: string
     rendimentoPadrao: number
     custoGas: string | null
+    minutosPreparo: number | null
     validadeDias: number | null
     itens: Array<{ ingredienteId: string; qtde: string }>
   }
@@ -79,6 +81,7 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
     defaultValues: {
       nome: defaults?.nome ?? '',
       rendimentoPadrao: defaults ? String(defaults.rendimentoPadrao) : '',
+      minutosPreparo: defaults?.minutosPreparo ? String(defaults.minutosPreparo) : '',
       custoGas: defaults?.custoGas ?? '',
       validadeDias: defaults?.validadeDias ? String(defaults.validadeDias) : '',
       itens: defaults?.itens ?? [{ ingredienteId: '', qtde: '' }],
@@ -304,7 +307,35 @@ export function ReceitaForm({ ingredientes, defaults }: ReceitaFormProps) {
             </Button>
           </FormSection>
 
-          <FormSection title="Gás e validade">
+          <FormSection
+            title="Tempo, gás e validade"
+            hint="O tempo vira custo de mão de obra no lote, usando o valor/hora dos Ajustes — é o que faz o lucro parar de esconder o pagamento do seu trabalho."
+          >
+            <FieldRow>
+              <FormField
+                control={control}
+                name="minutosPreparo"
+                render={({ field, fieldState }) => (
+                  <FormItem className="min-w-0 flex-1 gap-0">
+                    <Field
+                      label="Tempo pra fazer um lote"
+                      optional
+                      error={fieldState.error?.message}
+                      hint="Do começo ao fim, incluindo montar e embalar. Fazer 2× a receita conta 2× o tempo."
+                    >
+                      <FormControl>
+                        <InputWithSuffix
+                          {...field}
+                          inputMode="numeric"
+                          placeholder="90"
+                          suffix="min"
+                        />
+                      </FormControl>
+                    </Field>
+                  </FormItem>
+                )}
+              />
+            </FieldRow>
             <FieldRow>
               <FormField
                 control={control}

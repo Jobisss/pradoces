@@ -15,7 +15,7 @@ import {
   PartyPopper,
   type LucideIcon,
 } from 'lucide-react'
-import { listarPendencias, resumoDoDia, type Pendencia, type Severidade } from '@/lib/admin/home'
+import { listarPendencias, resumoDoDia, metaDoMes, type Pendencia, type Severidade } from '@/lib/admin/home'
 import { painelDoDia } from '@/lib/admin/painel-dia'
 import {
   PageHeader,
@@ -138,10 +138,11 @@ function PendenciaItem({ p, ultima }: { p: Pendencia; ultima: boolean }) {
  * esperando", e ela tinha que ler as 6 linhas pra achar a única urgente.
  */
 export default async function AdminHomePage() {
-  const [pendencias, resumo, janelas] = await Promise.all([
+  const [pendencias, resumo, janelas, meta] = await Promise.all([
     listarPendencias(),
     resumoDoDia(),
     painelDoDia(),
+    metaDoMes(),
   ])
 
   const urgentes = pendencias.filter((p) => p.severidade === 'agora').length
@@ -230,6 +231,46 @@ export default async function AdminHomePage() {
           </StatTile>
         </div>
       </section>
+
+      {meta.progresso !== null && (
+        <section className="space-y-3">
+          <EyebrowLabel>Meta do mês</EyebrowLabel>
+          <SurfaceCard>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="space-y-0.5">
+                  <p className="text-3xl font-semibold leading-none tracking-tight tabular-nums">
+                    {currency.format(meta.lucro.toNumber())}
+                    <span className="text-base font-medium text-muted-foreground">
+                      {' '}de {currency.format(meta.meta.toNumber())}
+                    </span>
+                  </p>
+                  <p className="text-[13px] tabular-nums text-muted-foreground">
+                    sobrou depois de você se pagar · {meta.progresso.toFixed(0)}% da meta
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[15px] font-semibold tabular-nums">
+                    {currency.format(meta.maoDeObraPaga.toNumber())}
+                  </p>
+                  <p className="text-[13px] text-muted-foreground">de mão de obra já paga</p>
+                </div>
+              </div>
+
+              <Meter
+                value={meta.progresso.toNumber()}
+                tone={meta.progresso.greaterThanOrEqualTo(100) ? 'ok' : 'default'}
+              />
+
+              <p className="text-[13px] tabular-nums text-muted-foreground">
+                {meta.progresso.greaterThanOrEqualTo(100)
+                  ? `Meta batida com ${meta.diasRestantes} dia${meta.diasRestantes === 1 ? '' : 's'} de sobra.`
+                  : `Faltam ${meta.diasRestantes} dia${meta.diasRestantes === 1 ? '' : 's'} — ${currency.format(meta.ritmoNecessario.toNumber())} de lucro por dia pra fechar.`}
+              </p>
+            </div>
+          </SurfaceCard>
+        </section>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
         <section className="space-y-3">
